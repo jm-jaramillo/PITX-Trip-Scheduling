@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Accounts · PITX Bus Bay Booking</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <h1>Accounts</h1>
+      <p class="subtle">
+        Create login accounts for bus operators and other PITX staff. There is
+        no self-signup.
+      </p>
+
+      <div class="hidden" id="message"></div>
+
+      <form class="card grid grid-2" id="create-form">
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" name="username" required />
+        </div>
+
+        <div class="field">
+          <label for="password">Temporary password</label>
+          <input id="password" name="password" type="text" minlength="8" required />
+        </div>
+
+        <div class="field">
+          <label for="role">Role</label>
+          <select id="role" name="role" required>
+            <option value="operator" selected>Bus operator</option>
+            <option value="staff">PITX staff</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="operator_name">Operator / display name (optional)</label>
+          <input
+            id="operator_name"
+            name="operator_name"
+            placeholder="e.g. Genesis Transport"
+          />
+        </div>
+
+        <div class="span-all">
+          <button type="submit" class="btn-primary" id="submit">
+            Create account
+          </button>
+        </div>
+      </form>
+
+      <h2>Existing accounts</h2>
+      <div id="list"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        showMessage,
+        escapeHtml,
+      } from "./assets/app.js";
+      import { SUPABASE_URL } from "./assets/config.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      document
+        .getElementById("create-form")
+        .addEventListener("submit", createAccount);
+      await load();
+
+      async function load() {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, username, role, operator_name, created_at")
+          .order("created_at", { ascending: false });
+
+        const profiles = data ?? [];
+
+        document.getElementById("list").innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Username</th><th>Role</th><th>Operator name</th><th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${profiles
+                  .map(
+                    (p) => `
+                  <tr>
+                    <td>${escapeHtml(p.username)}</td>
+                    <td style="text-transform: capitalize">${escapeHtml(p.role)}</td>
+                    <td>${escapeHtml(p.operator_name ?? "—")}</td>
+                    <td>${escapeHtml(
+                      new Date(p.created_at).toLocaleDateString()
+                    )}</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      async function createAccount(event) {
+        event.preventDefault();
+        showMessage("message", "");
+
+        const submitBtn = document.getElementById("submit");
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Creating…";
+
+        // Account creation needs the service_role key, which can never live
+        // in this public page - so it runs in the `create-account` Edge
+        // Function, which re-verifies that we're staff before doing anything.
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+
+        let result;
+        try {
+          const response = await fetch(
+            `${SUPABASE_URL}/functions/v1/create-account`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                username: document.getElementById("username").value,
+                password: document.getElementById("password").value,
+                role: document.getElementById("role").value,
+                operator_name: document.getElementById("operator_name").value,
+              }),
+            }
+          );
+          result = await response.json();
+        } catch {
+          result = {
+            error:
+              "Could not reach the account-creation service. Is the " +
+              "`create-account` Edge Function deployed?",
+          };
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Create account";
+
+        if (result?.error) {
+          showMessage("message", result.error);
+          return;
+        }
+
+        showMessage("message", `Account "${result.username}" created.`, "ok");
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
+        document.getElementById("operator_name").value = "";
+        await load();
+      }
+    </script>
+  </body>
+</html>

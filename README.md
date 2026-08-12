@@ -11,105 +11,156 @@ and approve/reject each request, assigning a specific bay on approval.
   view a day-by-day hourly schedule, manage the bay list, and create login
   accounts (there is no self-signup).
 
-Built with Next.js 16 (App Router) and Supabase (Postgres + Auth).
+## Two versions live in this repo
 
-## 1. Create a Supabase project
+| | Static site (`docs/`) | Next.js app (`src/`) |
+|---|---|---|
+| **Deployed at** | GitHub Pages | needs a Node host |
+| **Runs on** | any static host | a real server |
+| **Talks to Supabase** | directly from the browser | server-side |
+| **Status** | **this is what's published** | kept as reference |
+
+The **static site in [`docs/`](docs/) is the deployed version.** It is plain
+HTML/CSS/JS that calls Supabase directly from the browser, so GitHub Pages
+can host it with no server involved. The Next.js app in `src/` was the
+original build and is retained for reference; it is not what visitors see.
+
+Security model for the static site: the Supabase **anon key is public by
+design** (it's in [`docs/assets/config.js`](docs/assets/config.js)) and only
+grants what **Row Level Security** allows - see
+[`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql). RLS
+is the real access-control boundary; the client-side role checks only decide
+which UI to render. The one privileged operation (creating accounts, which
+needs the secret service_role key) runs in a Supabase **Edge Function**, so
+that key never reaches the browser.
+
+---
+
+## Setup
+
+### 1. Create a Supabase project
 
 1. Go to [supabase.com](https://supabase.com) and create a free project.
-2. In the project dashboard, go to **Project Settings -> API**. You'll need:
+2. In the dashboard, open **Project Settings -> API** and note:
    - **Project URL**
-   - **anon public** key
-   - **service_role** key (secret - keep this out of the browser)
+   - **anon / publishable** key (public - safe to commit)
+   - **service_role / secret** key (**never** commit or expose to a browser)
 
-## 2. Configure environment variables
+### 2. Set up the database
 
-Copy the example file and fill in the three values from step 1:
-
-```bash
-cp .env.local.example .env.local
-```
-
-## 3. Set up the database
-
-Open your Supabase project's **SQL Editor** and run, in order:
+Open the project's **SQL Editor** and run, in order:
 
 1. [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) -
-   creates the `profiles`, `bays`, and `bookings` tables plus Row Level
-   Security policies.
+   creates the `profiles`, `bays`, and `bookings` tables plus RLS policies.
 2. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
-   20 bays named "Bay 1".."Bay 20". You can skip this and add bays later
-   from the app's **Bays** page instead.
+   20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
+   **Bays** page instead if you prefer.
 
-Alternatively, if you have your project's Postgres connection string (from
-**Project Settings -> Database -> Connection string**; use the **pooler**
-string, not "Direct connection", unless your network has IPv6 egress), you
-can apply both files in one go without touching the SQL Editor:
+Or, with the Postgres connection string from **Project Settings -> Database
+-> Connection string** (use the **pooler** string unless your network has
+IPv6 egress), apply both in one command:
 
 ```bash
 DATABASE_URL="postgresql://postgres.<ref>:<password>@<pooler-host>:6543/postgres" \
   node scripts/run-migration.mjs --seed
 ```
 
-## 4. Install dependencies
+### 3. Point the static site at your project
 
-```bash
-npm install
-```
+Edit [`docs/assets/config.js`](docs/assets/config.js) with your Project URL
+and anon key.
 
-## 5. Create the first staff account
+### 4. Create the first staff account
 
-Regular accounts are created from the app's **Accounts** page, but that
-page itself requires a staff login - so bootstrap the first one from the
-command line:
-
-```bash
-npm run create-staff -- <username> <password> "Optional display name"
-```
-
-Example:
+The **Accounts** page needs a staff login to reach it, so bootstrap the
+first one from the command line. This needs `.env.local` (copy
+`.env.local.example` and fill it in - it is gitignored) plus `npm install`:
 
 ```bash
 npm run create-staff -- pitx.admin ChangeMe123 "PITX Terminal Ops"
 ```
 
-## 6. Run it
+### 5. Deploy the account-creation Edge Function
+
+Staff create accounts from the **Accounts** page, which calls the
+[`create-account`](supabase/functions/create-account/index.ts) Edge
+Function. Until it's deployed, that page shows "Could not reach the
+account-creation service" and every other feature still works.
 
 ```bash
-npm run dev
+npm install -g supabase          # or: npx supabase
+supabase login                   # opens your browser
+supabase link --project-ref <your-project-ref>
+supabase functions deploy create-account
 ```
 
-Open [http://localhost:3000](http://localhost:3000), sign in with the
-staff account you just created, and use **Accounts** to create operator
-(and additional staff) logins.
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are
+injected into deployed functions automatically - no secrets to set by hand.
+
+### 6. Publish to GitHub Pages
+
+In the repo: **Settings -> Pages -> Build and deployment**, set
+**Source** = `Deploy from a branch`, **Branch** = `main`, **Folder** =
+`/docs`, then Save. The site appears at
+`https://<user>.github.io/<repo>/` within a minute or two.
+
+---
+
+## Running locally
+
+Static site (what GitHub Pages serves):
+
+```bash
+node scripts/serve-docs.mjs 3100
+```
+
+Then open <http://localhost:3100>. (Opening the HTML files directly via
+`file://` will **not** work - ES module imports need a real HTTP origin.)
+
+Next.js reference app, if you want it:
+
+```bash
+npm install && npm run dev     # http://localhost:3000
+```
+
+> On Windows PowerShell, if `npm` is blocked by an execution-policy error,
+> use `npm.cmd run ...` or run the command from Command Prompt instead.
+
+---
 
 ## How capacity works
 
 Operators don't pick a specific bay - just a date and hour. When staff
 approve a request they assign one of the bays not already taken for that
-hour, so the number of active bays is the natural cap on how many requests
-can be approved per hour. The **Bays** page shows/controls the active bay
-count; the **Schedule** page shows approved-count-vs-capacity per hour for
-any given day.
+hour, so the number of **active bays is the cap** on approvals per hour. A
+unique index enforces this in the database, so two staff approving at once
+can't double-book a bay. The **Bays** page controls the active count; the
+**Schedule** page shows approved-vs-capacity per hour for any day.
 
 ## Project structure
 
 ```
-src/
-  proxy.ts               Auth session refresh + role-based route protection
-  lib/
-    supabase/             Browser / Server Component / service-role clients
-    auth.ts               getCurrentProfile() / requireRole() guards
-    types.ts              Shared domain types + hour-slot helpers
-    username.ts           username <-> synthetic-email mapping for login
-  app/
-    login/                Sign-in page
-    dashboard/            Operator: request form + own requests
-    staff/                Staff: pending queue (approve/reject)
-    staff/schedule/        Staff: hourly capacity grid for a chosen date
-    staff/bays/            Staff: manage the bay list
-    staff/accounts/        Staff: create operator/staff logins
+docs/                        THE DEPLOYED STATIC SITE (GitHub Pages)
+  index.html                 Sign in
+  dashboard.html             Operator: request form + own requests
+  staff.html                 Staff: pending queue (approve / reject)
+  schedule.html              Staff: hourly capacity grid for a date
+  bays.html                  Staff: manage the bay list
+  accounts.html              Staff: create logins (via Edge Function)
+  assets/
+    config.js                Supabase URL + public anon key
+    app.js                   Shared client, auth guard, nav, helpers
+    styles.css               Styles (light-theme only, explicit colors)
+
 supabase/
-  migrations/0001_init.sql Schema + RLS
-  seed.sql                 Optional starter bays
-scripts/create-staff.mjs   One-time bootstrap for the first staff account
+  migrations/0001_init.sql   Schema + Row Level Security policies
+  seed.sql                   Optional starter bays
+  functions/create-account/  Edge Function for privileged account creation
+
+scripts/
+  create-staff.mjs           Bootstrap the first staff account
+  run-migration.mjs          Apply migrations over a Postgres connection
+  serve-docs.mjs             Serve docs/ locally, like GitHub Pages does
+
+src/                         Next.js reference implementation (not deployed)
 ```

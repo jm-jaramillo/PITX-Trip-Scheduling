@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bays · PITX Bus Bay Booking</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap wrap-narrow">
+      <h1>Bays</h1>
+      <p class="subtle" id="count-note"></p>
+
+      <div class="hidden" id="message"></div>
+
+      <div class="card">
+        <form id="add-form" style="display: flex; gap: 12px; align-items: flex-end">
+          <div class="field" style="flex: 1">
+            <label for="name">New bay name</label>
+            <input id="name" name="name" placeholder="e.g. Bay 21" required />
+          </div>
+          <button type="submit" class="btn-primary">Add bay</button>
+        </form>
+      </div>
+
+      <div id="list"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        compareBayNames,
+        showMessage,
+        escapeHtml,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      document.getElementById("add-form").addEventListener("submit", addBay);
+      await load();
+
+      async function load() {
+        const { data } = await supabase
+          .from("bays")
+          .select("id, name, is_active");
+
+        const bays = (data ?? []).sort((a, b) =>
+          compareBayNames(a.name, b.name)
+        );
+        const activeCount = bays.filter((b) => b.is_active).length;
+
+        document.getElementById("count-note").textContent =
+          `${activeCount} active bay${activeCount === 1 ? "" : "s"} — this is ` +
+          `the maximum number of approved bookings allowed per hour.`;
+
+        document.getElementById("list").innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Bay</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody>
+                ${bays
+                  .map(
+                    (bay) => `
+                  <tr>
+                    <td>${escapeHtml(bay.name)}</td>
+                    <td><span class="badge badge-${
+                      bay.is_active ? "active" : "inactive"
+                    }">${bay.is_active ? "Active" : "Inactive"}</span></td>
+                    <td style="text-align: right">
+                      <button type="button" class="btn-link"
+                        data-toggle="${bay.id}"
+                        data-next="${(!bay.is_active).toString()}">${
+                      bay.is_active ? "Deactivate" : "Activate"
+                    }</button>
+                    </td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        document.querySelectorAll("[data-toggle]").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            setActive(Number(btn.dataset.toggle), btn.dataset.next === "true")
+          );
+        });
+      }
+
+      async function addBay(event) {
+        event.preventDefault();
+        showMessage("message", "");
+
+        const input = document.getElementById("name");
+        const name = input.value.trim();
+        if (!name) return showMessage("message", "Bay name is required.");
+
+        const { error } = await supabase.from("bays").insert({ name });
+        if (error) return showMessage("message", error.message);
+
+        input.value = "";
+        await load();
+      }
+
+      async function setActive(bayId, isActive) {
+        showMessage("message", "");
+        const { error } = await supabase
+          .from("bays")
+          .update({ is_active: isActive })
+          .eq("id", bayId);
+        if (error) return showMessage("message", error.message);
+        await load();
+      }
+    </script>
+  </body>
+</html>

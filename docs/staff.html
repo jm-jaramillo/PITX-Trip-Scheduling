@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pending requests · PITX Bus Bay Booking</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <h1>Pending requests</h1>
+      <p class="subtle">
+        Approve a request by assigning it a bay, or reject it with an optional
+        note back to the operator.
+      </p>
+
+      <div class="hidden" id="message"></div>
+      <div id="requests"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        formatHourSlot,
+        compareBayNames,
+        showMessage,
+        escapeHtml,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (profile) {
+        renderNav(profile);
+        await load();
+      }
+
+      async function load() {
+        const [pendingRes, baysRes, approvedRes] = await Promise.all([
+          supabase
+            .from("bookings")
+            .select(
+              "id, operator_name, route, plate_no, booking_date, hour, status"
+            )
+            .eq("status", "pending")
+            .order("booking_date", { ascending: true })
+            .order("hour", { ascending: true }),
+          supabase
+            .from("bays")
+            .select("id, name")
+            .eq("is_active", true),
+          supabase
+            .from("bookings")
+            .select("booking_date, hour, assigned_bay_id")
+            .eq("status", "approved"),
+        ]);
+
+        const requests = pendingRes.data ?? [];
+        const bays = (baysRes.data ?? []).sort((a, b) =>
+          compareBayNames(a.name, b.name)
+        );
+
+        // Which bays are already committed for a given date+hour.
+        const taken = new Map();
+        for (const row of approvedRes.data ?? []) {
+          const key = `${row.booking_date}|${row.hour}`;
+          if (!taken.has(key)) taken.set(key, new Set());
+          if (row.assigned_bay_id) taken.get(key).add(row.assigned_bay_id);
+        }
+
+        const host = document.getElementById("requests");
+
+        if (requests.length === 0) {
+          host.innerHTML = `<p class="empty">No pending requests right now.</p>`;
+          return;
+        }
+
+        host.innerHTML = requests
+          .map((b) => {
+            const takenIds = taken.get(`${b.booking_date}|${b.hour}`) ?? new Set();
+            const available = bays.filter((bay) => !takenIds.has(bay.id));
+            const none = available.length === 0;
+
+            return `
+              <div class="request-card">
+                <div class="request-head">
+                  <div>
+                    <p class="request-who">${escapeHtml(
+                      b.operator_name
+                    )} &middot; ${escapeHtml(b.plate_no)}</p>
+                    <p class="subtle">${escapeHtml(b.route)}</p>
+                  </div>
+                  <p class="request-when">${escapeHtml(
+                    b.booking_date
+                  )} &middot; ${escapeHtml(formatHourSlot(b.hour))}</p>
+                </div>
+                <div class="request-actions">
+                  <form data-approve="${escapeHtml(b.id)}">
+                    <select required ${none ? "disabled" : ""}>
+                      <option value="" disabled selected>${
+                        none ? "No bays available" : "Assign bay…"
+                      }</option>
+                      ${available
+                        .map(
+                          (bay) =>
+                            `<option value="${bay.id}">${escapeHtml(
+                              bay.name
+                            )}</option>`
+                        )
+                        .join("")}
+                    </select>
+                    <button type="submit" class="btn-approve" ${
+                      none ? "disabled" : ""
+                    }>Approve</button>
+                  </form>
+                  <form data-reject="${escapeHtml(b.id)}">
+                    <input placeholder="Reason (optional)" />
+                    <button type="submit" class="btn-danger-outline">Reject</button>
+                  </form>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        host.querySelectorAll("[data-approve]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            approve(form.dataset.approve, form.querySelector("select").value);
+          });
+        });
+
+        host.querySelectorAll("[data-reject]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            reject(form.dataset.reject, form.querySelector("input").value.trim());
+          });
+        });
+      }
+
+      async function approve(bookingId, bayIdRaw) {
+        showMessage("message", "");
+        if (!bayIdRaw) {
+          return showMessage("message", "Please choose a bay before approving.");
+        }
+
+        const { data, error } = await supabase
+          .from("bookings")
+          .update({
+            status: "approved",
+            assigned_bay_id: Number(bayIdRaw),
+            decided_by: profile.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq("id", bookingId)
+          .eq("status", "pending")
+          .select("id");
+
+        if (error) {
+          // 23505 = unique violation on the approved bay/hour index.
+          showMessage(
+            "message",
+            error.code === "23505"
+              ? "That bay was just taken for this hour by another request. Pick a different bay."
+              : error.message
+          );
+          return;
+        }
+        if (!data || data.length === 0) {
+          showMessage("message", "That request was already decided on.");
+        }
+        await load();
+      }
+
+      async function reject(bookingId, reason) {
+        showMessage("message", "");
+        await supabase
+          .from("bookings")
+          .update({
+            status: "rejected",
+            rejection_reason: reason || null,
+            decided_by: profile.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq("id", bookingId)
+          .eq("status", "pending");
+        await load();
+      }
+    </script>
+  </body>
+</html>

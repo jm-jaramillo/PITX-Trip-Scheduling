@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My requests · PITX Bus Bay Booking</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <h1>Request a bus bay slot</h1>
+      <p class="subtle">
+        Pick an hourly slot. PITX staff will review your request and assign a
+        bay once approved.
+      </p>
+
+      <div class="card">
+        <form class="grid grid-2 grid-5" id="booking-form">
+          <div class="field">
+            <label for="operator_name">Operator</label>
+            <input id="operator_name" name="operator_name" required />
+          </div>
+
+          <div class="field">
+            <label for="route">Route</label>
+            <input
+              id="route"
+              name="route"
+              placeholder="e.g. PITX - Batangas"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="plate_no">Plate No.</label>
+            <input
+              id="plate_no"
+              name="plate_no"
+              placeholder="e.g. ABC 1234"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="booking_date">Date</label>
+            <input id="booking_date" name="booking_date" type="date" required />
+          </div>
+
+          <div class="field">
+            <label for="hour">Hour slot</label>
+            <select id="hour" name="hour" required></select>
+          </div>
+
+          <div class="span-all">
+            <p class="inline-error hidden" id="form-error"></p>
+            <p class="inline-ok hidden" id="form-ok"></p>
+            <button type="submit" class="btn-primary" id="submit">
+              Request slot
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <h2>My requests</h2>
+      <div id="requests"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        HOURS,
+        formatHourSlot,
+        todayISO,
+        statusBadge,
+        escapeHtml,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("operator");
+      if (profile) {
+        renderNav(profile);
+        initForm();
+        await loadRequests();
+      }
+
+      function initForm() {
+        document.getElementById("operator_name").value =
+          profile.operator_name || "";
+
+        const dateInput = document.getElementById("booking_date");
+        dateInput.min = todayISO();
+        dateInput.value = todayISO();
+
+        document.getElementById("hour").innerHTML =
+          `<option value="" disabled selected>Select an hour</option>` +
+          HOURS.map(
+            (h) => `<option value="${h}">${escapeHtml(formatHourSlot(h))}</option>`
+          ).join("");
+
+        document
+          .getElementById("booking-form")
+          .addEventListener("submit", submitBooking);
+      }
+
+      async function submitBooking(event) {
+        event.preventDefault();
+        const errorEl = document.getElementById("form-error");
+        const okEl = document.getElementById("form-ok");
+        const submitBtn = document.getElementById("submit");
+        errorEl.className = "inline-error hidden";
+        okEl.className = "inline-ok hidden";
+
+        const operatorName = document.getElementById("operator_name").value.trim();
+        const route = document.getElementById("route").value.trim();
+        const plateNo = document.getElementById("plate_no").value.trim();
+        const bookingDate = document.getElementById("booking_date").value;
+        const hourRaw = document.getElementById("hour").value;
+
+        function fail(message) {
+          errorEl.textContent = message;
+          errorEl.className = "inline-error";
+        }
+
+        if (!operatorName || !route || !plateNo || !bookingDate || hourRaw === "") {
+          return fail("Please fill in every field.");
+        }
+        if (bookingDate < todayISO()) {
+          return fail("Booking date can't be in the past.");
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Submitting…";
+
+        const { error } = await supabase.from("bookings").insert({
+          operator_id: profile.id,
+          operator_name: operatorName,
+          route,
+          plate_no: plateNo,
+          booking_date: bookingDate,
+          hour: Number(hourRaw),
+          status: "pending",
+        });
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Request slot";
+
+        if (error) return fail(error.message);
+
+        okEl.textContent =
+          "Request submitted. PITX staff will review it shortly.";
+        okEl.className = "inline-ok";
+        document.getElementById("route").value = "";
+        document.getElementById("plate_no").value = "";
+        document.getElementById("hour").value = "";
+        await loadRequests();
+      }
+
+      async function loadRequests() {
+        const { data } = await supabase
+          .from("bookings")
+          .select(
+            "id, operator_name, route, plate_no, booking_date, hour, status, rejection_reason, bays ( id, name )"
+          )
+          .eq("operator_id", profile.id)
+          .order("booking_date", { ascending: false })
+          .order("hour", { ascending: false });
+
+        const bookings = data ?? [];
+        const host = document.getElementById("requests");
+
+        if (bookings.length === 0) {
+          host.innerHTML = `<p class="empty">No booking requests yet.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th><th>Hour</th><th>Operator</th><th>Route</th>
+                  <th>Plate No.</th><th>Status</th><th>Assigned bay</th>
+                  <th>Note</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${bookings
+                  .map(
+                    (b) => `
+                  <tr>
+                    <td>${escapeHtml(b.booking_date)}</td>
+                    <td>${escapeHtml(formatHourSlot(b.hour))}</td>
+                    <td>${escapeHtml(b.operator_name)}</td>
+                    <td>${escapeHtml(b.route)}</td>
+                    <td>${escapeHtml(b.plate_no)}</td>
+                    <td>${statusBadge(b.status)}</td>
+                    <td>${escapeHtml(b.bays?.name ?? "—")}</td>
+                    <td>${escapeHtml(b.rejection_reason ?? "—")}</td>
+                    <td>${
+                      b.status === "pending"
+                        ? `<button type="button" class="btn-link danger" data-cancel="${escapeHtml(
+                            b.id
+                          )}">Cancel</button>`
+                        : ""
+                    }</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        host.querySelectorAll("[data-cancel]").forEach((btn) => {
+          btn.addEventListener("click", () => cancelBooking(btn.dataset.cancel));
+        });
+      }
+
+      async function cancelBooking(bookingId) {
+        await supabase
+          .from("bookings")
+          .update({ status: "cancelled" })
+          .eq("id", bookingId)
+          .eq("operator_id", profile.id)
+          .eq("status", "pending");
+        await loadRequests();
+      }
+    </script>
+  </body>
+</html>

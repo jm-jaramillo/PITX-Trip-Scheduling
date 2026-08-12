@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in · PITX Bus Bay Booking</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <main class="login-page">
+      <div class="login-card">
+        <div class="login-head">
+          <h1>PITX Bus Bay Booking</h1>
+          <p class="subtle">Sign in to request or manage bus bay schedules.</p>
+        </div>
+
+        <form class="login-form" id="login-form">
+          <div class="field">
+            <label for="username">Username</label>
+            <input id="username" name="username" autocomplete="username" required />
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+
+          <p class="inline-error hidden" id="login-error"></p>
+
+          <button type="submit" class="btn-primary" id="submit">Sign in</button>
+
+          <p class="fineprint">
+            Don&rsquo;t have an account? PITX staff creates operator and staff
+            accounts &mdash; ask your PITX terminal contact.
+          </p>
+        </form>
+      </div>
+    </main>
+
+    <script type="module">
+      import { supabase, usernameToEmail, getProfile } from "./assets/app.js";
+
+      const form = document.getElementById("login-form");
+      const errorEl = document.getElementById("login-error");
+      const submitBtn = document.getElementById("submit");
+
+      // Already signed in? Go straight to the right home page.
+      getProfile().then((profile) => {
+        if (profile) {
+          location.replace(
+            profile.role === "staff" ? "staff.html" : "dashboard.html"
+          );
+        }
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        errorEl.className = "inline-error hidden";
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Signing in…";
+
+        const { error } = await supabase.auth.signInWithPassword({
+          email: usernameToEmail(document.getElementById("username").value),
+          password: document.getElementById("password").value,
+        });
+
+        if (error) {
+          errorEl.textContent = "Incorrect username or password.";
+          errorEl.className = "inline-error";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Sign in";
+          return;
+        }
+
+        const profile = await getProfile();
+        location.replace(
+          profile?.role === "staff" ? "staff.html" : "dashboard.html"
+        );
+      });
+    </script>
+  </body>
+</html>

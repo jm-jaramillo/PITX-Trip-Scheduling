@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Schedule · PITX Bus Bay Booking</title>
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="toolbar">
+        <h1>Schedule</h1>
+        <div class="toolbar-controls">
+          <button type="button" class="btn-outline" id="prev">&larr; Prev day</button>
+          <input type="date" id="date" />
+          <button type="button" class="btn-outline" id="next">Next day &rarr;</button>
+        </div>
+      </div>
+      <p class="subtle" id="capacity-note"></p>
+
+      <div id="grid"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        HOURS,
+        formatHourSlot,
+        todayISO,
+        addDays,
+        statusBadge,
+        escapeHtml,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      const dateInput = document.getElementById("date");
+      // Allow deep-linking to a specific day: schedule.html?date=YYYY-MM-DD
+      const fromQuery = new URLSearchParams(location.search).get("date");
+      let currentDate = /^\d{4}-\d{2}-\d{2}$/.test(fromQuery ?? "")
+        ? fromQuery
+        : todayISO();
+      dateInput.value = currentDate;
+
+      dateInput.addEventListener("change", () => {
+        if (dateInput.value) {
+          currentDate = dateInput.value;
+          load();
+        }
+      });
+      document.getElementById("prev").addEventListener("click", () => {
+        currentDate = addDays(currentDate, -1);
+        dateInput.value = currentDate;
+        load();
+      });
+      document.getElementById("next").addEventListener("click", () => {
+        currentDate = addDays(currentDate, 1);
+        dateInput.value = currentDate;
+        load();
+      });
+
+      await load();
+
+      async function load() {
+        const [baysRes, bookingsRes] = await Promise.all([
+          supabase.from("bays").select("id").eq("is_active", true),
+          supabase
+            .from("bookings")
+            .select(
+              "id, operator_name, route, plate_no, hour, status, bays ( id, name )"
+            )
+            .eq("booking_date", currentDate)
+            .in("status", ["pending", "approved"])
+            .order("hour", { ascending: true }),
+        ]);
+
+        const totalBays = (baysRes.data ?? []).length;
+        const bookings = bookingsRes.data ?? [];
+
+        document.getElementById("capacity-note").textContent =
+          `${totalBays} active bay${totalBays === 1 ? "" : "s"} total. ` +
+          `Each hour can hold at most that many approved buses.`;
+
+        const byHour = new Map();
+        for (const b of bookings) {
+          if (!byHour.has(b.hour)) byHour.set(b.hour, []);
+          byHour.get(b.hour).push(b);
+        }
+
+        document.getElementById("grid").innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Hour</th><th>Approved / capacity</th><th>Bookings</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${HOURS.map((hour) => {
+                  const rows = byHour.get(hour) ?? [];
+                  const approved = rows.filter(
+                    (b) => b.status === "approved"
+                  ).length;
+                  return `
+                    <tr>
+                      <td><strong>${escapeHtml(formatHourSlot(hour))}</strong></td>
+                      <td>${approved} / ${totalBays}</td>
+                      <td>${
+                        rows.length === 0
+                          ? '<span class="muted">—</span>'
+                          : `<ul class="bookings-list">${rows
+                              .map(
+                                (b) =>
+                                  `<li>${statusBadge(b.status)}<span>${escapeHtml(
+                                    b.operator_name
+                                  )} &middot; ${escapeHtml(
+                                    b.plate_no
+                                  )} &middot; ${escapeHtml(b.route)}</span>${
+                                    b.bays?.name
+                                      ? `<span class="bay-tag">(${escapeHtml(
+                                          b.bays.name
+                                        )})</span>`
+                                      : ""
+                                  }</li>`
+                              )
+                              .join("")}</ul>`
+                      }</td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+    </script>
+  </body>
+</html>

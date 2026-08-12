@@ -1,0 +1,180 @@
+// Shared helpers for the static PITX bus bay booking pages.
+//
+// Each page is a plain HTML document that imports this module, calls
+// `guardPage()` to enforce auth/role, then renders itself by querying
+// Supabase directly from the browser. Row Level Security is the real
+// access-control boundary - these client-side role checks only decide what
+// UI to show, and a tampered client still can't read or write anything RLS
+// forbids.
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.112.3";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/** Supabase Auth needs an email; accounts here log in with a username. */
+const USERNAME_DOMAIN = "pitx.local";
+
+export function usernameToEmail(username) {
+  return `${username.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
+}
+
+/* ------------------------------------------------------------------ time */
+
+export const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+function formatHour12(hour) {
+  const period = hour < 12 ? "AM" : "PM";
+  const display = hour % 12 === 0 ? 12 : hour % 12;
+  return `${display}:00 ${period}`;
+}
+
+export function formatHourSlot(hour) {
+  return `${formatHour12(hour)} – ${formatHour12((hour + 1) % 24)}`;
+}
+
+export function todayISO() {
+  const now = new Date();
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+export function addDays(iso, days) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Sorts bay names numerically ascending (Bay 1, Bay 2, ... Bay 20) rather
+ * than alphabetically (Bay 1, Bay 10, ... Bay 2, Bay 20).
+ */
+export function compareBayNames(a, b) {
+  const numA = Number(a.match(/\d+/)?.[0]);
+  const numB = Number(b.match(/\d+/)?.[0]);
+  if (!Number.isNaN(numA) && !Number.isNaN(numB) && numA !== numB) {
+    return numA - numB;
+  }
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
+/* ------------------------------------------------------------------ auth */
+
+export async function getProfile() {
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData?.user) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, username, role, operator_name, created_at")
+    .eq("id", userData.user.id)
+    .single();
+
+  return profile ?? null;
+}
+
+/**
+ * Enforces that a signed-in user with the required role is viewing this
+ * page. Redirects to login (or to the other role's home) when not, and
+ * resolves with the profile when the page may proceed.
+ */
+export async function guardPage(requiredRole) {
+  const profile = await getProfile();
+
+  if (!profile) {
+    location.replace("index.html");
+    return null;
+  }
+  if (profile.role !== requiredRole) {
+    location.replace(profile.role === "staff" ? "staff.html" : "dashboard.html");
+    return null;
+  }
+  return profile;
+}
+
+export async function signOut() {
+  await supabase.auth.signOut();
+  location.replace("index.html");
+}
+
+/* -------------------------------------------------------------------- nav */
+
+const OPERATOR_LINKS = [{ href: "dashboard.html", label: "My requests" }];
+
+const STAFF_LINKS = [
+  { href: "staff.html", label: "Pending requests" },
+  { href: "schedule.html", label: "Schedule" },
+  { href: "bays.html", label: "Bays" },
+  { href: "accounts.html", label: "Accounts" },
+];
+
+export function renderNav(profile) {
+  const host = document.getElementById("nav");
+  if (!host) return;
+
+  const links = profile.role === "staff" ? STAFF_LINKS : OPERATOR_LINKS;
+  const here = location.pathname.split("/").pop() || "index.html";
+
+  host.innerHTML = `
+    <div class="nav-inner">
+      <div class="nav-left">
+        <span class="brand">PITX Bus Bay Booking</span>
+        <nav class="nav-links">
+          ${links
+            .map(
+              (l) =>
+                `<a href="${l.href}"${
+                  l.href === here ? ' aria-current="page"' : ""
+                }>${escapeHtml(l.label)}</a>`
+            )
+            .join("")}
+        </nav>
+      </div>
+      <div class="nav-right">
+        <span class="whoami">${escapeHtml(
+          profile.operator_name || profile.username
+        )} <span class="role">(${escapeHtml(profile.role)})</span></span>
+        <button type="button" class="btn-outline" id="sign-out">Sign out</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("sign-out").addEventListener("click", signOut);
+}
+
+/* ----------------------------------------------------------------- render */
+
+/** Escapes text before it goes anywhere near innerHTML. */
+export function escapeHtml(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[ch]
+  );
+}
+
+export function statusBadge(status) {
+  return `<span class="badge badge-${escapeHtml(status)}">${escapeHtml(
+    status
+  )}</span>`;
+}
+
+export function showMessage(id, text, kind = "error") {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!text) {
+    el.className = "hidden";
+    el.textContent = "";
+    return;
+  }
+  el.className = `msg msg-${kind === "ok" ? "ok" : "error"}`;
+  el.textContent = text;
+}
