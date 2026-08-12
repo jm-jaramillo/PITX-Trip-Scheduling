@@ -11,21 +11,13 @@ and approve/reject each request, assigning a specific bay on approval.
   view a day-by-day hourly schedule, manage the bay list, and create login
   accounts (there is no self-signup).
 
-## Two versions live in this repo
+## How it's built
 
-| | Static site (`docs/`) | Next.js app (`src/`) |
-|---|---|---|
-| **Deployed at** | GitHub Pages | needs a Node host |
-| **Runs on** | any static host | a real server |
-| **Talks to Supabase** | directly from the browser | server-side |
-| **Status** | **this is what's published** | kept as reference |
+The app is plain HTML/CSS/JS in [`docs/`](docs/) that calls Supabase
+directly from the browser. There is **no build step and no server** - GitHub
+Pages serves the folder as-is.
 
-The **static site in [`docs/`](docs/) is the deployed version.** It is plain
-HTML/CSS/JS that calls Supabase directly from the browser, so GitHub Pages
-can host it with no server involved. The Next.js app in `src/` was the
-original build and is retained for reference; it is not what visitors see.
-
-Security model for the static site: the Supabase **anon key is public by
+Security model: the Supabase **anon key is public by
 design** (it's in [`docs/assets/config.js`](docs/assets/config.js)) and only
 grants what **Row Level Security** allows - see
 [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql). RLS
@@ -108,23 +100,18 @@ In the repo: **Settings -> Pages -> Build and deployment**, set
 
 ## Running locally
 
-Static site (what GitHub Pages serves):
-
 ```bash
-node scripts/serve-docs.mjs 3100
+npm run serve
 ```
 
 Then open <http://localhost:3100>. (Opening the HTML files directly via
 `file://` will **not** work - ES module imports need a real HTTP origin.)
 
-Next.js reference app, if you want it:
-
-```bash
-npm install && npm run dev     # http://localhost:3000
-```
-
 > On Windows PowerShell, if `npm` is blocked by an execution-policy error,
-> use `npm.cmd run ...` or run the command from Command Prompt instead.
+> use `npm.cmd run serve` or run it from Command Prompt instead.
+
+`npm install` is only needed for the `create-staff` / `migrate` helper
+scripts - the site itself has no dependencies to install.
 
 ---
 
@@ -140,7 +127,7 @@ can't double-book a bay. The **Bays** page controls the active count; the
 ## Project structure
 
 ```
-docs/                        THE DEPLOYED STATIC SITE (GitHub Pages)
+docs/                        THE SITE ITSELF (served by GitHub Pages)
   index.html                 Sign in
   dashboard.html             Operator: request form + own requests
   staff.html                 Staff: pending queue (approve / reject)
@@ -161,6 +148,4 @@ scripts/
   create-staff.mjs           Bootstrap the first staff account
   run-migration.mjs          Apply migrations over a Postgres connection
   serve-docs.mjs             Serve docs/ locally, like GitHub Pages does
-
-src/                         Next.js reference implementation (not deployed)
 ```
