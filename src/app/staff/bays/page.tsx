@@ -2,7 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import NavBar from "@/components/NavBar";
 import { addBay, setBayActive } from "@/app/staff/bays/actions";
-import type { Bay } from "@/lib/types";
+import { compareBayNames, type Bay } from "@/lib/types";
 
 export default async function BaysPage(props: {
   searchParams: Promise<{ error?: string }>;
@@ -13,10 +13,11 @@ export default async function BaysPage(props: {
 
   const { data: bays } = await supabase
     .from("bays")
-    .select("id, name, is_active, created_at")
-    .order("name");
+    .select("id, name, is_active, created_at");
 
-  const bayList = (bays as Bay[] | null) ?? [];
+  const bayList = ((bays as Bay[] | null) ?? []).sort((a, b) =>
+    compareBayNames(a.name, b.name)
+  );
   const activeCount = bayList.filter((b) => b.is_active).length;
 
   return (

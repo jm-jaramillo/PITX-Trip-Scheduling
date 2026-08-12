@@ -36,7 +36,7 @@ export default function NewBookingForm({
           name="operator_name"
           required
           defaultValue={defaultOperatorName}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
         />
       </div>
 
@@ -49,7 +49,7 @@ export default function NewBookingForm({
           name="route"
           required
           placeholder="e.g. PITX - Batangas"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
         />
       </div>
 
@@ -62,7 +62,7 @@ export default function NewBookingForm({
           name="plate_no"
           required
           placeholder="e.g. ABC 1234"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
         />
       </div>
 
@@ -77,7 +77,7 @@ export default function NewBookingForm({
           required
           min={todayISO()}
           defaultValue={todayISO()}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
         />
       </div>
 
@@ -90,7 +90,7 @@ export default function NewBookingForm({
           name="hour"
           required
           defaultValue=""
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
         >
           <option value="" disabled>
             Select an hour

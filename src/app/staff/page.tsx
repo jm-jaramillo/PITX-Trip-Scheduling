@@ -98,7 +98,7 @@ export default async function StaffPendingPage(props: {
                         required
                         disabled={availableBays.length === 0}
                         defaultValue=""
-                        className="rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
+                        className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-black outline-none focus:border-slate-500 disabled:bg-slate-100"
                       >
                         <option value="" disabled>
                           {availableBays.length === 0
@@ -125,7 +125,7 @@ export default async function StaffPendingPage(props: {
                       <input
                         name="reason"
                         placeholder="Reason (optional)"
-                        className="rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-500"
+                        className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-black outline-none focus:border-slate-500"
                       />
                       <button
                         type="submit"

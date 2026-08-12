@@ -49,7 +49,7 @@ export default async function AccountsPage(props: {
               id="username"
               name="username"
               required
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
             />
           </div>
 
@@ -63,7 +63,7 @@ export default async function AccountsPage(props: {
               type="text"
               minLength={8}
               required
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
             />
           </div>
 
@@ -76,7 +76,7 @@ export default async function AccountsPage(props: {
               name="role"
               required
               defaultValue="operator"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
             >
               <option value="operator">Bus operator</option>
               <option value="staff">PITX staff</option>
@@ -91,7 +91,7 @@ export default async function AccountsPage(props: {
               id="operator_name"
               name="operator_name"
               placeholder="e.g. Genesis Transport"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-black outline-none focus:border-slate-500"
             />
           </div>
 

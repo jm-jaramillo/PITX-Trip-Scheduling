@@ -17,6 +17,20 @@ export type Bay = {
   created_at: string;
 };
 
+/**
+ * Sorts bay names in ascending numeric order (Bay 1, Bay 2, ... Bay 20)
+ * instead of alphabetical order (Bay 1, Bay 10, Bay 11, ... Bay 2, Bay 20).
+ * Falls back to a plain string compare for names without a number in them.
+ */
+export function compareBayNames(a: string, b: string): number {
+  const numA = Number(a.match(/\d+/)?.[0]);
+  const numB = Number(b.match(/\d+/)?.[0]);
+  if (!Number.isNaN(numA) && !Number.isNaN(numB) && numA !== numB) {
+    return numA - numB;
+  }
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
 export type Booking = {
   id: string;
   operator_id: string;
