@@ -46,12 +46,12 @@
 
           <div class="field">
             <label for="plate_no">Plate No.</label>
-            <input
-              id="plate_no"
-              name="plate_no"
-              placeholder="e.g. ABC 1234"
-              required
-            />
+            <select id="plate_no" name="plate_no" required></select>
+            <p class="fineprint hidden" id="no-vehicles-note">
+              No approved vehicles yet.
+              <a href="vehicles.html">Register one</a> - PITX staff need to
+              approve it before it appears here.
+            </p>
           </div>
 
           <div class="field">
@@ -96,7 +96,7 @@
           </div>
           <div class="field">
             <label for="edit_plate_no">Plate No.</label>
-            <input id="edit_plate_no" required />
+            <select id="edit_plate_no" required></select>
           </div>
           <div class="field">
             <label for="edit_booking_date">Date</label>
@@ -138,13 +138,46 @@
       const dialog = document.getElementById("edit-dialog");
       let bookingsById = new Map(); // keyed by id so the dialog can prefill
       let editingId = null;
+      let approvedVehicles = [];
 
       const profile = await guardPage("operator");
       if (profile) {
         renderNav(profile);
+        await loadApprovedVehicles();
         initForm();
         initEditDialog();
         await loadRequests();
+      }
+
+      // Only approved vehicles show up here - a vehicle stops appearing the
+      // moment it's edited (back to pending) until PITX staff re-approve it.
+      async function loadApprovedVehicles() {
+        const { data } = await supabase
+          .from("vehicles")
+          .select("plate_no, make_model")
+          .eq("operator_id", profile.id)
+          .eq("status", "approved")
+          .order("plate_no");
+        approvedVehicles = data ?? [];
+      }
+
+      function plateOptionsHtml(selected) {
+        if (approvedVehicles.length === 0) {
+          return `<option value="" disabled selected>No approved vehicles</option>`;
+        }
+        return (
+          `<option value="" disabled${selected ? "" : " selected"}>Select a vehicle</option>` +
+          approvedVehicles
+            .map(
+              (v) =>
+                `<option value="${escapeHtml(v.plate_no)}"${
+                  v.plate_no === selected ? " selected" : ""
+                }>${escapeHtml(v.plate_no)}${
+                  v.make_model ? ` — ${escapeHtml(v.make_model)}` : ""
+                }</option>`
+            )
+            .join("")
+        );
       }
 
       function initForm() {
@@ -160,6 +193,15 @@
           HOURS.map(
             (h) => `<option value="${h}">${escapeHtml(formatHourSlot(h))}</option>`
           ).join("");
+
+        const plateSelect = document.getElementById("plate_no");
+        plateSelect.innerHTML = plateOptionsHtml(null);
+        plateSelect.disabled = approvedVehicles.length === 0;
+        document
+          .getElementById("no-vehicles-note")
+          .classList.toggle("hidden", approvedVehicles.length > 0);
+        document.getElementById("submit").disabled =
+          approvedVehicles.length === 0;
 
         document
           .getElementById("booking-form")
@@ -319,7 +361,21 @@
         editingId = bookingId;
 
         document.getElementById("edit_route").value = booking.route;
-        document.getElementById("edit_plate_no").value = booking.plate_no;
+
+        // Include the booking's current plate even if it's no longer an
+        // approved vehicle (e.g. that vehicle got edited/un-approved since),
+        // so re-opening this dialog never silently loses the value.
+        const plateSelect = document.getElementById("edit_plate_no");
+        const stillApproved = approvedVehicles.some(
+          (v) => v.plate_no === booking.plate_no
+        );
+        plateSelect.innerHTML =
+          plateOptionsHtml(booking.plate_no) +
+          (stillApproved
+            ? ""
+            : `<option value="${escapeHtml(booking.plate_no)}" selected>${escapeHtml(
+                booking.plate_no
+              )} (no longer approved)</option>`);
 
         const dateInput = document.getElementById("edit_booking_date");
         dateInput.min = todayISO();

@@ -191,7 +191,7 @@
         const { data, error } = await supabase
           .from("vehicles")
           .select(
-            "id, plate_no, make_model, body_type, or_number, cr_number, registration_expiry, source, photo_path"
+            "id, plate_no, make_model, body_type, or_number, cr_number, registration_expiry, source, photo_path, status, rejection_reason, revision_count"
           )
           .eq("operator_id", profile.id)
           .order("created_at", { ascending: false });
@@ -216,7 +216,7 @@
                 <tr>
                   <th>Plate No.</th><th>Make / model</th><th>Body type</th>
                   <th>OR No.</th><th>CR No.</th><th>Expiry</th>
-                  <th>Source</th><th></th>
+                  <th>Source</th><th>Status</th><th>Note</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -224,17 +224,23 @@
                   .map(
                     (v) => `
                   <tr>
-                    <td class="cell-strong">${escapeHtml(v.plate_no)}</td>
+                    <td class="cell-strong">${escapeHtml(v.plate_no)}${
+                      v.revision_count > 0
+                        ? `<span class="revised">changed</span>`
+                        : ""
+                    }</td>
                     <td>${escapeHtml(v.make_model ?? "—")}</td>
                     <td>${escapeHtml(v.body_type ?? "—")}</td>
                     <td>${escapeHtml(v.or_number ?? "—")}</td>
                     <td>${escapeHtml(v.cr_number ?? "—")}</td>
                     <td>${escapeHtml(v.registration_expiry ?? "—")}</td>
                     <td>${
-                      v.source === "scanned"
-                        ? '<span class="badge badge-approved">Scanned</span>'
-                        : '<span class="badge badge-cancelled">Manual</span>'
+                      v.source === "scanned" ? "Scanned" : "Manual"
                     }</td>
+                    <td><span class="badge badge-${escapeHtml(
+                      v.status
+                    )}">${escapeHtml(v.status)}</span></td>
+                    <td>${escapeHtml(v.rejection_reason ?? "—")}</td>
                     <td>
                       <button type="button" class="btn-link" data-edit="${escapeHtml(
                         v.id
@@ -404,6 +410,7 @@
           registration_expiry: document.getElementById("f_expiry").value || null,
           photo_path: photoPath,
           source: pendingPhotoFile ? "scanned" : "manual",
+          status: "pending",
         });
 
         saveBtn.disabled = false;
@@ -419,6 +426,11 @@
         }
 
         document.getElementById("add-dialog").close();
+        showMessage(
+          "page-message",
+          "Vehicle submitted for PITX staff approval. It'll appear in the booking form's plate list once approved.",
+          "ok"
+        );
         await loadVehicles();
       }
 
@@ -450,10 +462,14 @@
         document.getElementById("e_or_number").value = v.or_number ?? "";
         document.getElementById("e_cr_number").value = v.cr_number ?? "";
         document.getElementById("e_expiry").value = v.registration_expiry ?? "";
-        document.getElementById("edit-context").textContent =
+        const origin =
           v.source === "scanned"
             ? "Originally registered by scanning an OR/CR photo."
             : "Originally registered manually.";
+        document.getElementById("edit-context").textContent =
+          v.status === "approved"
+            ? `${origin} This vehicle is approved - saving a change sends it back to PITX staff for re-approval, and it won't appear in the booking form's plate list until then.`
+            : origin;
         document.getElementById("edit-error").className = "inline-error hidden";
 
         document.getElementById("edit-dialog").showModal();
@@ -475,18 +491,18 @@
         saveBtn.disabled = true;
         saveBtn.textContent = "Saving…";
 
-        const { error } = await supabase
-          .from("vehicles")
-          .update({
-            plate_no: plateNo,
-            make_model: document.getElementById("e_make_model").value.trim() || null,
-            body_type: document.getElementById("e_body_type").value.trim() || null,
-            or_number: document.getElementById("e_or_number").value.trim() || null,
-            cr_number: document.getElementById("e_cr_number").value.trim() || null,
-            registration_expiry: document.getElementById("e_expiry").value || null,
-          })
-          .eq("id", editingId)
-          .eq("operator_id", profile.id);
+        // Goes through request_vehicle_change() rather than a direct
+        // UPDATE: it owns the pending/approved transition server-side so
+        // the client can't set status itself (see migration 0005).
+        const { error } = await supabase.rpc("request_vehicle_change", {
+          p_vehicle_id: editingId,
+          p_plate_no: plateNo,
+          p_make_model: document.getElementById("e_make_model").value.trim(),
+          p_body_type: document.getElementById("e_body_type").value.trim(),
+          p_or_number: document.getElementById("e_or_number").value.trim(),
+          p_cr_number: document.getElementById("e_cr_number").value.trim(),
+          p_registration_expiry: document.getElementById("e_expiry").value || null,
+        });
 
         saveBtn.disabled = false;
         saveBtn.textContent = "Save changes";

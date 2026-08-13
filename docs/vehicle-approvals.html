@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vehicle approvals · PITX Bus Bay Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Transport Operations &middot; Fleet Approvals</p>
+          <h1>Vehicle approvals</h1>
+          <p class="subtle">
+            Approve a vehicle so it appears in the operator's booking-form
+            plate list, or reject it with an optional note.
+          </p>
+        </div>
+        <p class="subtle" id="queue-count"></p>
+      </div>
+
+      <div class="hidden" id="message"></div>
+      <div id="requests"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        showMessage,
+        escapeHtml,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      await load();
+
+      async function load() {
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select(
+            // vehicles has two FKs into profiles (operator_id, decided_by),
+            // so the embed needs the constraint name to disambiguate which.
+            "id, operator_id, plate_no, make_model, body_type, or_number, cr_number, registration_expiry, source, photo_path, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+          )
+          .eq("status", "pending")
+          .order("created_at", { ascending: true });
+
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+
+        const requests = data ?? [];
+        const host = document.getElementById("requests");
+
+        document.getElementById("queue-count").textContent =
+          requests.length === 0
+            ? "Queue clear"
+            : `${requests.length} awaiting review`;
+
+        if (requests.length === 0) {
+          host.innerHTML = `<p class="empty">No vehicles awaiting approval.</p>`;
+          return;
+        }
+
+        const photoUrls = await Promise.all(
+          requests.map((v) =>
+            v.photo_path
+              ? supabase.storage
+                  .from("vehicle-docs")
+                  .createSignedUrl(v.photo_path, 300)
+                  .then((r) => r.data?.signedUrl ?? null)
+              : Promise.resolve(null)
+          )
+        );
+
+        host.innerHTML = requests
+          .map((v, i) => {
+            const operatorLabel =
+              v.profiles?.operator_name || v.profiles?.username || "Operator";
+            return `
+              <div class="request-card">
+                <div class="request-head">
+                  <div>
+                    <p class="request-who">${escapeHtml(v.plate_no)}${
+                      v.previously_approved
+                        ? `<span class="revised">changed after approval</span>`
+                        : v.revision_count > 0
+                          ? `<span class="revised">changed &times;${v.revision_count}</span>`
+                          : ""
+                    }</p>
+                    <p class="subtle">
+                      ${escapeHtml(operatorLabel)} &middot;
+                      ${escapeHtml(v.make_model ?? "Make/model not given")} &middot;
+                      ${escapeHtml(v.body_type ?? "Body type not given")}
+                    </p>
+                  </div>
+                  <p class="request-when">
+                    OR ${escapeHtml(v.or_number ?? "—")} &middot;
+                    CR ${escapeHtml(v.cr_number ?? "—")}
+                    ${
+                      v.registration_expiry
+                        ? `<br />Expires ${escapeHtml(v.registration_expiry)}`
+                        : ""
+                    }
+                  </p>
+                </div>
+
+                ${
+                  photoUrls[i]
+                    ? `<p class="subtle" style="margin-top: 10px">
+                        <a href="${photoUrls[i]}" target="_blank" rel="noopener">View submitted OR/CR photo &rarr;</a>
+                      </p>`
+                    : ""
+                }
+
+                <div class="request-actions">
+                  <form data-approve="${escapeHtml(v.id)}">
+                    <button type="submit" class="btn-approve">Approve</button>
+                  </form>
+                  <form data-reject="${escapeHtml(v.id)}">
+                    <input placeholder="Reason (optional)" />
+                    <button type="submit" class="btn-danger-outline">Reject</button>
+                  </form>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        host.querySelectorAll("[data-approve]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            approve(form.dataset.approve);
+          });
+        });
+        host.querySelectorAll("[data-reject]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            reject(form.dataset.reject, form.querySelector("input").value.trim());
+          });
+        });
+      }
+
+      async function approve(vehicleId) {
+        showMessage("message", "");
+        const { data, error } = await supabase
+          .from("vehicles")
+          .update({
+            status: "approved",
+            rejection_reason: null,
+            decided_by: profile.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq("id", vehicleId)
+          .eq("status", "pending")
+          .select("id");
+
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        if (!data || data.length === 0) {
+          showMessage("message", "That vehicle was already decided on.");
+        }
+        await load();
+      }
+
+      async function reject(vehicleId, reason) {
+        showMessage("message", "");
+        await supabase
+          .from("vehicles")
+          .update({
+            status: "rejected",
+            rejection_reason: reason || null,
+            decided_by: profile.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq("id", vehicleId)
+          .eq("status", "pending");
+        await load();
+      }
+    </script>
+  </body>
+</html>

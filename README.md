@@ -50,7 +50,9 @@ Open the project's **SQL Editor** and run, in order:
    adds vehicle registration and the private `vehicle-docs` storage bucket.
 4. [`supabase/migrations/0004_vehicle_plate_normalization.sql`](supabase/migrations/0004_vehicle_plate_normalization.sql) -
    fixes the duplicate-plate check to ignore case and spacing.
-5. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+5. [`supabase/migrations/0005_vehicle_approvals.sql`](supabase/migrations/0005_vehicle_approvals.sql) -
+   adds staff approval for vehicle registrations.
+6. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -153,6 +155,19 @@ Operators register vehicles from **My vehicles**, either by scanning a photo
 of the LTO OR/CR or entering the details by hand. Every field stays
 editable afterward regardless of how it was first entered.
 
+Registrations need PITX staff approval (**Vehicle approvals**), the same
+shape as bookings:
+
+| Vehicle was | After the operator edits it |
+|---|---|
+| Pending | stays pending, new details |
+| **Approved** | **reverts to pending** - and stops appearing in the booking form until re-approved |
+
+The booking form's Plate No. field is a dropdown sourced from the
+operator's *approved* vehicles only - there's no free-text plate entry at
+booking time. An operator with no approved vehicle sees a message pointing
+them to **My vehicles** instead, with the request button disabled.
+
 Text extraction runs entirely in the browser via
 [Tesseract.js](https://github.com/naptha/tesseract.js) - no server, no API
 key, no per-scan cost. The trade-off: it's raw OCR with no understanding of
@@ -182,7 +197,8 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   index.html                 Sign in
   dashboard.html             Operator: request form + own requests
   vehicles.html              Operator: register/edit vehicles (scan or manual)
-  staff.html                 Staff: pending queue (approve / reject)
+  staff.html                 Staff: pending booking queue (approve / reject)
+  vehicle-approvals.html     Staff: pending vehicle queue (approve / reject)
   schedule.html              Staff: hourly capacity grid for a date
   bays.html                  Staff: manage the bay list
   accounts.html              Staff: create logins (via Edge Function)
