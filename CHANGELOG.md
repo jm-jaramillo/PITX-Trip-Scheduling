@@ -181,7 +181,7 @@ as a label above its value. The 20-row Bays table is exempted
 (`.table-plain`) since it already read fine as a compact table and
 stacking it would've meant more scrolling for no benefit.
 
-### 11. `a92dbc3` — Request filters + expanded vehicle fields (13 Aug)
+### 11. `430bad6` — Request filters + expanded vehicle fields (13 Aug)
 
 Two additions:
 
