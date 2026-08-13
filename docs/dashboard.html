@@ -299,18 +299,18 @@
                       b.status === "pending" || b.status === "approved";
                     return `
                   <tr>
-                    <td>${escapeHtml(b.booking_date)}</td>
-                    <td>${escapeHtml(formatHourSlot(b.hour))}</td>
-                    <td>${escapeHtml(b.operator_name)}</td>
-                    <td>${escapeHtml(b.route)}</td>
-                    <td>${escapeHtml(b.plate_no)}</td>
-                    <td>${statusBadge(b.status)}${
+                    <td data-label="Date">${escapeHtml(b.booking_date)}</td>
+                    <td data-label="Hour">${escapeHtml(formatHourSlot(b.hour))}</td>
+                    <td data-label="Operator">${escapeHtml(b.operator_name)}</td>
+                    <td data-label="Route">${escapeHtml(b.route)}</td>
+                    <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
+                    <td data-label="Status">${statusBadge(b.status)}${
                       b.revision_count > 0
                         ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
                         : ""
                     }</td>
-                    <td>${escapeHtml(b.bays?.name ?? "—")}</td>
-                    <td>${escapeHtml(b.rejection_reason ?? "—")}</td>
+                    <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
+                    <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
                     <td class="row-actions">${
                       editable
                         ? `<button type="button" class="btn-link" data-edit="${escapeHtml(

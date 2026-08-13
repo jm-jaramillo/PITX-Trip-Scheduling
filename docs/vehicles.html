@@ -224,23 +224,23 @@
                   .map(
                     (v) => `
                   <tr>
-                    <td class="cell-strong">${escapeHtml(v.plate_no)}${
+                    <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}${
                       v.revision_count > 0
                         ? `<span class="revised">changed</span>`
                         : ""
                     }</td>
-                    <td>${escapeHtml(v.make_model ?? "—")}</td>
-                    <td>${escapeHtml(v.body_type ?? "—")}</td>
-                    <td>${escapeHtml(v.or_number ?? "—")}</td>
-                    <td>${escapeHtml(v.cr_number ?? "—")}</td>
-                    <td>${escapeHtml(v.registration_expiry ?? "—")}</td>
-                    <td>${
+                    <td data-label="Make / model">${escapeHtml(v.make_model ?? "—")}</td>
+                    <td data-label="Body type">${escapeHtml(v.body_type ?? "—")}</td>
+                    <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
+                    <td data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
+                    <td data-label="Expiry">${escapeHtml(v.registration_expiry ?? "—")}</td>
+                    <td data-label="Source">${
                       v.source === "scanned" ? "Scanned" : "Manual"
                     }</td>
-                    <td><span class="badge badge-${escapeHtml(
+                    <td data-label="Status"><span class="badge badge-${escapeHtml(
                       v.status
                     )}">${escapeHtml(v.status)}</span></td>
-                    <td>${escapeHtml(v.rejection_reason ?? "—")}</td>
+                    <td data-label="Note">${escapeHtml(v.rejection_reason ?? "—")}</td>
                     <td>
                       <button type="button" class="btn-link" data-edit="${escapeHtml(
                         v.id

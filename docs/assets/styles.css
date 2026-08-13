@@ -540,6 +540,67 @@ td strong,
   color: oklch(28% 0.02 260);
 }
 
+/* Below this width, tables with more than a couple of columns stop
+   fitting - horizontal scroll inside .table-wrap technically works but
+   hides whatever's off to the right (status, actions) with no visual
+   hint there's more. Stack each row into a labeled card instead, using
+   the header text (mirrored into data-label on each cell) as the
+   label. Opt out per-table with .table-plain (e.g. the 2-column bay
+   list reads fine as a compact table even this narrow). */
+@media (max-width: 640px) {
+  .table-wrap:not(.table-plain) table,
+  .table-wrap:not(.table-plain) thead,
+  .table-wrap:not(.table-plain) tbody,
+  .table-wrap:not(.table-plain) tr,
+  .table-wrap:not(.table-plain) td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-wrap:not(.table-plain) thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .table-wrap:not(.table-plain) tr {
+    padding: 12px 16px;
+    border-bottom: 8px solid var(--ground);
+  }
+
+  /* Label stacks above the value rather than sitting beside it, so a
+     cell holding a multi-line list (e.g. Schedule's Bookings column) or
+     a form (approve/reject actions) reads the same way as a plain one. */
+  .table-wrap:not(.table-plain) td {
+    padding: 7px 0;
+    border-bottom: 1px solid var(--divider);
+    white-space: normal;
+    text-align: left;
+  }
+
+  .table-wrap:not(.table-plain) td:last-child {
+    border-bottom: none;
+  }
+
+  .table-wrap:not(.table-plain) td:empty {
+    display: none;
+  }
+
+  .table-wrap:not(.table-plain) td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--label);
+    margin-bottom: 3px;
+  }
+}
+
 /* ------------------------------------------------------------ badges */
 .badge {
   display: inline-block;

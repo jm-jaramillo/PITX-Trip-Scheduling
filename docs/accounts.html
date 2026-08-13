@@ -108,10 +108,10 @@
                   .map(
                     (p) => `
                   <tr>
-                    <td>${escapeHtml(p.username)}</td>
-                    <td style="text-transform: capitalize">${escapeHtml(p.role)}</td>
-                    <td>${escapeHtml(p.operator_name ?? "—")}</td>
-                    <td>${escapeHtml(
+                    <td data-label="Username">${escapeHtml(p.username)}</td>
+                    <td data-label="Role" style="text-transform: capitalize">${escapeHtml(p.role)}</td>
+                    <td data-label="Operator name">${escapeHtml(p.operator_name ?? "—")}</td>
+                    <td data-label="Created">${escapeHtml(
                       new Date(p.created_at).toLocaleDateString()
                     )}</td>
                   </tr>`

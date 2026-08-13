@@ -150,11 +150,11 @@
                   const atCapacity = totalBays > 0 && approved >= totalBays;
                   return `
                     <tr>
-                      <td class="hour-cell">${escapeHtml(formatHourSlot(hour))}</td>
+                      <td class="hour-cell" data-label="Hour">${escapeHtml(formatHourSlot(hour))}</td>
                       <td class="capacity${
                         atCapacity ? " capacity-full" : ""
-                      }">${approved} / ${totalBays}</td>
-                      <td>${
+                      }" data-label="Approved / capacity">${approved} / ${totalBays}</td>
+                      <td data-label="Bookings">${
                         rows.length === 0
                           ? '<span class="muted">—</span>'
                           : `<ul class="bookings-list">${rows
