@@ -481,3 +481,70 @@ tr:last-child td {
 .muted {
   color: #94a3b8;
 }
+
+/* --------------------------------------------------------- edit dialog */
+dialog {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 560px;
+  width: calc(100% - 32px);
+  background: #fff;
+  color: #0f172a;
+}
+
+dialog::backdrop {
+  background: rgb(15 23 42 / 45%);
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.dialog-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  margin-top: 20px;
+}
+
+@media (min-width: 560px) {
+  .dialog-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.warn {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 16px 0 0;
+}
+
+/* Marks a booking that has been changed since first requested. */
+.revised {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.row-actions {
+  display: flex;
+  gap: 12px;
+}

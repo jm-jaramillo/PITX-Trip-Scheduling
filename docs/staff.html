@@ -42,7 +42,7 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, route, plate_no, booking_date, hour, status"
+              "id, operator_name, route, plate_no, booking_date, hour, status, revision_count, previously_approved, last_edited_at"
             )
             .eq("status", "pending")
             .order("booking_date", { ascending: true })
@@ -89,7 +89,15 @@
                   <div>
                     <p class="request-who">${escapeHtml(
                       b.operator_name
-                    )} &middot; ${escapeHtml(b.plate_no)}</p>
+                    )} &middot; ${escapeHtml(b.plate_no)}${
+                      // Flags a slot the operator already held: approving
+                      // re-confirms it, rejecting leaves them with nothing.
+                      b.previously_approved
+                        ? `<span class="revised">changed after approval</span>`
+                        : b.revision_count > 0
+                          ? `<span class="revised">changed &times;${b.revision_count}</span>`
+                          : ""
+                    }</p>
                     <p class="subtle">${escapeHtml(b.route)}</p>
                   </div>
                   <p class="request-when">${escapeHtml(

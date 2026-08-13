@@ -44,7 +44,9 @@ Open the project's **SQL Editor** and run, in order:
 
 1. [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) -
    creates the `profiles`, `bays`, and `bookings` tables plus RLS policies.
-2. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+2. [`supabase/migrations/0002_booking_changes.sql`](supabase/migrations/0002_booking_changes.sql) -
+   adds operator-initiated booking changes (see "Modifying a booking").
+3. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -115,6 +117,32 @@ scripts - the site itself has no dependencies to install.
 
 ---
 
+## Modifying a booking
+
+Operators can change a booking's route, plate number, date, or hour with the
+**Change** button on their dashboard. Every change goes back through PITX
+staff:
+
+| Booking was | After the operator saves a change |
+|---|---|
+| **Pending** | stays pending, with the new details |
+| **Approved** | **reverts to pending and the bay is released** |
+
+The warning about losing the bay is shown in the dialog before saving.
+Rejected and cancelled bookings can't be edited - the operator submits a new
+request instead.
+
+Staff see a **"changed after approval"** badge on any pending request that
+had previously been approved, so they know they're re-confirming a slot the
+operator already held rather than granting a new one.
+
+Edits go through the `request_booking_change()` database function rather
+than a direct update. Postgres RLS is row-level, not column-level, so a
+policy loose enough to permit editing would also let an operator write
+`assigned_bay_id` and assign themselves a bay; the function constrains the
+change to those four fields and decides the status/bay transition
+server-side.
+
 ## How capacity works
 
 Operators don't pick a specific bay - just a date and hour. When staff
@@ -140,7 +168,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
     styles.css               Styles (light-theme only, explicit colors)
 
 supabase/
-  migrations/0001_init.sql   Schema + Row Level Security policies
+  migrations/                Schema, RLS policies, booking-change function
   seed.sql                   Optional starter bays
   functions/create-account/  Edge Function for privileged account creation
 

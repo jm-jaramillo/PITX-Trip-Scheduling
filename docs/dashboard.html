@@ -67,6 +67,49 @@
       <div id="requests"></div>
     </main>
 
+    <dialog id="edit-dialog">
+      <form id="edit-form">
+        <h2 class="dialog-title">Change this request</h2>
+        <p class="subtle" id="edit-context"></p>
+
+        <p class="warn hidden" id="edit-warning">
+          This booking is already approved. Saving changes sends it back to
+          PITX staff for approval and releases the assigned bay in the
+          meantime &mdash; another operator may be approved into it.
+        </p>
+
+        <div class="dialog-grid">
+          <div class="field">
+            <label for="edit_route">Route</label>
+            <input id="edit_route" required />
+          </div>
+          <div class="field">
+            <label for="edit_plate_no">Plate No.</label>
+            <input id="edit_plate_no" required />
+          </div>
+          <div class="field">
+            <label for="edit_booking_date">Date</label>
+            <input id="edit_booking_date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="edit_hour">Hour slot</label>
+            <select id="edit_hour" required></select>
+          </div>
+        </div>
+
+        <p class="inline-error hidden" id="edit-error"></p>
+
+        <div class="dialog-actions">
+          <button type="button" class="btn-outline" id="edit-cancel">
+            Never mind
+          </button>
+          <button type="submit" class="btn-primary" id="edit-save">
+            Submit for approval
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <script type="module">
       import {
         supabase,
@@ -79,10 +122,17 @@
         escapeHtml,
       } from "./assets/app.js";
 
+      // Module-level state must be declared before the init calls below run,
+      // otherwise `let` bindings are still in their temporal dead zone.
+      const dialog = document.getElementById("edit-dialog");
+      let bookingsById = new Map(); // keyed by id so the dialog can prefill
+      let editingId = null;
+
       const profile = await guardPage("operator");
       if (profile) {
         renderNav(profile);
         initForm();
+        initEditDialog();
         await loadRequests();
       }
 
@@ -162,13 +212,14 @@
         const { data } = await supabase
           .from("bookings")
           .select(
-            "id, operator_name, route, plate_no, booking_date, hour, status, rejection_reason, bays ( id, name )"
+            "id, operator_name, route, plate_no, booking_date, hour, status, rejection_reason, revision_count, bays ( id, name )"
           )
           .eq("operator_id", profile.id)
           .order("booking_date", { ascending: false })
           .order("hour", { ascending: false });
 
         const bookings = data ?? [];
+        bookingsById = new Map(bookings.map((b) => [b.id, b]));
         const host = document.getElementById("requests");
 
         if (bookings.length === 0) {
@@ -188,26 +239,40 @@
               </thead>
               <tbody>
                 ${bookings
-                  .map(
-                    (b) => `
+                  .map((b) => {
+                    // Only live bookings can be changed; rejected/cancelled
+                    // ones are closed - the operator submits a new request.
+                    const editable =
+                      b.status === "pending" || b.status === "approved";
+                    return `
                   <tr>
                     <td>${escapeHtml(b.booking_date)}</td>
                     <td>${escapeHtml(formatHourSlot(b.hour))}</td>
                     <td>${escapeHtml(b.operator_name)}</td>
                     <td>${escapeHtml(b.route)}</td>
                     <td>${escapeHtml(b.plate_no)}</td>
-                    <td>${statusBadge(b.status)}</td>
+                    <td>${statusBadge(b.status)}${
+                      b.revision_count > 0
+                        ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
+                        : ""
+                    }</td>
                     <td>${escapeHtml(b.bays?.name ?? "—")}</td>
                     <td>${escapeHtml(b.rejection_reason ?? "—")}</td>
-                    <td>${
+                    <td class="row-actions">${
+                      editable
+                        ? `<button type="button" class="btn-link" data-edit="${escapeHtml(
+                            b.id
+                          )}">Change</button>`
+                        : ""
+                    }${
                       b.status === "pending"
                         ? `<button type="button" class="btn-link danger" data-cancel="${escapeHtml(
                             b.id
                           )}">Cancel</button>`
                         : ""
                     }</td>
-                  </tr>`
-                  )
+                  </tr>`;
+                  })
                   .join("")}
               </tbody>
             </table>
@@ -217,6 +282,81 @@
         host.querySelectorAll("[data-cancel]").forEach((btn) => {
           btn.addEventListener("click", () => cancelBooking(btn.dataset.cancel));
         });
+        host.querySelectorAll("[data-edit]").forEach((btn) => {
+          btn.addEventListener("click", () => openEdit(btn.dataset.edit));
+        });
+      }
+
+      /* ------------------------------------------------------ edit dialog */
+
+      function initEditDialog() {
+        document.getElementById("edit_hour").innerHTML = HOURS.map(
+          (h) => `<option value="${h}">${escapeHtml(formatHourSlot(h))}</option>`
+        ).join("");
+
+        document
+          .getElementById("edit-cancel")
+          .addEventListener("click", () => dialog.close());
+        document
+          .getElementById("edit-form")
+          .addEventListener("submit", saveEdit);
+      }
+
+      function openEdit(bookingId) {
+        const booking = bookingsById.get(bookingId);
+        if (!booking) return;
+        editingId = bookingId;
+
+        document.getElementById("edit_route").value = booking.route;
+        document.getElementById("edit_plate_no").value = booking.plate_no;
+
+        const dateInput = document.getElementById("edit_booking_date");
+        dateInput.min = todayISO();
+        dateInput.value = booking.booking_date;
+        document.getElementById("edit_hour").value = String(booking.hour);
+
+        document.getElementById("edit-context").textContent =
+          `Currently ${booking.booking_date}, ${formatHourSlot(booking.hour)}` +
+          (booking.bays?.name ? ` in ${booking.bays.name}.` : ".");
+
+        // The warning only applies when there's an approved slot to lose.
+        document.getElementById("edit-warning").className =
+          booking.status === "approved" ? "warn" : "warn hidden";
+
+        document.getElementById("edit-error").className = "inline-error hidden";
+        dialog.showModal();
+      }
+
+      async function saveEdit(event) {
+        event.preventDefault();
+        const errorEl = document.getElementById("edit-error");
+        const saveBtn = document.getElementById("edit-save");
+        errorEl.className = "inline-error hidden";
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Submitting…";
+
+        // Goes through the request_booking_change() function rather than a
+        // direct UPDATE: it decides the status/bay transition server-side so
+        // the client can't assign itself a bay. See migration 0002.
+        const { error } = await supabase.rpc("request_booking_change", {
+          p_booking_id: editingId,
+          p_route: document.getElementById("edit_route").value,
+          p_plate_no: document.getElementById("edit_plate_no").value,
+          p_booking_date: document.getElementById("edit_booking_date").value,
+          p_hour: Number(document.getElementById("edit_hour").value),
+        });
+
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Submit for approval";
+
+        if (error) {
+          errorEl.textContent = error.message;
+          errorEl.className = "inline-error";
+          return;
+        }
+
+        dialog.close();
+        await loadRequests();
       }
 
       async function cancelBooking(bookingId) {
