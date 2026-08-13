@@ -4,17 +4,29 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pending requests · PITX Bus Bay Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
   <body>
     <header class="nav" id="nav"></header>
 
     <main class="wrap">
-      <h1>Pending requests</h1>
-      <p class="subtle">
-        Approve a request by assigning it a bay, or reject it with an optional
-        note back to the operator.
-      </p>
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Transport Operations &middot; Slot Approvals</p>
+          <h1>Pending requests</h1>
+          <p class="subtle">
+            Approve a request by assigning it a bay, or reject it with an
+            optional note back to the operator.
+          </p>
+        </div>
+        <p class="subtle" id="queue-count"></p>
+      </div>
 
       <div class="hidden" id="message"></div>
       <div id="requests"></div>
@@ -71,6 +83,11 @@
         }
 
         const host = document.getElementById("requests");
+
+        document.getElementById("queue-count").textContent =
+          requests.length === 0
+            ? "Queue clear"
+            : `${requests.length} awaiting review`;
 
         if (requests.length === 0) {
           host.innerHTML = `<p class="empty">No pending requests right now.</p>`;

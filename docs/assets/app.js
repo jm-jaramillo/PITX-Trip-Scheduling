@@ -117,25 +117,28 @@ export function renderNav(profile) {
   const links = profile.role === "staff" ? STAFF_LINKS : OPERATOR_LINKS;
   const here = location.pathname.split("/").pop() || "index.html";
 
+  // Flat children (not nested groups) so the bar collapses to tidy rows
+  // rather than three ragged ones when the viewport is narrow.
   host.innerHTML = `
     <div class="nav-inner">
-      <div class="nav-left">
-        <span class="brand">PITX Bus Bay Booking</span>
-        <nav class="nav-links">
-          ${links
-            .map(
-              (l) =>
-                `<a href="${l.href}"${
-                  l.href === here ? ' aria-current="page"' : ""
-                }>${escapeHtml(l.label)}</a>`
-            )
-            .join("")}
-        </nav>
+      <div class="nav-brand">
+        <img src="assets/pitx-logo.webp" alt="PITX" />
+        <span class="unit">Bay Booking</span>
       </div>
+      <nav class="nav-links">
+        ${links
+          .map(
+            (l) =>
+              `<a href="${l.href}"${
+                l.href === here ? ' aria-current="page"' : ""
+              }>${escapeHtml(l.label)}</a>`
+          )
+          .join("")}
+      </nav>
       <div class="nav-right">
         <span class="whoami">${escapeHtml(
           profile.operator_name || profile.username
-        )} <span class="role">(${escapeHtml(profile.role)})</span></span>
+        )} <span class="role">${escapeHtml(profile.role)}</span></span>
         <button type="button" class="btn-outline" id="sign-out">Sign out</button>
       </div>
     </div>

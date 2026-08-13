@@ -4,21 +4,32 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Schedule · PITX Bus Bay Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
   <body>
     <header class="nav" id="nav"></header>
 
     <main class="wrap">
-      <div class="toolbar">
-        <h1>Schedule</h1>
-        <div class="toolbar-controls">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Transport Operations &middot; Bay Monitor</p>
+          <h1>Schedule</h1>
+          <p class="subtle" id="capacity-note"></p>
+        </div>
+        <div class="toolbar">
           <button type="button" class="btn-outline" id="prev">&larr; Prev day</button>
           <input type="date" id="date" />
           <button type="button" class="btn-outline" id="next">Next day &rarr;</button>
         </div>
       </div>
-      <p class="subtle" id="capacity-note"></p>
+
+      <div class="kpis" id="kpis"></div>
 
       <div id="grid"></div>
     </main>
@@ -84,14 +95,43 @@
         const bookings = bookingsRes.data ?? [];
 
         document.getElementById("capacity-note").textContent =
-          `${totalBays} active bay${totalBays === 1 ? "" : "s"} total. ` +
-          `Each hour can hold at most that many approved buses.`;
+          `Arrivals for ${currentDate}. Each hour holds at most ` +
+          `${totalBays} approved bus${totalBays === 1 ? "" : "es"}.`;
 
         const byHour = new Map();
         for (const b of bookings) {
           if (!byHour.has(b.hour)) byHour.set(b.hour, []);
           byHour.get(b.hour).push(b);
         }
+
+        const approvedTotal = bookings.filter(
+          (b) => b.status === "approved"
+        ).length;
+        const pendingTotal = bookings.length - approvedTotal;
+        // Hours where every active bay is already committed.
+        const fullHours = HOURS.filter(
+          (h) =>
+            totalBays > 0 &&
+            (byHour.get(h) ?? []).filter((b) => b.status === "approved")
+              .length >= totalBays
+        ).length;
+
+        document.getElementById("kpis").innerHTML = [
+          { label: "Approved today", value: approvedTotal, unit: "buses" },
+          { label: "Awaiting review", value: pendingTotal, unit: "requests" },
+          { label: "Active bays", value: totalBays, unit: "per hour" },
+          { label: "Hours at capacity", value: fullHours, unit: "of 24" },
+        ]
+          .map(
+            (k) => `
+            <div class="kpi">
+              <div class="kpi-label">${escapeHtml(k.label)}</div>
+              <div class="kpi-value">
+                <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
+              </div>
+            </div>`
+          )
+          .join("");
 
         document.getElementById("grid").innerHTML = `
           <div class="table-wrap">
@@ -107,10 +147,13 @@
                   const approved = rows.filter(
                     (b) => b.status === "approved"
                   ).length;
+                  const atCapacity = totalBays > 0 && approved >= totalBays;
                   return `
                     <tr>
-                      <td><strong>${escapeHtml(formatHourSlot(hour))}</strong></td>
-                      <td>${approved} / ${totalBays}</td>
+                      <td class="hour-cell">${escapeHtml(formatHourSlot(hour))}</td>
+                      <td class="capacity${
+                        atCapacity ? " capacity-full" : ""
+                      }">${approved} / ${totalBays}</td>
                       <td>${
                         rows.length === 0
                           ? '<span class="muted">—</span>'
@@ -123,9 +166,9 @@
                                     b.plate_no
                                   )} &middot; ${escapeHtml(b.route)}</span>${
                                     b.bays?.name
-                                      ? `<span class="bay-tag">(${escapeHtml(
+                                      ? `<span class="bay-tag">${escapeHtml(
                                           b.bays.name
-                                        )})</span>`
+                                        )}</span>`
                                       : ""
                                   }</li>`
                               )
