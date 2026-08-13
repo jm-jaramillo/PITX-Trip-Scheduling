@@ -46,7 +46,11 @@ Open the project's **SQL Editor** and run, in order:
    creates the `profiles`, `bays`, and `bookings` tables plus RLS policies.
 2. [`supabase/migrations/0002_booking_changes.sql`](supabase/migrations/0002_booking_changes.sql) -
    adds operator-initiated booking changes (see "Modifying a booking").
-3. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+3. [`supabase/migrations/0003_vehicles.sql`](supabase/migrations/0003_vehicles.sql) -
+   adds vehicle registration and the private `vehicle-docs` storage bucket.
+4. [`supabase/migrations/0004_vehicle_plate_normalization.sql`](supabase/migrations/0004_vehicle_plate_normalization.sql) -
+   fixes the duplicate-plate check to ignore case and spacing.
+5. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -143,6 +147,25 @@ policy loose enough to permit editing would also let an operator write
 change to those four fields and decides the status/bay transition
 server-side.
 
+## Vehicle registration
+
+Operators register vehicles from **My vehicles**, either by scanning a photo
+of the LTO OR/CR or entering the details by hand. Every field stays
+editable afterward regardless of how it was first entered.
+
+Text extraction runs entirely in the browser via
+[Tesseract.js](https://github.com/naptha/tesseract.js) - no server, no API
+key, no per-scan cost. The trade-off: it's raw OCR with no understanding of
+the document's layout, so the extracted fields are **best-effort guesses**,
+always shown as editable inputs (never auto-saved) alongside the raw
+scanned text, so a wrong guess can be corrected by eye instead of by
+re-scanning.
+
+A private Supabase Storage bucket (`vehicle-docs`) holds the uploaded
+photos, one folder per operator, with the same RLS-style access rule as
+everything else: an operator can only reach their own folder, staff can
+read all of them.
+
 ## How capacity works
 
 Operators don't pick a specific bay - just a date and hour. When staff
@@ -158,6 +181,7 @@ can't double-book a bay. The **Bays** page controls the active count; the
 docs/                        THE SITE ITSELF (served by GitHub Pages)
   index.html                 Sign in
   dashboard.html             Operator: request form + own requests
+  vehicles.html              Operator: register/edit vehicles (scan or manual)
   staff.html                 Staff: pending queue (approve / reject)
   schedule.html              Staff: hourly capacity grid for a date
   bays.html                  Staff: manage the bay list
@@ -165,6 +189,8 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   assets/
     config.js                Supabase URL + public anon key
     app.js                   Shared client, auth guard, nav, helpers
+    orcr-parser.js           Client-side OCR + OR/CR field-extraction heuristics
+    pitx-logo.webp           PITX mark
     styles.css               Styles (light-theme only, explicit colors)
 
 supabase/

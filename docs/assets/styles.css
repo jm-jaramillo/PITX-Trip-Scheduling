@@ -827,3 +827,124 @@ dialog::backdrop {
   font-size: 11.5px;
   line-height: 1.6;
 }
+
+.req {
+  color: var(--red-ink);
+}
+
+/* --------------------------------------------------- vehicle scan UI */
+.mode-switch {
+  display: flex;
+  gap: 6px;
+  background: var(--ground-alt);
+  border-radius: 10px;
+  padding: 4px;
+  margin-top: 18px;
+}
+
+.mode-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--label);
+  border-radius: 7px;
+}
+
+.mode-tab.is-active {
+  background: var(--surface);
+  color: var(--title);
+  box-shadow: 0 1px 3px rgb(20 30 50 / 12%);
+}
+
+.upload-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 22px;
+  min-height: 96px;
+  border: 1.5px dashed oklch(80% 0.01 260);
+  border-radius: 14px;
+  background: var(--ground);
+  cursor: pointer;
+  text-align: center;
+}
+
+.upload-drop:hover {
+  border-color: var(--blue);
+  background: var(--blue-wash);
+}
+
+.upload-drop span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.upload-drop img {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.scan-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--blue);
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.raw-text {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--label);
+}
+
+.raw-text summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.raw-text pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: var(--ground-alt);
+  border-radius: 8px;
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-2);
+}

@@ -101,7 +101,10 @@ export async function signOut() {
 
 /* -------------------------------------------------------------------- nav */
 
-const OPERATOR_LINKS = [{ href: "dashboard.html", label: "My requests" }];
+const OPERATOR_LINKS = [
+  { href: "dashboard.html", label: "My requests" },
+  { href: "vehicles.html", label: "My vehicles" },
+];
 
 const STAFF_LINKS = [
   { href: "staff.html", label: "Pending requests" },
