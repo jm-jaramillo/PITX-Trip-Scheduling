@@ -24,6 +24,8 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 | Plate selection at booking | Dropdown of the operator's *approved* vehicles only, not free text |
 | Visual identity | Matches the PITX Terminal Ops design system (shared logo, palette, type) |
 | Device support | Must be readable and usable on mobile, not just desktop |
+| Request filtering | Operators can filter their own requests: All / Approved / Pending / Declined |
+| Vehicle detail | Registration also captures franchise number, route, body number, seat configuration, and seat count |
 
 ---
 
@@ -179,14 +181,41 @@ as a label above its value. The 20-row Bays table is exempted
 (`.table-plain`) since it already read fine as a compact table and
 stacking it would've meant more scrolling for no benefit.
 
+### 11. `a92dbc3` — Request filters + expanded vehicle fields (13 Aug)
+
+Two additions:
+
+- **Status filter on the operator's "My requests" list**: All / Approved /
+  Pending / Declined tabs above the table. Client-side only - all of an
+  operator's own bookings are already fetched (RLS-scoped to just their
+  rows), so filtering re-renders from the cached list rather than
+  re-querying per tab.
+- **Five more fields on vehicle registration**: franchise number, route,
+  body number, seat configuration, and number of seats. Entered the same
+  way in either registration mode (scan or manual) - not extracted by OCR,
+  since these generally aren't printed on an OR/CR the way plate/OR/CR
+  numbers are. `request_vehicle_change()`'s signature changed to carry the
+  new fields, which required dropping and recreating the function -
+  Postgres won't let a function's parameter list change via `CREATE OR
+  REPLACE`. Staff now see all five on the Vehicle approvals page too.
+
+Verified end-to-end: registered a vehicle with all five fields, confirmed
+they appear on the operator's list, staff's approval queue, prefill
+correctly into the edit dialog, and round-trip through
+`request_vehicle_change()` on an edit. Verified each status-filter tab
+shows exactly the matching subset against a real mixed-status list (2
+approved, 2 pending, 2 rejected).
+
 ---
 
 ## What the app does now
 
-**Operators** — register vehicles (scan or manual entry); request an hourly
-slot by picking a plate from their *approved* vehicles; see status, assigned
-bay, and any rejection note; change a booking or a vehicle (back to staff
-for approval either way); cancel a pending booking.
+**Operators** — register vehicles (scan or manual entry, with franchise
+number, route, body number, seat configuration, and seat count); request an
+hourly slot by picking a plate from their *approved* vehicles; see status,
+assigned bay, and any rejection note; filter their own requests by status;
+change a booking or a vehicle (back to staff for approval either way);
+cancel a pending booking.
 
 **PITX staff** — approve or reject vehicle registrations and booking
 requests (assigning an available bay on approval); view a day-by-day hourly

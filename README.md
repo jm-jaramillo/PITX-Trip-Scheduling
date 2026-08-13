@@ -3,9 +3,11 @@
 Provincial bus operators request an hourly bus bay slot; PITX staff review
 and approve/reject each request, assigning a specific bay on approval.
 
-- **Operators** submit a request: Operator name, Route, Plate No., Date, and
-  a one-hour slot (0:00-1:00, 1:00-2:00, ... the terminal runs 24/7). They
-  can cancel their own request while it's still pending.
+- **Operators** submit a request: Operator name, Route, Plate No. (picked
+  from their approved vehicles), Date, and a one-hour slot (0:00-1:00,
+  1:00-2:00, ... the terminal runs 24/7). They can filter their own request
+  list by status (All / Approved / Pending / Declined) and cancel a request
+  while it's still pending.
 - **PITX staff** see every pending request, approve it (picking one of the
   bays not already taken for that hour) or reject it with an optional note,
   view a day-by-day hourly schedule, manage the bay list, and create login
@@ -52,7 +54,10 @@ Open the project's **SQL Editor** and run, in order:
    fixes the duplicate-plate check to ignore case and spacing.
 5. [`supabase/migrations/0005_vehicle_approvals.sql`](supabase/migrations/0005_vehicle_approvals.sql) -
    adds staff approval for vehicle registrations.
-6. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+6. [`supabase/migrations/0006_vehicle_fields.sql`](supabase/migrations/0006_vehicle_fields.sql) -
+   adds franchise number, route, body number, seat configuration, and seat
+   count to vehicle registration.
+7. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -154,6 +159,10 @@ server-side.
 Operators register vehicles from **My vehicles**, either by scanning a photo
 of the LTO OR/CR or entering the details by hand. Every field stays
 editable afterward regardless of how it was first entered.
+
+A registration also records franchise number, route, body number, seat
+configuration, and number of seats - plain text/number fields, entered the
+same way in either mode (not extracted by OCR).
 
 Registrations need PITX staff approval (**Vehicle approvals**), the same
 shape as bookings:

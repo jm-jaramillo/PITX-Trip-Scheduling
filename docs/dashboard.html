@@ -74,7 +74,15 @@
         </form>
       </div>
 
-      <h2>My requests</h2>
+      <div class="toolbar" style="justify-content: space-between; margin-top: 36px">
+        <h2 style="margin-top: 0">My requests</h2>
+        <div class="mode-switch" role="tablist" id="status-filter">
+          <button type="button" class="mode-tab is-active" data-filter="all">All</button>
+          <button type="button" class="mode-tab" data-filter="approved">Approved</button>
+          <button type="button" class="mode-tab" data-filter="pending">Pending</button>
+          <button type="button" class="mode-tab" data-filter="rejected">Declined</button>
+        </div>
+      </div>
       <div id="requests"></div>
     </main>
 
@@ -137,6 +145,8 @@
       // otherwise `let` bindings are still in their temporal dead zone.
       const dialog = document.getElementById("edit-dialog");
       let bookingsById = new Map(); // keyed by id so the dialog can prefill
+      let allBookings = [];
+      let statusFilter = "all";
       let editingId = null;
       let approvedVehicles = [];
 
@@ -146,7 +156,20 @@
         await loadApprovedVehicles();
         initForm();
         initEditDialog();
+        initStatusFilter();
         await loadRequests();
+      }
+
+      function initStatusFilter() {
+        document.querySelectorAll("#status-filter [data-filter]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            statusFilter = btn.dataset.filter;
+            document
+              .querySelectorAll("#status-filter [data-filter]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            renderRequestsTable();
+          });
+        });
       }
 
       // Only approved vehicles show up here - a vehicle stops appearing the
@@ -271,12 +294,24 @@
           .order("booking_date", { ascending: false })
           .order("hour", { ascending: false });
 
-        const bookings = data ?? [];
-        bookingsById = new Map(bookings.map((b) => [b.id, b]));
+        allBookings = data ?? [];
+        bookingsById = new Map(allBookings.map((b) => [b.id, b]));
+        renderRequestsTable();
+      }
+
+      function renderRequestsTable() {
+        const bookings =
+          statusFilter === "all"
+            ? allBookings
+            : allBookings.filter((b) => b.status === statusFilter);
         const host = document.getElementById("requests");
 
         if (bookings.length === 0) {
-          host.innerHTML = `<p class="empty">No booking requests yet.</p>`;
+          host.innerHTML = `<p class="empty">${
+            allBookings.length === 0
+              ? "No booking requests yet."
+              : "No requests match this filter."
+          }</p>`;
           return;
         }
 
