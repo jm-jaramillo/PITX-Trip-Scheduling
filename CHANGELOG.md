@@ -206,7 +206,7 @@ correctly into the edit dialog, and round-trip through
 shows exactly the matching subset against a real mixed-status list (2
 approved, 2 pending, 2 rejected).
 
-### 12. `PENDING_HASH` — 30-minute time slots (13 Aug)
+### 12. `ab4466d` — 30-minute time slots (13 Aug)
 
 Bookings switched from hourly slots (24/day) to 30-minute slots (48/day).
 `bookings.hour` (0-23) became `bookings.slot` (0-47; slot N covers
