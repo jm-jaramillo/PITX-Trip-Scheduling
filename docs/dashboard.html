@@ -21,8 +21,8 @@
           <p class="eyebrow">Provincial Slot Booking</p>
           <h1>Request a bus bay slot</h1>
           <p class="subtle">
-            Pick an hourly slot. PITX staff review each request and assign a
-            bay on approval.
+            Pick a 30-minute slot. PITX staff review each request and assign
+            a bay on approval.
           </p>
         </div>
       </div>
@@ -60,8 +60,8 @@
           </div>
 
           <div class="field">
-            <label for="hour">Hour slot</label>
-            <select id="hour" name="hour" required></select>
+            <label for="slot">Time slot</label>
+            <select id="slot" name="slot" required></select>
           </div>
 
           <div class="span-all">
@@ -111,8 +111,8 @@
             <input id="edit_booking_date" type="date" required />
           </div>
           <div class="field">
-            <label for="edit_hour">Hour slot</label>
-            <select id="edit_hour" required></select>
+            <label for="edit_slot">Time slot</label>
+            <select id="edit_slot" required></select>
           </div>
         </div>
 
@@ -134,8 +134,8 @@
         supabase,
         guardPage,
         renderNav,
-        HOURS,
-        formatHourSlot,
+        SLOTS,
+        formatSlot,
         todayISO,
         statusBadge,
         escapeHtml,
@@ -211,10 +211,10 @@
         dateInput.min = todayISO();
         dateInput.value = todayISO();
 
-        document.getElementById("hour").innerHTML =
-          `<option value="" disabled selected>Select an hour</option>` +
-          HOURS.map(
-            (h) => `<option value="${h}">${escapeHtml(formatHourSlot(h))}</option>`
+        document.getElementById("slot").innerHTML =
+          `<option value="" disabled selected>Select a time</option>` +
+          SLOTS.map(
+            (s) => `<option value="${s}">${escapeHtml(formatSlot(s))}</option>`
           ).join("");
 
         const plateSelect = document.getElementById("plate_no");
@@ -243,14 +243,14 @@
         const route = document.getElementById("route").value.trim();
         const plateNo = document.getElementById("plate_no").value.trim();
         const bookingDate = document.getElementById("booking_date").value;
-        const hourRaw = document.getElementById("hour").value;
+        const slotRaw = document.getElementById("slot").value;
 
         function fail(message) {
           errorEl.textContent = message;
           errorEl.className = "inline-error";
         }
 
-        if (!operatorName || !route || !plateNo || !bookingDate || hourRaw === "") {
+        if (!operatorName || !route || !plateNo || !bookingDate || slotRaw === "") {
           return fail("Please fill in every field.");
         }
         if (bookingDate < todayISO()) {
@@ -266,7 +266,7 @@
           route,
           plate_no: plateNo,
           booking_date: bookingDate,
-          hour: Number(hourRaw),
+          slot: Number(slotRaw),
           status: "pending",
         });
 
@@ -280,7 +280,7 @@
         okEl.className = "inline-ok";
         document.getElementById("route").value = "";
         document.getElementById("plate_no").value = "";
-        document.getElementById("hour").value = "";
+        document.getElementById("slot").value = "";
         await loadRequests();
       }
 
@@ -288,11 +288,11 @@
         const { data } = await supabase
           .from("bookings")
           .select(
-            "id, operator_name, route, plate_no, booking_date, hour, status, rejection_reason, revision_count, bays ( id, name )"
+            "id, operator_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, bays ( id, name )"
           )
           .eq("operator_id", profile.id)
           .order("booking_date", { ascending: false })
-          .order("hour", { ascending: false });
+          .order("slot", { ascending: false });
 
         allBookings = data ?? [];
         bookingsById = new Map(allBookings.map((b) => [b.id, b]));
@@ -320,7 +320,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Date</th><th>Hour</th><th>Operator</th><th>Route</th>
+                  <th>Date</th><th>Time slot</th><th>Operator</th><th>Route</th>
                   <th>Plate No.</th><th>Status</th><th>Assigned bay</th>
                   <th>Note</th><th></th>
                 </tr>
@@ -335,7 +335,7 @@
                     return `
                   <tr>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
-                    <td data-label="Hour">${escapeHtml(formatHourSlot(b.hour))}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
                     <td data-label="Operator">${escapeHtml(b.operator_name)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
@@ -378,8 +378,8 @@
       /* ------------------------------------------------------ edit dialog */
 
       function initEditDialog() {
-        document.getElementById("edit_hour").innerHTML = HOURS.map(
-          (h) => `<option value="${h}">${escapeHtml(formatHourSlot(h))}</option>`
+        document.getElementById("edit_slot").innerHTML = SLOTS.map(
+          (s) => `<option value="${s}">${escapeHtml(formatSlot(s))}</option>`
         ).join("");
 
         document
@@ -415,10 +415,10 @@
         const dateInput = document.getElementById("edit_booking_date");
         dateInput.min = todayISO();
         dateInput.value = booking.booking_date;
-        document.getElementById("edit_hour").value = String(booking.hour);
+        document.getElementById("edit_slot").value = String(booking.slot);
 
         document.getElementById("edit-context").textContent =
-          `Currently ${booking.booking_date}, ${formatHourSlot(booking.hour)}` +
+          `Currently ${booking.booking_date}, ${formatSlot(booking.slot)}` +
           (booking.bays?.name ? ` in ${booking.bays.name}.` : ".");
 
         // The warning only applies when there's an approved slot to lose.
@@ -445,7 +445,7 @@
           p_route: document.getElementById("edit_route").value,
           p_plate_no: document.getElementById("edit_plate_no").value,
           p_booking_date: document.getElementById("edit_booking_date").value,
-          p_hour: Number(document.getElementById("edit_hour").value),
+          p_slot: Number(document.getElementById("edit_slot").value),
         });
 
         saveBtn.disabled = false;

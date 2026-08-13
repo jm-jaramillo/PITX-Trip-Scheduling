@@ -13,7 +13,7 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 | Who requests | Provincial bus operators |
 | Who approves | PITX staff |
 | Request fields | Operator, Route, Plate No., Date, Hour |
-| Slot length | Exactly one hour, 24/7 |
+| Slot length | 30 minutes, 24/7 (48 slots/day; originally 1 hour, changed 13 Aug) |
 | Bay selection | Operators do **not** pick a bay; staff assign one on approval |
 | Capacity | Active bay count caps approvals per hour |
 | Accounts | Staff-created only, no self-signup |
@@ -206,13 +206,41 @@ correctly into the edit dialog, and round-trip through
 shows exactly the matching subset against a real mixed-status list (2
 approved, 2 pending, 2 rejected).
 
+### 12. `PENDING_HASH` — 30-minute time slots (13 Aug)
+
+Bookings switched from hourly slots (24/day) to 30-minute slots (48/day).
+`bookings.hour` (0-23) became `bookings.slot` (0-47; slot N covers
+`[N*30, N*30+30)` minutes past midnight) - not just a rename, a full
+column swap: existing rows were backfilled (`slot = hour * 2`) before the
+old `hour` column was dropped, so no booking data was lost in the cutover.
+
+`request_booking_change()`'s signature changed (`p_hour` → `p_slot`),
+which meant dropping and recreating the function - same reason 0006 and
+0007's vehicle-side counterpart needed it: Postgres won't allow a
+parameter-list change via `CREATE OR REPLACE`.
+
+Every page referencing bookings by hour was updated: the request form and
+edit dialog (now a 48-option time-slot dropdown), the staff pending queue
+(bay-availability grouping key), and the Schedule page, which now renders
+48 rows instead of 24 and relabels its KPI from "Hours at capacity" to
+"Slots at capacity."
+
+Verified end-to-end against the live database (not just visually): backfill
+correctness confirmed directly in Postgres (a booking at 4:00 PM /
+`hour = 16` came out as `slot = 32`, matching `16 * 2`); submitted a new
+booking at slot 17 and confirmed it rendered as "8:30 AM – 9:00 AM"; edited
+it to slot 18 through `request_booking_change()` and confirmed it moved to
+"9:00 AM – 9:30 AM"; approved it as staff and confirmed the Schedule page
+showed exactly 48 rows with the booking at the correct row, correct
+capacity count, and the assigned bay.
+
 ---
 
 ## What the app does now
 
 **Operators** — register vehicles (scan or manual entry, with franchise
 number, route, body number, seat configuration, and seat count); request an
-hourly slot by picking a plate from their *approved* vehicles; see status,
+30-minute slot by picking a plate from their *approved* vehicles; see status,
 assigned bay, and any rejection note; filter their own requests by status;
 change a booking or a vehicle (back to staff for approval either way);
 cancel a pending booking.

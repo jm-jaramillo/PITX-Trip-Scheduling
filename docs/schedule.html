@@ -39,8 +39,8 @@
         supabase,
         guardPage,
         renderNav,
-        HOURS,
-        formatHourSlot,
+        SLOTS,
+        formatSlot,
         todayISO,
         addDays,
         statusBadge,
@@ -84,43 +84,43 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, route, plate_no, hour, status, bays ( id, name )"
+              "id, operator_name, route, plate_no, slot, status, bays ( id, name )"
             )
             .eq("booking_date", currentDate)
             .in("status", ["pending", "approved"])
-            .order("hour", { ascending: true }),
+            .order("slot", { ascending: true }),
         ]);
 
         const totalBays = (baysRes.data ?? []).length;
         const bookings = bookingsRes.data ?? [];
 
         document.getElementById("capacity-note").textContent =
-          `Arrivals for ${currentDate}. Each hour holds at most ` +
+          `Arrivals for ${currentDate}. Each 30-minute slot holds at most ` +
           `${totalBays} approved bus${totalBays === 1 ? "" : "es"}.`;
 
-        const byHour = new Map();
+        const bySlot = new Map();
         for (const b of bookings) {
-          if (!byHour.has(b.hour)) byHour.set(b.hour, []);
-          byHour.get(b.hour).push(b);
+          if (!bySlot.has(b.slot)) bySlot.set(b.slot, []);
+          bySlot.get(b.slot).push(b);
         }
 
         const approvedTotal = bookings.filter(
           (b) => b.status === "approved"
         ).length;
         const pendingTotal = bookings.length - approvedTotal;
-        // Hours where every active bay is already committed.
-        const fullHours = HOURS.filter(
-          (h) =>
+        // Slots where every active bay is already committed.
+        const fullSlots = SLOTS.filter(
+          (s) =>
             totalBays > 0 &&
-            (byHour.get(h) ?? []).filter((b) => b.status === "approved")
+            (bySlot.get(s) ?? []).filter((b) => b.status === "approved")
               .length >= totalBays
         ).length;
 
         document.getElementById("kpis").innerHTML = [
           { label: "Approved today", value: approvedTotal, unit: "buses" },
           { label: "Awaiting review", value: pendingTotal, unit: "requests" },
-          { label: "Active bays", value: totalBays, unit: "per hour" },
-          { label: "Hours at capacity", value: fullHours, unit: "of 24" },
+          { label: "Active bays", value: totalBays, unit: "per slot" },
+          { label: "Slots at capacity", value: fullSlots, unit: "of 48" },
         ]
           .map(
             (k) => `
@@ -138,19 +138,19 @@
             <table>
               <thead>
                 <tr>
-                  <th>Hour</th><th>Approved / capacity</th><th>Bookings</th>
+                  <th>Time slot</th><th>Approved / capacity</th><th>Bookings</th>
                 </tr>
               </thead>
               <tbody>
-                ${HOURS.map((hour) => {
-                  const rows = byHour.get(hour) ?? [];
+                ${SLOTS.map((slot) => {
+                  const rows = bySlot.get(slot) ?? [];
                   const approved = rows.filter(
                     (b) => b.status === "approved"
                   ).length;
                   const atCapacity = totalBays > 0 && approved >= totalBays;
                   return `
                     <tr>
-                      <td class="hour-cell" data-label="Hour">${escapeHtml(formatHourSlot(hour))}</td>
+                      <td class="hour-cell" data-label="Time slot">${escapeHtml(formatSlot(slot))}</td>
                       <td class="capacity${
                         atCapacity ? " capacity-full" : ""
                       }" data-label="Approved / capacity">${approved} / ${totalBays}</td>

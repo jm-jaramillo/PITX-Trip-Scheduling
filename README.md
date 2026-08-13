@@ -1,17 +1,17 @@
 # PITX Bus Bay Booking
 
-Provincial bus operators request an hourly bus bay slot; PITX staff review
+Provincial bus operators request a 30-minute bus bay slot; PITX staff review
 and approve/reject each request, assigning a specific bay on approval.
 
 - **Operators** submit a request: Operator name, Route, Plate No. (picked
-  from their approved vehicles), Date, and a one-hour slot (0:00-1:00,
-  1:00-2:00, ... the terminal runs 24/7). They can filter their own request
-  list by status (All / Approved / Pending / Declined) and cancel a request
-  while it's still pending.
+  from their approved vehicles), Date, and a 30-minute time slot (12:00-12:30
+  AM, 12:30-1:00 AM, ... 48 slots a day, the terminal runs 24/7). They can
+  filter their own request list by status (All / Approved / Pending /
+  Declined) and cancel a request while it's still pending.
 - **PITX staff** see every pending request, approve it (picking one of the
-  bays not already taken for that hour) or reject it with an optional note,
-  view a day-by-day hourly schedule, manage the bay list, and create login
-  accounts (there is no self-signup).
+  bays not already taken for that slot) or reject it with an optional note,
+  view a day-by-day schedule broken into 30-minute slots, manage the bay
+  list, and create login accounts (there is no self-signup).
 
 ## How it's built
 
@@ -57,7 +57,10 @@ Open the project's **SQL Editor** and run, in order:
 6. [`supabase/migrations/0006_vehicle_fields.sql`](supabase/migrations/0006_vehicle_fields.sql) -
    adds franchise number, route, body number, seat configuration, and seat
    count to vehicle registration.
-7. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+7. [`supabase/migrations/0007_thirty_minute_slots.sql`](supabase/migrations/0007_thirty_minute_slots.sql) -
+   switches booking time slots from hourly to 30-minute (backfills existing
+   rows, no data lost).
+8. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -130,9 +133,9 @@ scripts - the site itself has no dependencies to install.
 
 ## Modifying a booking
 
-Operators can change a booking's route, plate number, date, or hour with the
-**Change** button on their dashboard. Every change goes back through PITX
-staff:
+Operators can change a booking's route, plate number, date, or time slot
+with the **Change** button on their dashboard. Every change goes back
+through PITX staff:
 
 | Booking was | After the operator saves a change |
 |---|---|
@@ -192,12 +195,13 @@ read all of them.
 
 ## How capacity works
 
-Operators don't pick a specific bay - just a date and hour. When staff
-approve a request they assign one of the bays not already taken for that
-hour, so the number of **active bays is the cap** on approvals per hour. A
-unique index enforces this in the database, so two staff approving at once
-can't double-book a bay. The **Bays** page controls the active count; the
-**Schedule** page shows approved-vs-capacity per hour for any day.
+Operators don't pick a specific bay - just a date and a 30-minute slot.
+When staff approve a request they assign one of the bays not already taken
+for that slot, so the number of **active bays is the cap** on approvals per
+slot. A unique index enforces this in the database, so two staff approving
+at once can't double-book a bay. The **Bays** page controls the active
+count; the **Schedule** page shows approved-vs-capacity per slot for any
+day (48 slots).
 
 ## Project structure
 
@@ -208,7 +212,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   vehicles.html              Operator: register/edit vehicles (scan or manual)
   staff.html                 Staff: pending booking queue (approve / reject)
   vehicle-approvals.html     Staff: pending vehicle queue (approve / reject)
-  schedule.html              Staff: hourly capacity grid for a date
+  schedule.html              Staff: 30-minute-slot capacity grid for a date
   bays.html                  Staff: manage the bay list
   accounts.html              Staff: create logins (via Edge Function)
   assets/

@@ -37,7 +37,7 @@
         supabase,
         guardPage,
         renderNav,
-        formatHourSlot,
+        formatSlot,
         compareBayNames,
         showMessage,
         escapeHtml,
@@ -54,18 +54,18 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, route, plate_no, booking_date, hour, status, revision_count, previously_approved, last_edited_at"
+              "id, operator_name, route, plate_no, booking_date, slot, status, revision_count, previously_approved, last_edited_at"
             )
             .eq("status", "pending")
             .order("booking_date", { ascending: true })
-            .order("hour", { ascending: true }),
+            .order("slot", { ascending: true }),
           supabase
             .from("bays")
             .select("id, name")
             .eq("is_active", true),
           supabase
             .from("bookings")
-            .select("booking_date, hour, assigned_bay_id")
+            .select("booking_date, slot, assigned_bay_id")
             .eq("status", "approved"),
         ]);
 
@@ -74,10 +74,10 @@
           compareBayNames(a.name, b.name)
         );
 
-        // Which bays are already committed for a given date+hour.
+        // Which bays are already committed for a given date+slot.
         const taken = new Map();
         for (const row of approvedRes.data ?? []) {
-          const key = `${row.booking_date}|${row.hour}`;
+          const key = `${row.booking_date}|${row.slot}`;
           if (!taken.has(key)) taken.set(key, new Set());
           if (row.assigned_bay_id) taken.get(key).add(row.assigned_bay_id);
         }
@@ -96,7 +96,7 @@
 
         host.innerHTML = requests
           .map((b) => {
-            const takenIds = taken.get(`${b.booking_date}|${b.hour}`) ?? new Set();
+            const takenIds = taken.get(`${b.booking_date}|${b.slot}`) ?? new Set();
             const available = bays.filter((bay) => !takenIds.has(bay.id));
             const none = available.length === 0;
 
@@ -119,7 +119,7 @@
                   </div>
                   <p class="request-when">${escapeHtml(
                     b.booking_date
-                  )} &middot; ${escapeHtml(formatHourSlot(b.hour))}</p>
+                  )} &middot; ${escapeHtml(formatSlot(b.slot))}</p>
                 </div>
                 <div class="request-actions">
                   <form data-approve="${escapeHtml(b.id)}">
@@ -184,11 +184,11 @@
           .select("id");
 
         if (error) {
-          // 23505 = unique violation on the approved bay/hour index.
+          // 23505 = unique violation on the approved bay/slot index.
           showMessage(
             "message",
             error.code === "23505"
-              ? "That bay was just taken for this hour by another request. Pick a different bay."
+              ? "That bay was just taken for this slot by another request. Pick a different bay."
               : error.message
           );
           return;

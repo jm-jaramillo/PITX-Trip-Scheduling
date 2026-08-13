@@ -21,16 +21,22 @@ export function usernameToEmail(username) {
 
 /* ------------------------------------------------------------------ time */
 
-export const HOURS = Array.from({ length: 24 }, (_, i) => i);
+// 48 half-hour slots per day. Slot N covers [N*30, N*30+30) minutes past
+// midnight - slot 0 is 12:00-12:30 AM, slot 47 is 11:30 PM-12:00 AM.
+export const SLOTS = Array.from({ length: 48 }, (_, i) => i);
 
-function formatHour12(hour) {
-  const period = hour < 12 ? "AM" : "PM";
-  const display = hour % 12 === 0 ? 12 : hour % 12;
-  return `${display}:00 ${period}`;
+function formatClock(totalMinutes) {
+  const hour24 = Math.floor(totalMinutes / 60) % 24;
+  const minute = totalMinutes % 60;
+  const period = hour24 < 12 ? "AM" : "PM";
+  const displayHour = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${period}`;
 }
 
-export function formatHourSlot(hour) {
-  return `${formatHour12(hour)} – ${formatHour12((hour + 1) % 24)}`;
+export function formatSlot(slot) {
+  const start = slot * 30;
+  const end = start + 30;
+  return `${formatClock(start)} – ${formatClock(end % (24 * 60))}`;
 }
 
 export function todayISO() {
