@@ -235,7 +235,7 @@ it to slot 18 through `request_booking_change()` and confirmed it moved to
 showed exactly 48 rows with the booking at the correct row, correct
 capacity count, and the assigned bay.
 
-### 13. `PENDING_HASH` — Vehicle fields match the official PITX/MWM form; operator profile page (14 Aug)
+### 13. `a801b48` — Vehicle fields match the official PITX/MWM form; operator profile page (14 Aug)
 
 The user supplied a photo of the actual PITX/MWM Terminals paper
 registration form. Vehicle registration's field set was **replaced**
