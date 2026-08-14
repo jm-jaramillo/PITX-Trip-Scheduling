@@ -291,6 +291,19 @@ round-trip through `request_vehicle_change()` on an edit (seats
 page, and confirmed every field persisted. Confirmed a completely fresh
 browser tab shows zero console errors on every page.
 
+### 14. `PENDING_HASH` — Fixed vertical misalignment of row action buttons (14 Aug)
+
+The user pointed out the "Change" link on My requests sat visibly
+off-center in its row - closer to the row below than the row it
+belonged to. Cause: the action `<td>` has `display: flex` (to lay out
+Change/Cancel side by side), and `vertical-align: middle` - the rule
+every other cell uses to center its content - has no effect on a flex
+container; that property only applies to table-cell/inline boxes. Fixed
+with `align-items: center` on `.row-actions` instead, which does the
+equivalent job for a flex box. Verified visually: every status/bay/note/
+action cell now lines up on the same row, both on My requests and (same
+class, same fix) the Vehicles list.
+
 ---
 
 ## What the app does now

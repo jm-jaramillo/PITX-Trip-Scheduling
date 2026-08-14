@@ -784,8 +784,14 @@ td strong,
   display: none !important;
 }
 
+/* This is a <td> with display:flex, which stops the table's own
+   vertical-align: middle from applying (it only works on table-cell/inline
+   boxes, not flex containers) - align-items here does the same job for
+   the flex box instead, so the button(s) sit centered in the row rather
+   than pinned to the top. */
 .row-actions {
   display: flex;
+  align-items: center;
   gap: 14px;
 }
 
