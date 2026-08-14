@@ -323,7 +323,7 @@ instead. Verified by measuring badge-center vs link-center on every row
 before and after: `0px` difference on every single row post-fix, not
 just a visual check.
 
-### 15. `PENDING_HASH` — Actually fixed the row action button alignment (14 Aug)
+### 15. `a1ceaa9` — Actually fixed the row action button alignment (14 Aug)
 
 Continuation of #14 above - see that entry for the full story of what
 was wrong and why the first attempt didn't fix it.
