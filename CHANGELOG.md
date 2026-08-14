@@ -521,6 +521,32 @@ the struck-through handoff, same as #18.
 Label-only fix on `operator-profile.html` - "TIN No. (Paranaque)" is now
 just "TIN No.". No schema/behavior change.
 
+### 23. `2c16265` — Vehicle registration: OR No. and CR No. fields back (14 Aug)
+
+Migration `0008` had replaced the vehicle field set to match the paper
+form exactly, dropping the per-vehicle `or_number`/`cr_number` columns
+along the way. Added them back:
+
+- `vehicles.or_number` / `vehicles.cr_number` (migration
+  `0015_vehicle_or_cr_numbers.sql`) - distinct from
+  `operator_profiles.or_serial_number`, which is a company-level field
+  from a different part of the paper form.
+- `request_vehicle_change()` signature grows two parameters - dropped
+  and recreated, same reason as every prior signature change here
+  (Postgres can't alter a function's parameter list in place).
+- `vehicles.html`: OR No./CR No. inputs in both the add and edit
+  dialogs, and as columns in the vehicle list.
+- `vehicle-approvals.html`: shows both in the staff review card when set.
+- `orcr-parser.js`: now also guesses OR/CR numbers from the scanned
+  photo (looks for an "OR NO."/"CR NO." label near a value) - looser
+  than the existing plate/expiry heuristics, so more likely to need a
+  manual fix; always shown as an editable field per the same
+  never-auto-save rule as the rest of the OCR guesses.
+
+Verified live: added a vehicle with OR No. `OR-0012345` / CR No.
+`CR-0067890` filled in by hand, confirmed both values round-tripped
+correctly in the database, then removed the test row.
+
 ---
 
 ## What the app does now
