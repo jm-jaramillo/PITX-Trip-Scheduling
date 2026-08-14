@@ -177,7 +177,7 @@
       async function loadApprovedVehicles() {
         const { data } = await supabase
           .from("vehicles")
-          .select("plate_no, make_model")
+          .select("plate_no, bus_number")
           .eq("operator_id", profile.id)
           .eq("status", "approved")
           .order("plate_no");
@@ -196,7 +196,7 @@
                 `<option value="${escapeHtml(v.plate_no)}"${
                   v.plate_no === selected ? " selected" : ""
                 }>${escapeHtml(v.plate_no)}${
-                  v.make_model ? ` — ${escapeHtml(v.make_model)}` : ""
+                  v.bus_number ? ` — Bus No. ${escapeHtml(v.bus_number)}` : ""
                 }</option>`
             )
             .join("")

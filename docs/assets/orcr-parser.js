@@ -5,19 +5,12 @@
 // reviewable starting point - never auto-saved without the operator seeing
 // them - and the raw text is shown too so a bad guess can be corrected by
 // eye rather than by re-scanning.
+//
+// Only plate number and expiry are guessed: the vehicle registration form
+// matches the PITX/MWM Terminals paper form, which has no make/model, body
+// type, or per-vehicle OR/CR number fields for these guesses to land in.
 
 import { createWorker } from "https://esm.sh/tesseract.js@5.1.1";
-
-const COMMON_MAKES = [
-  "TOYOTA", "MITSUBISHI", "ISUZU", "HYUNDAI", "NISSAN", "FUSO", "HINO",
-  "YUTONG", "KIA", "FOTON", "SUZUKI", "FORD", "MAN", "DAEWOO", "HIGER",
-  "GOLDEN DRAGON", "JAC", "KING LONG",
-];
-
-const BODY_TYPES = [
-  "BUS", "MINIBUS", "COASTER", "VAN", "UV EXPRESS", "JEEPNEY", "SUV",
-  "SEDAN", "TRUCK", "MPV", "AUV", "PICKUP",
-];
 
 /**
  * Runs OCR on an image file and returns both the raw text and best-effort
@@ -40,36 +33,16 @@ export async function extractOrCr(file, onProgress) {
     const {
       data: { text },
     } = await worker.recognize(file);
-    return { rawText: text, guesses: parseOrCrText(text) };
+    return {
+      rawText: text,
+      guesses: {
+        plate_no: guessPlate(text.toUpperCase()),
+        expiry: guessExpiry(text.toUpperCase()),
+      },
+    };
   } finally {
     await worker.terminate();
   }
-}
-
-function parseOrCrText(rawText) {
-  const text = rawText.replace(/\r/g, "");
-  const upper = text.toUpperCase();
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-
-  return {
-    plate_no: guessPlate(upper),
-    make_model: guessMakeModel(upper, lines),
-    body_type: guessBodyType(upper),
-    // Specific labels first (checked across every line before falling back
-    // to a descriptive phrase); "0.R" / "0R" cover Tesseract commonly
-    // misreading O as 0 in this position.
-    or_number: guessLabeledNumber(
-      lines,
-      ["O.R. NO", "0.R. NO", "OR NO", "0R NO", "OR NUMBER", "OR#"],
-      ["OFFICIAL RECEIPT"]
-    ),
-    cr_number: guessLabeledNumber(
-      lines,
-      ["C.R. NO", "CR NO", "CR NUMBER", "CR#"],
-      ["CERTIFICATE OF REGISTRATION"]
-    ),
-    expiry: guessExpiry(upper),
-  };
 }
 
 function guessPlate(upper) {
@@ -79,60 +52,6 @@ function guessPlate(upper) {
   const match = upper.match(/\b([A-Z]{2,3})[\s-]?(\d{3,4})\b/);
   if (!match) return null;
   return `${match[1]} ${match[2]}`;
-}
-
-function guessMakeModel(upper, lines) {
-  const make = COMMON_MAKES.find((m) => upper.includes(m));
-  if (!make) return null;
-
-  // Often the model/series sits right after the make on the same OCR line.
-  const line = lines.find((l) => l.toUpperCase().includes(make));
-  if (line) {
-    const idx = line.toUpperCase().indexOf(make);
-    const rest = line.slice(idx + make.length).trim().replace(/^[:\-]\s*/, "");
-    if (rest && rest.length < 30) return `${titleCase(make)} ${rest}`;
-  }
-  return titleCase(make);
-}
-
-function guessBodyType(upper) {
-  const type = BODY_TYPES.find((t) => upper.includes(t));
-  return type ? titleCase(type) : null;
-}
-
-/**
- * Finds a line mentioning one of `labels` (e.g. "OR NO") and pulls the
- * longest run of digits from that line or the next one - OCR frequently
- * splits a label and its value across lines.
- *
- * `primaryLabels` are specific abbreviations, checked against every line
- * first. `fallbackLabels` are full descriptive phrases (e.g. "CERTIFICATE
- * OF REGISTRATION") that only get tried if nothing else matched - on a
- * real document that phrase is usually the title, not adjacent to the
- * actual number, so it's a last resort rather than a first guess.
- */
-function guessLabeledNumber(lines, primaryLabels, fallbackLabels = []) {
-  for (const labels of [primaryLabels, fallbackLabels]) {
-    for (let i = 0; i < lines.length; i++) {
-      const lineUpper = lines[i].toUpperCase();
-      if (!labels.some((l) => lineUpper.includes(l))) continue;
-
-      const here = longestDigitRun(lines[i]);
-      if (here) return here;
-      const next = lines[i + 1] ? longestDigitRun(lines[i + 1]) : null;
-      if (next) return next;
-    }
-  }
-  return null;
-}
-
-function longestDigitRun(line) {
-  // At least 5 digits: OR/CR numbers run longer than that in practice, and
-  // this keeps a 3-4 digit plate fragment on the same or an adjacent line
-  // from being mistaken for one.
-  const runs = line.match(/\d{5,}/g);
-  if (!runs) return null;
-  return runs.reduce((a, b) => (b.length > a.length ? b : a));
 }
 
 function guessExpiry(upper) {
@@ -168,10 +87,4 @@ function guessExpiry(upper) {
     return null;
   }
   return `${year}-${mm}-${dd}`;
-}
-
-function titleCase(s) {
-  return s
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }

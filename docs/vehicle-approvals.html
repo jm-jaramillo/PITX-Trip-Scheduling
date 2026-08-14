@@ -53,7 +53,7 @@
           .select(
             // vehicles has two FKs into profiles (operator_id, decided_by),
             // so the embed needs the constraint name to disambiguate which.
-            "id, operator_id, plate_no, make_model, body_type, or_number, cr_number, registration_expiry, franchise_number, route, body_number, seat_configuration, seat_count, source, photo_path, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+            "id, operator_id, plate_no, case_number, mv_file_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
           )
           .eq("status", "pending")
           .order("created_at", { ascending: true });
@@ -103,25 +103,27 @@
                           : ""
                     }</p>
                     <p class="subtle">
-                      ${escapeHtml(operatorLabel)} &middot;
-                      ${escapeHtml(v.make_model ?? "Make/model not given")} &middot;
-                      ${escapeHtml(v.body_type ?? "Body type not given")}
+                      ${escapeHtml(operatorLabel)}${
+                        v.route ? ` &middot; Route ${escapeHtml(v.route)}` : ""
+                      }
                     </p>
                     ${(() => {
                       const parts = [];
-                      if (v.route) parts.push(`Route ${escapeHtml(v.route)}`);
-                      if (v.franchise_number)
-                        parts.push(`Franchise ${escapeHtml(v.franchise_number)}`);
-                      if (v.body_number)
-                        parts.push(`Body No. ${escapeHtml(v.body_number)}`);
-                      if (v.seat_count || v.seat_configuration) {
+                      if (v.case_number)
+                        parts.push(`Case No. ${escapeHtml(v.case_number)}`);
+                      if (v.mv_file_number)
+                        parts.push(`MV File # ${escapeHtml(v.mv_file_number)}`);
+                      if (v.bus_number)
+                        parts.push(`Bus No. ${escapeHtml(v.bus_number)}`);
+                      if (v.seating_capacity || v.seat_type) {
                         parts.push(
-                          `${v.seat_count ?? "?"} seats${
-                            v.seat_configuration
-                              ? ` (${escapeHtml(v.seat_configuration)})`
-                              : ""
+                          `${v.seating_capacity ?? "?"} seats${
+                            v.seat_type ? ` (${escapeHtml(v.seat_type)})` : ""
                           }`
                         );
+                      }
+                      if (v.aircon !== null && v.aircon !== undefined) {
+                        parts.push(v.aircon ? "Aircon" : "Non-aircon");
                       }
                       return parts.length
                         ? `<p class="subtle">${parts.join(" &middot; ")}</p>`
@@ -129,11 +131,14 @@
                     })()}
                   </div>
                   <p class="request-when">
-                    OR ${escapeHtml(v.or_number ?? "—")} &middot;
-                    CR ${escapeHtml(v.cr_number ?? "—")}
                     ${
-                      v.registration_expiry
-                        ? `<br />Expires ${escapeHtml(v.registration_expiry)}`
+                      v.date_granted
+                        ? `Granted ${escapeHtml(v.date_granted)}`
+                        : "No grant date given"
+                    }
+                    ${
+                      v.date_expiry
+                        ? `<br />Expires ${escapeHtml(v.date_expiry)}`
                         : ""
                     }
                   </p>

@@ -60,7 +60,11 @@ Open the project's **SQL Editor** and run, in order:
 7. [`supabase/migrations/0007_thirty_minute_slots.sql`](supabase/migrations/0007_thirty_minute_slots.sql) -
    switches booking time slots from hourly to 30-minute (backfills existing
    rows, no data lost).
-8. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+8. [`supabase/migrations/0008_official_form_fields.sql`](supabase/migrations/0008_official_form_fields.sql) -
+   replaces vehicle registration's field set to match the PITX/MWM
+   Terminals paper form exactly, and adds the `operator_profiles` table for
+   that form's company-level fields.
+9. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -72,6 +76,11 @@ IPv6 egress), apply both in one command:
 DATABASE_URL="postgresql://postgres.<ref>:<password>@<pooler-host>:6543/postgres" \
   node scripts/run-migration.mjs --seed
 ```
+
+`run-migration.mjs` tracks which files it's already applied (in a
+`public._schema_migrations` table) and skips them on repeat runs - safe to
+re-run any time you add a new migration, even against a database that's
+already been migrated partway.
 
 ### 3. Point the static site at your project
 
@@ -163,9 +172,12 @@ Operators register vehicles from **My vehicles**, either by scanning a photo
 of the LTO OR/CR or entering the details by hand. Every field stays
 editable afterward regardless of how it was first entered.
 
-A registration also records franchise number, route, body number, seat
-configuration, and number of seats - plain text/number fields, entered the
-same way in either mode (not extracted by OCR).
+The vehicle fields match the PITX/MWM Terminals paper registration form
+exactly: Plate No., Case No., MV File #, Route, Bus No., Seating capacity,
+Seat type (2x2/2x3), Aircon/Non-aircon, Date granted, and Date expiry. (The
+form's company-level fields - name, owner, TIN, OR serial number, booking
+system, NAU, two contacts - live separately on **Operator profile**, one
+row per operator account, editable any time with no approval step.)
 
 Registrations need PITX staff approval (**Vehicle approvals**), the same
 shape as bookings:
@@ -180,12 +192,14 @@ operator's *approved* vehicles only - there's no free-text plate entry at
 booking time. An operator with no approved vehicle sees a message pointing
 them to **My vehicles** instead, with the request button disabled.
 
-Text extraction runs entirely in the browser via
+Only the plate number and expiry date are extracted from a scanned photo;
+the rest of the form (case no., MV file #, etc.) isn't printed on an OR/CR,
+so it's always typed in. Text extraction runs entirely in the browser via
 [Tesseract.js](https://github.com/naptha/tesseract.js) - no server, no API
 key, no per-scan cost. The trade-off: it's raw OCR with no understanding of
-the document's layout, so the extracted fields are **best-effort guesses**,
-always shown as editable inputs (never auto-saved) alongside the raw
-scanned text, so a wrong guess can be corrected by eye instead of by
+the document's layout, so even the two extracted fields are **best-effort
+guesses**, always shown as editable inputs (never auto-saved) alongside the
+raw scanned text, so a wrong guess can be corrected by eye instead of by
 re-scanning.
 
 A private Supabase Storage bucket (`vehicle-docs`) holds the uploaded
@@ -210,6 +224,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   index.html                 Sign in
   dashboard.html             Operator: request form + own requests
   vehicles.html              Operator: register/edit vehicles (scan or manual)
+  operator-profile.html     Operator: one-time company details (no approval)
   staff.html                 Staff: pending booking queue (approve / reject)
   vehicle-approvals.html     Staff: pending vehicle queue (approve / reject)
   schedule.html              Staff: 30-minute-slot capacity grid for a date

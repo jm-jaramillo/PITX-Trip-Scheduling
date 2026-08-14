@@ -22,7 +22,8 @@
           <h1>My vehicles</h1>
           <p class="subtle">
             Register a vehicle by scanning its LTO OR/CR, or enter the
-            details yourself. You can edit any entry afterward.
+            details yourself. Fields follow the PITX/MWM Terminals
+            registration form. You can edit any entry afterward.
           </p>
         </div>
         <button type="button" class="btn-primary" id="add-vehicle-btn">
@@ -51,8 +52,10 @@
         <!-- Scan mode -->
         <div id="scan-panel">
           <p class="subtle" style="margin-top: 14px">
-            Take a photo of the vehicle's OR/CR, or upload one. Details are
-            read automatically &mdash; nothing leaves your browser to do it.
+            Take a photo of the vehicle's OR/CR, or upload one, to fill in
+            the plate number and expiry automatically &mdash; nothing
+            leaves your browser to do it. The rest of the form (case no.,
+            MV file #, etc.) isn't on an OR/CR, so fill those in yourself.
           </p>
           <label class="upload-drop" id="upload-drop" for="photo-input">
             <span id="upload-drop-text">Tap to take a photo or choose a file</span>
@@ -72,57 +75,61 @@
           </div>
         </div>
 
-        <!-- Shared fields (both modes end up here) -->
+        <!-- Shared fields (both modes end up here), matching the paper form -->
         <div class="dialog-grid" id="fields-panel">
           <div class="field">
             <label for="f_plate_no">Plate No. <span class="req">*</span></label>
             <input id="f_plate_no" required placeholder="e.g. ABC 1234" />
           </div>
           <div class="field">
-            <label for="f_make_model">Make / model</label>
-            <input id="f_make_model" placeholder="e.g. Toyota Coaster" />
+            <label for="f_case_number">Case No.</label>
+            <input id="f_case_number" />
           </div>
           <div class="field">
-            <label for="f_body_type">Body type</label>
-            <input id="f_body_type" placeholder="e.g. Bus" />
-          </div>
-          <div class="field">
-            <label for="f_or_number">OR No.</label>
-            <input id="f_or_number" placeholder="Official Receipt number" />
-          </div>
-          <div class="field">
-            <label for="f_cr_number">CR No.</label>
-            <input id="f_cr_number" placeholder="Certificate of Registration number" />
-          </div>
-          <div class="field">
-            <label for="f_expiry">Registration expiry</label>
-            <input id="f_expiry" type="date" />
-          </div>
-          <div class="field">
-            <label for="f_franchise_number">Franchise No.</label>
-            <input id="f_franchise_number" placeholder="LTFRB franchise number" />
+            <label for="f_mv_file_number">MV File #</label>
+            <input id="f_mv_file_number" />
           </div>
           <div class="field">
             <label for="f_route">Route</label>
             <input id="f_route" placeholder="e.g. PITX - Batangas" />
           </div>
           <div class="field">
-            <label for="f_body_number">Body No.</label>
-            <input id="f_body_number" placeholder="Operator's fleet/body number" />
+            <label for="f_bus_number">Bus No.</label>
+            <input id="f_bus_number" />
           </div>
           <div class="field">
-            <label for="f_seat_configuration">Seat configuration</label>
-            <input id="f_seat_configuration" placeholder="e.g. 2x2" />
+            <label for="f_seating_capacity">Seating capacity</label>
+            <input id="f_seating_capacity" type="number" min="1" placeholder="e.g. 45" />
           </div>
           <div class="field">
-            <label for="f_seat_count">No. of seats</label>
-            <input id="f_seat_count" type="number" min="1" placeholder="e.g. 45" />
+            <label for="f_seat_type">Seat</label>
+            <select id="f_seat_type">
+              <option value="">&mdash;</option>
+              <option value="2x2">2x2</option>
+              <option value="2x3">2x3</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f_aircon">Aircon</label>
+            <select id="f_aircon">
+              <option value="">&mdash;</option>
+              <option value="true">Aircon</option>
+              <option value="false">Non-aircon</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f_date_granted">Date granted</label>
+            <input id="f_date_granted" type="date" />
+          </div>
+          <div class="field">
+            <label for="f_date_expiry">Date expiry</label>
+            <input id="f_date_expiry" type="date" />
           </div>
         </div>
 
         <p class="fineprint hidden" id="review-note">
-          Extracted automatically from the photo &mdash; double-check every
-          field before saving, especially the plate number.
+          Plate number and expiry extracted automatically from the photo
+          &mdash; double-check both before saving.
         </p>
 
         <details class="raw-text hidden" id="raw-text-wrap">
@@ -151,44 +158,48 @@
             <input id="e_plate_no" required />
           </div>
           <div class="field">
-            <label for="e_make_model">Make / model</label>
-            <input id="e_make_model" />
+            <label for="e_case_number">Case No.</label>
+            <input id="e_case_number" />
           </div>
           <div class="field">
-            <label for="e_body_type">Body type</label>
-            <input id="e_body_type" />
-          </div>
-          <div class="field">
-            <label for="e_or_number">OR No.</label>
-            <input id="e_or_number" />
-          </div>
-          <div class="field">
-            <label for="e_cr_number">CR No.</label>
-            <input id="e_cr_number" />
-          </div>
-          <div class="field">
-            <label for="e_expiry">Registration expiry</label>
-            <input id="e_expiry" type="date" />
-          </div>
-          <div class="field">
-            <label for="e_franchise_number">Franchise No.</label>
-            <input id="e_franchise_number" placeholder="LTFRB franchise number" />
+            <label for="e_mv_file_number">MV File #</label>
+            <input id="e_mv_file_number" />
           </div>
           <div class="field">
             <label for="e_route">Route</label>
             <input id="e_route" placeholder="e.g. PITX - Batangas" />
           </div>
           <div class="field">
-            <label for="e_body_number">Body No.</label>
-            <input id="e_body_number" placeholder="Operator's fleet/body number" />
+            <label for="e_bus_number">Bus No.</label>
+            <input id="e_bus_number" />
           </div>
           <div class="field">
-            <label for="e_seat_configuration">Seat configuration</label>
-            <input id="e_seat_configuration" placeholder="e.g. 2x2" />
+            <label for="e_seating_capacity">Seating capacity</label>
+            <input id="e_seating_capacity" type="number" min="1" />
           </div>
           <div class="field">
-            <label for="e_seat_count">No. of seats</label>
-            <input id="e_seat_count" type="number" min="1" placeholder="e.g. 45" />
+            <label for="e_seat_type">Seat</label>
+            <select id="e_seat_type">
+              <option value="">&mdash;</option>
+              <option value="2x2">2x2</option>
+              <option value="2x3">2x3</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="e_aircon">Aircon</label>
+            <select id="e_aircon">
+              <option value="">&mdash;</option>
+              <option value="true">Aircon</option>
+              <option value="false">Non-aircon</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="e_date_granted">Date granted</label>
+            <input id="e_date_granted" type="date" />
+          </div>
+          <div class="field">
+            <label for="e_date_expiry">Date expiry</label>
+            <input id="e_date_expiry" type="date" />
           </div>
         </div>
 
@@ -225,13 +236,19 @@
       initEditDialog();
       await loadVehicles();
 
+      function airconLabel(aircon) {
+        if (aircon === true) return "Aircon";
+        if (aircon === false) return "Non-aircon";
+        return "—";
+      }
+
       /* --------------------------------------------------------- list */
 
       async function loadVehicles() {
         const { data, error } = await supabase
           .from("vehicles")
           .select(
-            "id, plate_no, make_model, body_type, or_number, cr_number, registration_expiry, franchise_number, route, body_number, seat_configuration, seat_count, source, photo_path, status, rejection_reason, revision_count"
+            "id, plate_no, case_number, mv_file_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, status, rejection_reason, revision_count"
           )
           .eq("operator_id", profile.id)
           .order("created_at", { ascending: false });
@@ -254,11 +271,10 @@
             <table>
               <thead>
                 <tr>
-                  <th>Plate No.</th><th>Make / model</th><th>Body type</th>
-                  <th>OR No.</th><th>CR No.</th><th>Expiry</th>
-                  <th>Franchise No.</th><th>Route</th><th>Body No.</th>
-                  <th>Seat config.</th><th>Seats</th>
-                  <th>Source</th><th>Status</th><th>Note</th><th></th>
+                  <th>Plate No.</th><th>Case No.</th><th>MV File #</th>
+                  <th>Route</th><th>Bus No.</th><th>Seating capacity</th>
+                  <th>Seat</th><th>Aircon</th><th>Date granted</th>
+                  <th>Date expiry</th><th>Status</th><th>Note</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -271,19 +287,15 @@
                         ? `<span class="revised">changed</span>`
                         : ""
                     }</td>
-                    <td data-label="Make / model">${escapeHtml(v.make_model ?? "—")}</td>
-                    <td data-label="Body type">${escapeHtml(v.body_type ?? "—")}</td>
-                    <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
-                    <td data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
-                    <td data-label="Expiry">${escapeHtml(v.registration_expiry ?? "—")}</td>
-                    <td data-label="Franchise No.">${escapeHtml(v.franchise_number ?? "—")}</td>
+                    <td data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
+                    <td data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
                     <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
-                    <td data-label="Body No.">${escapeHtml(v.body_number ?? "—")}</td>
-                    <td data-label="Seat config.">${escapeHtml(v.seat_configuration ?? "—")}</td>
-                    <td data-label="Seats">${v.seat_count ?? "—"}</td>
-                    <td data-label="Source">${
-                      v.source === "scanned" ? "Scanned" : "Manual"
-                    }</td>
+                    <td data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
+                    <td data-label="Seating capacity">${v.seating_capacity ?? "—"}</td>
+                    <td data-label="Seat">${escapeHtml(v.seat_type ?? "—")}</td>
+                    <td data-label="Aircon">${airconLabel(v.aircon)}</td>
+                    <td data-label="Date granted">${escapeHtml(v.date_granted ?? "—")}</td>
+                    <td data-label="Date expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
                     <td data-label="Status"><span class="badge badge-${escapeHtml(
                       v.status
                     )}">${escapeHtml(v.status)}</span></td>
@@ -367,16 +379,15 @@
         document.getElementById("save-error").className = "inline-error hidden";
         for (const id of [
           "f_plate_no",
-          "f_make_model",
-          "f_body_type",
-          "f_or_number",
-          "f_cr_number",
-          "f_expiry",
-          "f_franchise_number",
+          "f_case_number",
+          "f_mv_file_number",
           "f_route",
-          "f_body_number",
-          "f_seat_configuration",
-          "f_seat_count",
+          "f_bus_number",
+          "f_seating_capacity",
+          "f_seat_type",
+          "f_aircon",
+          "f_date_granted",
+          "f_date_expiry",
         ]) {
           document.getElementById(id).value = "";
         }
@@ -391,16 +402,15 @@
         statusText.textContent = "Reading document…";
 
         try {
+          // Only plate number and expiry map onto this form's fields -
+          // the parser's make/model/OR/CR guesses have no field to land in
+          // now that the vehicle table matches the paper form exactly.
           const { guesses, rawText } = await extractOrCr(file, (progress) => {
             if (progress) statusText.textContent = progress;
           });
 
           if (guesses.plate_no) document.getElementById("f_plate_no").value = guesses.plate_no;
-          if (guesses.make_model) document.getElementById("f_make_model").value = guesses.make_model;
-          if (guesses.body_type) document.getElementById("f_body_type").value = guesses.body_type;
-          if (guesses.or_number) document.getElementById("f_or_number").value = guesses.or_number;
-          if (guesses.cr_number) document.getElementById("f_cr_number").value = guesses.cr_number;
-          if (guesses.expiry) document.getElementById("f_expiry").value = guesses.expiry;
+          if (guesses.expiry) document.getElementById("f_date_expiry").value = guesses.expiry;
 
           document.getElementById("review-note").className = "fineprint";
           const rawWrap = document.getElementById("raw-text-wrap");
@@ -418,6 +428,13 @@
         }
       }
 
+      function readAirconValue(selectId) {
+        const raw = document.getElementById(selectId).value;
+        if (raw === "true") return true;
+        if (raw === "false") return false;
+        return null;
+      }
+
       async function saveNewVehicle(event) {
         event.preventDefault();
         const errorEl = document.getElementById("save-error");
@@ -431,9 +448,9 @@
           return;
         }
 
-        const seatCountRaw = document.getElementById("f_seat_count").value;
-        if (seatCountRaw && Number(seatCountRaw) <= 0) {
-          errorEl.textContent = "Number of seats must be positive.";
+        const seatingRaw = document.getElementById("f_seating_capacity").value;
+        if (seatingRaw && Number(seatingRaw) <= 0) {
+          errorEl.textContent = "Seating capacity must be positive.";
           errorEl.className = "inline-error";
           return;
         }
@@ -462,19 +479,16 @@
         const { error } = await supabase.from("vehicles").insert({
           operator_id: profile.id,
           plate_no: plateNo,
-          make_model: document.getElementById("f_make_model").value.trim() || null,
-          body_type: document.getElementById("f_body_type").value.trim() || null,
-          or_number: document.getElementById("f_or_number").value.trim() || null,
-          cr_number: document.getElementById("f_cr_number").value.trim() || null,
-          registration_expiry: document.getElementById("f_expiry").value || null,
-          franchise_number:
-            document.getElementById("f_franchise_number").value.trim() || null,
+          case_number: document.getElementById("f_case_number").value.trim() || null,
+          mv_file_number:
+            document.getElementById("f_mv_file_number").value.trim() || null,
           route: document.getElementById("f_route").value.trim() || null,
-          body_number:
-            document.getElementById("f_body_number").value.trim() || null,
-          seat_configuration:
-            document.getElementById("f_seat_configuration").value.trim() || null,
-          seat_count: seatCountRaw ? Number(seatCountRaw) : null,
+          bus_number: document.getElementById("f_bus_number").value.trim() || null,
+          seating_capacity: seatingRaw ? Number(seatingRaw) : null,
+          seat_type: document.getElementById("f_seat_type").value || null,
+          aircon: readAirconValue("f_aircon"),
+          date_granted: document.getElementById("f_date_granted").value || null,
+          date_expiry: document.getElementById("f_date_expiry").value || null,
           photo_path: photoPath,
           source: pendingPhotoFile ? "scanned" : "manual",
           status: "pending",
@@ -524,16 +538,17 @@
         editingId = vehicleId;
 
         document.getElementById("e_plate_no").value = v.plate_no;
-        document.getElementById("e_make_model").value = v.make_model ?? "";
-        document.getElementById("e_body_type").value = v.body_type ?? "";
-        document.getElementById("e_or_number").value = v.or_number ?? "";
-        document.getElementById("e_cr_number").value = v.cr_number ?? "";
-        document.getElementById("e_expiry").value = v.registration_expiry ?? "";
-        document.getElementById("e_franchise_number").value = v.franchise_number ?? "";
+        document.getElementById("e_case_number").value = v.case_number ?? "";
+        document.getElementById("e_mv_file_number").value = v.mv_file_number ?? "";
         document.getElementById("e_route").value = v.route ?? "";
-        document.getElementById("e_body_number").value = v.body_number ?? "";
-        document.getElementById("e_seat_configuration").value = v.seat_configuration ?? "";
-        document.getElementById("e_seat_count").value = v.seat_count ?? "";
+        document.getElementById("e_bus_number").value = v.bus_number ?? "";
+        document.getElementById("e_seating_capacity").value = v.seating_capacity ?? "";
+        document.getElementById("e_seat_type").value = v.seat_type ?? "";
+        document.getElementById("e_aircon").value =
+          v.aircon === true ? "true" : v.aircon === false ? "false" : "";
+        document.getElementById("e_date_granted").value = v.date_granted ?? "";
+        document.getElementById("e_date_expiry").value = v.date_expiry ?? "";
+
         const origin =
           v.source === "scanned"
             ? "Originally registered by scanning an OR/CR photo."
@@ -560,9 +575,9 @@
           return;
         }
 
-        const seatCountRaw = document.getElementById("e_seat_count").value;
-        if (seatCountRaw && Number(seatCountRaw) <= 0) {
-          errorEl.textContent = "Number of seats must be positive.";
+        const seatingRaw = document.getElementById("e_seating_capacity").value;
+        if (seatingRaw && Number(seatingRaw) <= 0) {
+          errorEl.textContent = "Seating capacity must be positive.";
           errorEl.className = "inline-error";
           return;
         }
@@ -576,16 +591,15 @@
         const { error } = await supabase.rpc("request_vehicle_change", {
           p_vehicle_id: editingId,
           p_plate_no: plateNo,
-          p_make_model: document.getElementById("e_make_model").value.trim(),
-          p_body_type: document.getElementById("e_body_type").value.trim(),
-          p_or_number: document.getElementById("e_or_number").value.trim(),
-          p_cr_number: document.getElementById("e_cr_number").value.trim(),
-          p_registration_expiry: document.getElementById("e_expiry").value || null,
-          p_franchise_number: document.getElementById("e_franchise_number").value.trim(),
+          p_case_number: document.getElementById("e_case_number").value.trim(),
+          p_mv_file_number: document.getElementById("e_mv_file_number").value.trim(),
           p_route: document.getElementById("e_route").value.trim(),
-          p_body_number: document.getElementById("e_body_number").value.trim(),
-          p_seat_configuration: document.getElementById("e_seat_configuration").value.trim(),
-          p_seat_count: seatCountRaw ? Number(seatCountRaw) : null,
+          p_bus_number: document.getElementById("e_bus_number").value.trim(),
+          p_seating_capacity: seatingRaw ? Number(seatingRaw) : null,
+          p_seat_type: document.getElementById("e_seat_type").value || null,
+          p_aircon: readAirconValue("e_aircon"),
+          p_date_granted: document.getElementById("e_date_granted").value || null,
+          p_date_expiry: document.getElementById("e_date_expiry").value || null,
         });
 
         saveBtn.disabled = false;

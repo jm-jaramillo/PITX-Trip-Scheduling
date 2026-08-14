@@ -25,7 +25,8 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 | Visual identity | Matches the PITX Terminal Ops design system (shared logo, palette, type) |
 | Device support | Must be readable and usable on mobile, not just desktop |
 | Request filtering | Operators can filter their own requests: All / Approved / Pending / Declined |
-| Vehicle detail | Registration also captures franchise number, route, body number, seat configuration, and seat count |
+| Vehicle detail | Matches the official PITX/MWM Terminals paper form exactly (superseded 14 Aug; originally franchise no./body no./seat config, replaced not extended) |
+| Operator profile | One-time company details (name, owner, TIN, OR serial no., booking system, 2 contacts), no approval needed |
 
 ---
 
@@ -234,21 +235,79 @@ it to slot 18 through `request_booking_change()` and confirmed it moved to
 showed exactly 48 rows with the booking at the correct row, correct
 capacity count, and the assigned bay.
 
+### 13. `PENDING_HASH` — Vehicle fields match the official PITX/MWM form; operator profile page (14 Aug)
+
+The user supplied a photo of the actual PITX/MWM Terminals paper
+registration form. Vehicle registration's field set was **replaced**
+(not extended) to match its per-vehicle table exactly: Case No., MV File
+#, Route, Bus No., Seating capacity, Seat type (2x2/2x3), Aircon/
+Non-aircon, Date granted, Date expiry. Make/model, body type, OR No., CR
+No., franchise number, and free-text seat configuration - all added in
+earlier sessions - are gone from the vehicle level; the paper form has
+no per-vehicle OR/CR, just one operator-level "Serial Number (OR)".
+
+That company-level top section of the form (company name/owner, TIN, OR
+serial number, booking system, NAU, two contacts) became a new
+**Operator profile** page and `operator_profiles` table - one row per
+operator, editable any time with no approval step, since there's nothing
+privileged to protect there (unlike a booking's bay or a vehicle's
+approval status).
+
+`request_vehicle_change()`'s signature changed completely (new
+parameter list for the new fields), meaning drop-and-recreate again -
+the fourth time a field-set change in this project has needed it, since
+`CREATE OR REPLACE` can't alter a function's parameters.
+
+**Two real problems hit and fixed, not just designed around:**
+
+- **The migration runner itself broke.** `run-migration.mjs` always
+  replayed every `.sql` file, including 0001, which still literally says
+  `hour` - a column 0007 later renamed to `slot`. Even guarded by `IF
+  NOT EXISTS`, Postgres resolves column references during parse/analyze
+  *before* checking whether the index already exists, so replaying 0001
+  against an already-migrated database failed outright on `column
+  "hour" does not exist`. This wasn't a one-off: it's a structural gap
+  that would recur on every future rename or drop. Fixed properly with
+  a `public._schema_migrations` tracking table so already-applied files
+  are skipped on replay, rather than patching around this one instance.
+- **`dashboard.html`'s vehicle dropdown broke silently.** It still
+  selected the now-dropped `make_model` column to show alongside each
+  plate number, and the browser's own network-level error obscured
+  which request was failing - `read_console_messages` reported a bare
+  "400", and the network-inspection tool couldn't see the Supabase
+  fetch call at all (cross-origin). Found by temporarily wrapping
+  `window.fetch` in `app.js` to log failing requests' bodies, which
+  surfaced the exact Postgres error
+  (`column vehicles.make_model does not exist`); fixed by switching the
+  dropdown to `bus_number`, then removed the diagnostic before
+  committing.
+
+Verified end-to-end against the live database: registered a vehicle
+with all nine new fields, confirmed correct display on the operator
+list and staff approval queue (with no dangling separators when a field
+is blank), correct prefill into the edit dialog, and a correct
+round-trip through `request_vehicle_change()` on an edit (seats
+49→51, aircon→non-aircon). Saved an operator profile, reloaded the
+page, and confirmed every field persisted. Confirmed a completely fresh
+browser tab shows zero console errors on every page.
+
 ---
 
 ## What the app does now
 
-**Operators** — register vehicles (scan or manual entry, with franchise
-number, route, body number, seat configuration, and seat count); request an
-30-minute slot by picking a plate from their *approved* vehicles; see status,
-assigned bay, and any rejection note; filter their own requests by status;
-change a booking or a vehicle (back to staff for approval either way);
-cancel a pending booking.
+**Operators** — fill in a one-time company profile (name, owner, TIN, OR
+serial number, booking system, two contacts); register vehicles (scan or
+manual entry) with fields matching the PITX/MWM Terminals paper form
+exactly (Case No., MV File #, Route, Bus No., Seating capacity, Seat type,
+Aircon, Date granted, Date expiry); request a 30-minute slot by picking a
+plate from their *approved* vehicles; see status, assigned bay, and any
+rejection note; filter their own requests by status; change a booking or a
+vehicle (back to staff for approval either way); cancel a pending booking.
 
 **PITX staff** — approve or reject vehicle registrations and booking
-requests (assigning an available bay on approval); view a day-by-day hourly
-schedule with approved-vs-capacity; add/deactivate bays; create operator and
-staff logins.
+requests (assigning an available bay on approval); view a day-by-day
+30-minute-slot schedule with approved-vs-capacity; add/deactivate bays;
+create operator and staff logins.
 
 **Enforced by the database, not just the UI**
 
@@ -345,3 +404,14 @@ error rather than failing silently.
 - **The Edge Function still isn't deployed** (see "Outstanding" below), so
   account creation from the in-app Accounts page doesn't work yet — use
   `npm run create-staff` locally in the meantime.
+- **No staff-facing view of operator profiles.** Staff can read the
+  `operator_profiles` table (RLS already allows it), but there's no page
+  showing it yet — only the operator who owns a profile can currently see
+  it in the UI.
+- **Vehicle fields changed twice in one day** (0006 added franchise
+  number/body number/seat configuration; 0008 replaced them). Anyone who
+  registered a vehicle under the old field set lost that data on the 0008
+  cutover — there was no real data to preserve at the time, but worth
+  knowing if this pattern recurs: an additive migration followed by a
+  replacing one, both against a live database, is a data-loss risk on
+  the second migration if real records exist by then.

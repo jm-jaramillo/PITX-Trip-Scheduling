@@ -110,6 +110,7 @@ export async function signOut() {
 const OPERATOR_LINKS = [
   { href: "dashboard.html", label: "My requests" },
   { href: "vehicles.html", label: "My vehicles" },
+  { href: "operator-profile.html", label: "Operator profile" },
 ];
 
 const STAFF_LINKS = [
