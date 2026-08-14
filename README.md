@@ -75,7 +75,16 @@ Open the project's **SQL Editor** and run, in order:
    adds `list_operator_accounts()`, a narrow read-only lookup so the
    transfer dialog can offer a dropdown of real operator accounts instead
    of a free-text username.
-12. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+12. [`supabase/migrations/0012_transfer_recipient_confirmation.sql`](supabase/migrations/0012_transfer_recipient_confirmation.sql) -
+   requires the receiving operator to confirm a transfer before staff can
+   approve it.
+13. [`supabase/migrations/0013_transfer_booking_snapshot.sql`](supabase/migrations/0013_transfer_booking_snapshot.sql) -
+   snapshots the booking's date/slot/route/plate onto `booking_transfers`
+   so the recipient's dashboard can display them without needing RLS
+   access to a booking they don't own yet.
+14. [`supabase/migrations/0014_transfer_sender_snapshot.sql`](supabase/migrations/0014_transfer_sender_snapshot.sql) -
+   same idea for the sender's display name, for the same RLS reason.
+15. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -224,13 +233,26 @@ and an optional reason. Same eligibility as **Change** (pending/approved,
 at least 4 hours out, and no other transfer already awaiting review on
 that booking).
 
-The request sits in a separate **Transfer approvals** staff queue - it
-doesn't touch the live booking until decided:
+The receiving operator sees it under **Incoming transfer requests** on
+their own dashboard and must **Confirm** or **Decline** before anything
+else happens - this is the actual "internal agreement" check, not just a
+formality:
+
+| Recipient response | Effect |
+|---|---|
+| **Confirm** | Moves to the **Transfer approvals** staff queue for a decision. |
+| **Decline** | Request closed immediately; the booking is untouched and never reaches staff. |
+
+Only once the recipient has confirmed can staff decide:
 
 | Staff decision | Effect |
 |---|---|
 | **Approve** | Booking's operator, operator name, and plate are swapped to the receiving operator immediately - no further re-approval needed. The bay assignment and slot are untouched. |
 | **Reject** | Booking is untouched; the request is closed. |
+
+`approve_booking_transfer()` re-checks the recipient's confirmation
+server-side (`recipient_response = 'accepted'`) - staff can't approve
+around a missing confirmation even by calling the function directly.
 
 Once approved, the **Schedule** and the receiving operator's **My
 requests** both show the previous operator's name struck through, right
@@ -238,12 +260,15 @@ before the new one, e.g. ~~Genesis Trans~~ Batangas Star Lines. The
 original operator will no longer see the booking in their own list - it
 now belongs to the receiving operator's account.
 
-There is no in-app acceptance step for the receiving operator; PITX staff
-approval is the only check that the arrangement is genuine. Goes through
-the `request_booking_transfer()` / `approve_booking_transfer()` /
-`reject_booking_transfer()` database functions (migration `0010`), since
-crossing operator accounts needs its own authorization checks that plain
-RLS can't express.
+Goes through the `request_booking_transfer()` / `accept_booking_transfer()`
+/ `decline_booking_transfer()` / `approve_booking_transfer()` /
+`reject_booking_transfer()` database functions (migrations `0010`, `0012`),
+since crossing operator accounts needs its own authorization checks that
+plain RLS can't express. The recipient's dashboard reads the booking's
+date/slot/route and the sender's name off snapshot columns on
+`booking_transfers` itself (migrations `0013`, `0014`) rather than joining
+to `bookings`/`profiles` - RLS blocks both joins for an operator who isn't
+the booking's owner or the profile's own account.
 
 ## Vehicle registration
 

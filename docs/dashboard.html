@@ -27,6 +27,8 @@
         </div>
       </div>
 
+      <div id="incoming-transfers"></div>
+
       <div class="card">
         <form class="grid grid-2 grid-4" id="booking-form">
           <div class="field">
@@ -198,7 +200,110 @@
         initEditDialog();
         initTransferDialog();
         initStatusFilter();
-        await loadRequests();
+        await Promise.all([loadRequests(), loadIncomingTransfers()]);
+      }
+
+      /* ------------------------------------------- incoming transfers */
+
+      // Transfers another operator wants to hand *to* this account - needs
+      // this operator's own confirmation before PITX staff can approve it
+      // (migration 0012). Kept separate from "My requests" since it isn't
+      // this operator's own booking yet.
+      async function loadIncomingTransfers() {
+        // Reads booking_date/slot/route/from_operator_name straight off
+        // booking_transfers rather than joining to bookings/profiles -
+        // this operator doesn't own the booking yet and can't read the
+        // sender's profile row either, so both joins would come back null
+        // under RLS (see migrations 0013/0014).
+        const { data, error } = await supabase
+          .from("booking_transfers")
+          .select(
+            "id, new_plate_no, reason, created_at, booking_date, slot, route, from_operator_name"
+          )
+          .eq("to_operator_id", profile.id)
+          .eq("status", "pending")
+          .eq("recipient_response", "pending")
+          .order("created_at", { ascending: true });
+
+        const host = document.getElementById("incoming-transfers");
+        if (error || !data || data.length === 0) {
+          host.innerHTML = "";
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="card" style="margin-bottom: 24px">
+            <h2 style="margin-top: 0">Incoming transfer requests</h2>
+            <p class="subtle">
+              Another operator wants to hand you one of their slots. Confirm
+              only if you've actually agreed to cover it - PITX staff still
+              need to approve it afterward.
+            </p>
+            <p class="inline-error hidden" id="incoming-transfer-error"></p>
+            ${data
+              .map((t) => {
+                const fromLabel = t.from_operator_name || "Operator";
+                return `
+                  <div class="request-card">
+                    <div class="request-head">
+                      <div>
+                        <p class="request-who">${escapeHtml(fromLabel)} &rarr; you</p>
+                        <p class="subtle">
+                          ${escapeHtml(t.booking_date)} &middot; ${escapeHtml(formatSlot(t.slot))}${
+                            t.route ? ` &middot; ${escapeHtml(t.route)}` : ""
+                          }
+                        </p>
+                        <p class="subtle">Your plate would be ${escapeHtml(t.new_plate_no)}</p>
+                        ${t.reason ? `<p class="subtle">Reason: ${escapeHtml(t.reason)}</p>` : ""}
+                      </div>
+                    </div>
+                    <div class="request-actions">
+                      <form data-accept="${escapeHtml(t.id)}">
+                        <button type="submit" class="btn-approve">Confirm</button>
+                      </form>
+                      <form data-decline="${escapeHtml(t.id)}">
+                        <input placeholder="Reason (optional)" />
+                        <button type="submit" class="btn-danger-outline">Decline</button>
+                      </form>
+                    </div>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        `;
+
+        host.querySelectorAll("[data-accept]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            respondToTransfer(form.dataset.accept, "accept");
+          });
+        });
+        host.querySelectorAll("[data-decline]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            respondToTransfer(
+              form.dataset.decline,
+              "decline",
+              form.querySelector("input").value.trim()
+            );
+          });
+        });
+      }
+
+      async function respondToTransfer(transferId, action, reason) {
+        const { error } =
+          action === "accept"
+            ? await supabase.rpc("accept_booking_transfer", { p_transfer_id: transferId })
+            : await supabase.rpc("decline_booking_transfer", {
+                p_transfer_id: transferId,
+                p_reason: reason || null,
+              });
+        if (error) {
+          showMessage("incoming-transfer-error", error.message);
+          return;
+        }
+        await loadIncomingTransfers();
       }
 
       function initStatusFilter() {

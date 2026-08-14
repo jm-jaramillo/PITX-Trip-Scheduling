@@ -22,9 +22,9 @@
           <h1>Transfer approvals</h1>
           <p class="subtle">
             An operator who can't make a scheduled slot may hand it to
-            another operator by internal agreement. Approving here moves the
-            booking to the new operator immediately - reject if the
-            arrangement can't be confirmed.
+            another operator by internal agreement. The receiving operator
+            must confirm first - only then can you approve it, which moves
+            the booking to them immediately.
           </p>
         </div>
         <p class="subtle" id="queue-count"></p>
@@ -54,8 +54,8 @@
         const { data, error } = await supabase
           .from("booking_transfers")
           .select(
-            "id, to_username, new_plate_no, reason, created_at, " +
-              "bookings ( booking_date, slot, route, operator_name, plate_no ), " +
+            "id, to_username, new_plate_no, reason, created_at, recipient_response, " +
+              "booking_date, slot, route, previous_plate_no, " +
               "from_profile:profiles!booking_transfers_from_operator_id_fkey ( username, operator_name ), " +
               "to_profile:profiles!booking_transfers_to_operator_id_fkey ( username, operator_name )"
           )
@@ -82,7 +82,6 @@
 
         host.innerHTML = requests
           .map((t) => {
-            const b = t.bookings;
             const fromLabel =
               t.from_profile?.operator_name || t.from_profile?.username || "Operator";
             const toLabel =
@@ -95,11 +94,11 @@
                       ${escapeHtml(fromLabel)} &rarr; ${escapeHtml(toLabel)}
                     </p>
                     <p class="subtle">
-                      ${b ? escapeHtml(b.booking_date) + " &middot; " + escapeHtml(formatSlot(b.slot)) : "Booking no longer exists"}
-                      ${b?.route ? ` &middot; ${escapeHtml(b.route)}` : ""}
+                      ${escapeHtml(t.booking_date)} &middot; ${escapeHtml(formatSlot(t.slot))}
+                      ${t.route ? ` &middot; ${escapeHtml(t.route)}` : ""}
                     </p>
                     <p class="subtle">
-                      Current plate ${escapeHtml(b?.plate_no ?? "—")} &rarr;
+                      Current plate ${escapeHtml(t.previous_plate_no ?? "—")} &rarr;
                       new plate ${escapeHtml(t.new_plate_no)}
                     </p>
                     ${
@@ -113,15 +112,21 @@
                   )}</p>
                 </div>
 
-                <div class="request-actions">
-                  <form data-approve="${escapeHtml(t.id)}">
-                    <button type="submit" class="btn-approve">Approve</button>
-                  </form>
-                  <form data-reject="${escapeHtml(t.id)}">
-                    <input placeholder="Reason (optional)" />
-                    <button type="submit" class="btn-danger-outline">Reject</button>
-                  </form>
-                </div>
+                ${
+                  t.recipient_response === "accepted"
+                    ? `<div class="request-actions">
+                        <form data-approve="${escapeHtml(t.id)}">
+                          <button type="submit" class="btn-approve">Approve</button>
+                        </form>
+                        <form data-reject="${escapeHtml(t.id)}">
+                          <input placeholder="Reason (optional)" />
+                          <button type="submit" class="btn-danger-outline">Reject</button>
+                        </form>
+                      </div>`
+                    : `<p class="subtle" style="margin-top: 10px">
+                        Waiting on ${escapeHtml(toLabel)} to confirm before this can be approved.
+                      </p>`
+                }
               </div>
             `;
           })
