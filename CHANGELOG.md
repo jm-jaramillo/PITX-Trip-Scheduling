@@ -547,6 +547,43 @@ Verified live: added a vehicle with OR No. `OR-0012345` / CR No.
 `CR-0067890` filled in by hand, confirmed both values round-tripped
 correctly in the database, then removed the test row.
 
+### 24. Bootstrapped 21 operator accounts for the real bus line roster (14 Aug)
+
+Data-only change, no code: created one operator account per bus
+line/company on the operator's provided roster, via `create-operator.mjs`
+(same mechanism as Jac Liner earlier), all sharing password
+`TestPass123` - same as the rest of the test accounts. Usernames are a
+lowercased/de-punctuated slug of the company name (e.g. `A&B LINER` ->
+`abliner.ops`); `profiles.operator_name` keeps the name as given.
+
+| Username | Operator name |
+|---|---|
+| `amihan.ops` | AMIHAN |
+| `philtranco.ops` | PHILTRANCO |
+| `alps.ops` | ALPS |
+| `bicolisarog.ops` | BICOL ISAROG |
+| `dltb.ops` | DLTB |
+| `superlines.ops` | SUPERLINES |
+| `raymond.ops` | RAYMOND |
+| `tawtrasco.ops` | TAWTRASCO |
+| `cagsawa.ops` | CAGSAWA |
+| `omtranscoop.ops` | OMTRANSCOOP (Jariv Transport) |
+| `rorobus.ops` | RORO BUS |
+| `davaometroshuttle.ops` | DAVAO METRO SHUTTLE CORP |
+| `ceresgoldstar.ops` | CERES-GOLDSTAR |
+| `ndelarosaliner.ops` | N. DELA ROSA LINER |
+| `jamliner.ops` | JAM LINER |
+| `abliner.ops` | A&B LINER |
+| `barneyautoline.ops` | BARNEY AUTO LINE |
+| `potransport.ops` | P&O TRANSPORT |
+| `jamlinerlli.ops` | JAM LINER/LLI |
+| `pangasinansolidnorth.ops` | PANGASINAN SOLID NORTH |
+| `delarosaexpress.ops` | DELA ROSA EXPRESS |
+
+Verified against the database: all 21 rows created with
+`role = 'operator'`, bringing the total operator account count to 23
+(plus the pre-existing `genesis.ops` and `jacliner.ops`).
+
 ---
 
 ## What the app does now
