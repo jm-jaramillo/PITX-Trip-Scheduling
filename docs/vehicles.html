@@ -53,9 +53,10 @@
         <div id="scan-panel">
           <p class="subtle" style="margin-top: 14px">
             Take a photo of the vehicle's OR/CR, or upload one, to fill in
-            the plate number and expiry automatically &mdash; nothing
-            leaves your browser to do it. The rest of the form (case no.,
-            MV file #, etc.) isn't on an OR/CR, so fill those in yourself.
+            the plate number, expiry, and OR/CR numbers automatically
+            &mdash; nothing leaves your browser to do it. The rest of the
+            form (case no., MV file #, etc.) isn't on an OR/CR, so fill
+            those in yourself.
           </p>
           <label class="upload-drop" id="upload-drop" for="photo-input">
             <span id="upload-drop-text">Tap to take a photo or choose a file</span>
@@ -88,6 +89,14 @@
           <div class="field">
             <label for="f_mv_file_number">MV File #</label>
             <input id="f_mv_file_number" />
+          </div>
+          <div class="field">
+            <label for="f_or_number">OR No.</label>
+            <input id="f_or_number" />
+          </div>
+          <div class="field">
+            <label for="f_cr_number">CR No.</label>
+            <input id="f_cr_number" />
           </div>
           <div class="field">
             <label for="f_route">Route</label>
@@ -128,8 +137,8 @@
         </div>
 
         <p class="fineprint hidden" id="review-note">
-          Plate number and expiry extracted automatically from the photo
-          &mdash; double-check both before saving.
+          Plate number, expiry, and OR/CR numbers extracted automatically
+          from the photo &mdash; double-check all of them before saving.
         </p>
 
         <details class="raw-text hidden" id="raw-text-wrap">
@@ -164,6 +173,14 @@
           <div class="field">
             <label for="e_mv_file_number">MV File #</label>
             <input id="e_mv_file_number" />
+          </div>
+          <div class="field">
+            <label for="e_or_number">OR No.</label>
+            <input id="e_or_number" />
+          </div>
+          <div class="field">
+            <label for="e_cr_number">CR No.</label>
+            <input id="e_cr_number" />
           </div>
           <div class="field">
             <label for="e_route">Route</label>
@@ -248,7 +265,7 @@
         const { data, error } = await supabase
           .from("vehicles")
           .select(
-            "id, plate_no, case_number, mv_file_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, status, rejection_reason, revision_count"
+            "id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, status, rejection_reason, revision_count"
           )
           .eq("operator_id", profile.id)
           .order("created_at", { ascending: false });
@@ -272,6 +289,7 @@
               <thead>
                 <tr>
                   <th>Plate No.</th><th>Case No.</th><th>MV File #</th>
+                  <th>OR No.</th><th>CR No.</th>
                   <th>Route</th><th>Bus No.</th><th>Seating capacity</th>
                   <th>Seat</th><th>Aircon</th><th>Date granted</th>
                   <th>Date expiry</th><th>Status</th><th>Note</th><th></th>
@@ -289,6 +307,8 @@
                     }</td>
                     <td data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
                     <td data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
+                    <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
+                    <td data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
                     <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
                     <td data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
                     <td data-label="Seating capacity">${v.seating_capacity ?? "—"}</td>
@@ -381,6 +401,8 @@
           "f_plate_no",
           "f_case_number",
           "f_mv_file_number",
+          "f_or_number",
+          "f_cr_number",
           "f_route",
           "f_bus_number",
           "f_seating_capacity",
@@ -402,15 +424,14 @@
         statusText.textContent = "Reading document…";
 
         try {
-          // Only plate number and expiry map onto this form's fields -
-          // the parser's make/model/OR/CR guesses have no field to land in
-          // now that the vehicle table matches the paper form exactly.
           const { guesses, rawText } = await extractOrCr(file, (progress) => {
             if (progress) statusText.textContent = progress;
           });
 
           if (guesses.plate_no) document.getElementById("f_plate_no").value = guesses.plate_no;
           if (guesses.expiry) document.getElementById("f_date_expiry").value = guesses.expiry;
+          if (guesses.or_number) document.getElementById("f_or_number").value = guesses.or_number;
+          if (guesses.cr_number) document.getElementById("f_cr_number").value = guesses.cr_number;
 
           document.getElementById("review-note").className = "fineprint";
           const rawWrap = document.getElementById("raw-text-wrap");
@@ -482,6 +503,8 @@
           case_number: document.getElementById("f_case_number").value.trim() || null,
           mv_file_number:
             document.getElementById("f_mv_file_number").value.trim() || null,
+          or_number: document.getElementById("f_or_number").value.trim() || null,
+          cr_number: document.getElementById("f_cr_number").value.trim() || null,
           route: document.getElementById("f_route").value.trim() || null,
           bus_number: document.getElementById("f_bus_number").value.trim() || null,
           seating_capacity: seatingRaw ? Number(seatingRaw) : null,
@@ -540,6 +563,8 @@
         document.getElementById("e_plate_no").value = v.plate_no;
         document.getElementById("e_case_number").value = v.case_number ?? "";
         document.getElementById("e_mv_file_number").value = v.mv_file_number ?? "";
+        document.getElementById("e_or_number").value = v.or_number ?? "";
+        document.getElementById("e_cr_number").value = v.cr_number ?? "";
         document.getElementById("e_route").value = v.route ?? "";
         document.getElementById("e_bus_number").value = v.bus_number ?? "";
         document.getElementById("e_seating_capacity").value = v.seating_capacity ?? "";
@@ -593,6 +618,8 @@
           p_plate_no: plateNo,
           p_case_number: document.getElementById("e_case_number").value.trim(),
           p_mv_file_number: document.getElementById("e_mv_file_number").value.trim(),
+          p_or_number: document.getElementById("e_or_number").value.trim(),
+          p_cr_number: document.getElementById("e_cr_number").value.trim(),
           p_route: document.getElementById("e_route").value.trim(),
           p_bus_number: document.getElementById("e_bus_number").value.trim(),
           p_seating_capacity: seatingRaw ? Number(seatingRaw) : null,

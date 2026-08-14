@@ -53,7 +53,7 @@
           .select(
             // vehicles has two FKs into profiles (operator_id, decided_by),
             // so the embed needs the constraint name to disambiguate which.
-            "id, operator_id, plate_no, case_number, mv_file_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+            "id, operator_id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
           )
           .eq("status", "pending")
           .order("created_at", { ascending: true });
@@ -113,6 +113,10 @@
                         parts.push(`Case No. ${escapeHtml(v.case_number)}`);
                       if (v.mv_file_number)
                         parts.push(`MV File # ${escapeHtml(v.mv_file_number)}`);
+                      if (v.or_number)
+                        parts.push(`OR No. ${escapeHtml(v.or_number)}`);
+                      if (v.cr_number)
+                        parts.push(`CR No. ${escapeHtml(v.cr_number)}`);
                       if (v.bus_number)
                         parts.push(`Bus No. ${escapeHtml(v.bus_number)}`);
                       if (v.seating_capacity || v.seat_type) {

@@ -84,7 +84,9 @@ Open the project's **SQL Editor** and run, in order:
    access to a booking they don't own yet.
 14. [`supabase/migrations/0014_transfer_sender_snapshot.sql`](supabase/migrations/0014_transfer_sender_snapshot.sql) -
    same idea for the sender's display name, for the same RLS reason.
-15. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+15. [`supabase/migrations/0015_vehicle_or_cr_numbers.sql`](supabase/migrations/0015_vehicle_or_cr_numbers.sql) -
+   re-adds per-vehicle OR No. and CR No. fields to vehicle registration.
+16. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -276,12 +278,15 @@ Operators register vehicles from **My vehicles**, either by scanning a photo
 of the LTO OR/CR or entering the details by hand. Every field stays
 editable afterward regardless of how it was first entered.
 
-The vehicle fields match the PITX/MWM Terminals paper registration form
-exactly: Plate No., Case No., MV File #, Route, Bus No., Seating capacity,
-Seat type (2x2/2x3), Aircon/Non-aircon, Date granted, and Date expiry. (The
-form's company-level fields - name, owner, TIN, OR serial number, booking
-system, NAU, two contacts - live separately on **Operator profile**, one
-row per operator account, editable any time with no approval step.)
+The vehicle fields match the PITX/MWM Terminals paper registration form,
+plus per-vehicle OR No. and CR No. (migration `0015_vehicle_or_cr_numbers.sql`):
+Plate No., Case No., MV File #, OR No., CR No., Route, Bus No., Seating
+capacity, Seat type (2x2/2x3), Aircon/Non-aircon, Date granted, and Date
+expiry. (The form's company-level fields - name, owner, TIN, OR serial
+number, booking system, NAU, two contacts - live separately on **Operator
+profile**, one row per operator account, editable any time with no
+approval step; that OR serial number is the *company's*, distinct from
+each vehicle's own OR No. here.)
 
 Registrations need PITX staff approval (**Vehicle approvals**), the same
 shape as bookings:
@@ -296,15 +301,18 @@ operator's *approved* vehicles only - there's no free-text plate entry at
 booking time. An operator with no approved vehicle sees a message pointing
 them to **My vehicles** instead, with the request button disabled.
 
-Only the plate number and expiry date are extracted from a scanned photo;
-the rest of the form (case no., MV file #, etc.) isn't printed on an OR/CR,
-so it's always typed in. Text extraction runs entirely in the browser via
+The plate number, expiry date, and OR/CR numbers are extracted from a
+scanned photo; the rest of the form (case no., MV file #, etc.) isn't
+printed on an OR/CR, so it's always typed in. Text extraction runs
+entirely in the browser via
 [Tesseract.js](https://github.com/naptha/tesseract.js) - no server, no API
 key, no per-scan cost. The trade-off: it's raw OCR with no understanding of
-the document's layout, so even the two extracted fields are **best-effort
-guesses**, always shown as editable inputs (never auto-saved) alongside the
+the document's layout, so every extracted field is a **best-effort
+guess**, always shown as an editable input (never auto-saved) alongside the
 raw scanned text, so a wrong guess can be corrected by eye instead of by
-re-scanning.
+re-scanning. The OR/CR guesses are the least reliable of the bunch - they
+depend on finding a label like "OR NO." near the value, which varies more
+across documents than the plate/expiry patterns do.
 
 A private Supabase Storage bucket (`vehicle-docs`) holds the uploaded
 photos, one folder per operator, with the same RLS-style access rule as

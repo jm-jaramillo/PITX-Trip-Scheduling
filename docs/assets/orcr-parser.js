@@ -6,9 +6,9 @@
 // them - and the raw text is shown too so a bad guess can be corrected by
 // eye rather than by re-scanning.
 //
-// Only plate number and expiry are guessed: the vehicle registration form
-// matches the PITX/MWM Terminals paper form, which has no make/model, body
-// type, or per-vehicle OR/CR number fields for these guesses to land in.
+// Plate number, expiry, and the OR/CR numbers are guessed - the rest of
+// the vehicle registration form (case no., MV file #, etc.) isn't printed
+// on an OR/CR document, so those stay hand-entered.
 
 import { createWorker } from "https://esm.sh/tesseract.js@5.1.1";
 
@@ -38,6 +38,8 @@ export async function extractOrCr(file, onProgress) {
       guesses: {
         plate_no: guessPlate(text.toUpperCase()),
         expiry: guessExpiry(text.toUpperCase()),
+        or_number: guessNumberNear(text.toUpperCase(), /O\.?\s?R\.?\s*(?:NO\.?|NUMBER)?/),
+        cr_number: guessNumberNear(text.toUpperCase(), /C\.?\s?R\.?\s*(?:NO\.?|NUMBER)?/),
       },
     };
   } finally {
@@ -87,4 +89,14 @@ function guessExpiry(upper) {
     return null;
   }
   return `${year}-${mm}-${dd}`;
+}
+
+// Looks for a label ("O.R. NO.", "OR", "C R NUMBER", ...) and takes the
+// alphanumeric run right after it - OCR on these labels is unreliable
+// (spacing/dots vary a lot), so this is looser than the plate/date
+// guesses and more likely to need a manual fix.
+function guessNumberNear(upper, labelRegex) {
+  const combined = new RegExp(labelRegex.source + "\\s*[:\\-]?\\s*([A-Z0-9\\-]{4,})");
+  const match = upper.match(combined);
+  return match ? match[1] : null;
 }
