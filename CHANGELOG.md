@@ -304,6 +304,30 @@ equivalent job for a flex box. Verified visually: every status/bay/note/
 action cell now lines up on the same row, both on My requests and (same
 class, same fix) the Vehicles list.
 
+**This fix was incomplete** - the user reported the misalignment was
+still there. `align-items: center` was correct as far as it went, but it
+was centering content *within* a box that itself wasn't full height:
+setting `display: flex` directly on a `<td>` pulls it out of the normal
+table-cell box model entirely, so that cell stops stretching to the
+row's height and instead sizes to its own content - `align-items` had
+nothing taller than its content to center within. Measuring instead of
+eyeballing this time: every row's status badge sat exactly at the row's
+vertical center, while the action link sat a consistent 5-6px above it
+- a fixed offset, not noise, confirming a structural cause rather than a
+one-off rendering quirk.
+
+Real fix: keep the `<td>` itself a plain, unstyled table cell (so the
+table's normal `vertical-align: middle` still applies to it as a whole)
+and move `display: flex` onto a `<div>` wrapper *inside* the cell
+instead. Verified by measuring badge-center vs link-center on every row
+before and after: `0px` difference on every single row post-fix, not
+just a visual check.
+
+### 15. `PENDING_HASH` — Actually fixed the row action button alignment (14 Aug)
+
+Continuation of #14 above - see that entry for the full story of what
+was wrong and why the first attempt didn't fix it.
+
 ---
 
 ## What the app does now

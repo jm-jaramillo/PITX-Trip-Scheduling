@@ -784,11 +784,15 @@ td strong,
   display: none !important;
 }
 
-/* This is a <td> with display:flex, which stops the table's own
-   vertical-align: middle from applying (it only works on table-cell/inline
-   boxes, not flex containers) - align-items here does the same job for
-   the flex box instead, so the button(s) sit centered in the row rather
-   than pinned to the top. */
+/* Lays out Change/Cancel side by side. This must be a plain <div> INSIDE
+   the <td>, not a class on the <td> itself: setting display:flex directly
+   on a table cell drops it out of the normal table-cell box model, so it
+   stops stretching to the row's full height - align-items:center then has
+   nothing to center within, and the buttons end up pinned above middle
+   instead of centered on the row. Keeping the <td> a plain cell lets the
+   table's own `vertical-align: middle` (see the generic td rule above)
+   center this div as a whole; align-items here only keeps Change and
+   Cancel level with each other. */
 .row-actions {
   display: flex;
   align-items: center;
