@@ -367,7 +367,7 @@ changed."* A separate RPC call requesting a too-soon *new* slot on an
 otherwise-eligible booking was rejected with *"Please choose a time at
 least 4 hours from now."*
 
-### 17. `PENDING_HASH` — Time slot dropdown hides slots already too close (14 Aug)
+### 17. `aeb5b37` — Time slot dropdown hides slots already too close (14 Aug)
 
 The 4-hour rule from #16 was previously only enforced on submit - an
 operator could still see and pick a too-soon slot, then get told no.
