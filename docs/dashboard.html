@@ -86,6 +86,44 @@
       <div id="requests"></div>
     </main>
 
+    <dialog id="transfer-dialog">
+      <form id="transfer-form">
+        <h2 class="dialog-title">Transfer this booking to another operator</h2>
+        <p class="subtle" id="transfer-context"></p>
+        <p class="subtle">
+          Use this when you have an internal agreement with another
+          operator to cover this slot. PITX staff still need to approve the
+          handoff before it takes effect.
+        </p>
+
+        <div class="dialog-grid">
+          <div class="field">
+            <label for="transfer_username">Receiving operator's username</label>
+            <input id="transfer_username" required />
+          </div>
+          <div class="field">
+            <label for="transfer_plate_no">Their plate no.</label>
+            <input id="transfer_plate_no" required />
+          </div>
+          <div class="field span-all">
+            <label for="transfer_reason">Reason (optional)</label>
+            <input id="transfer_reason" />
+          </div>
+        </div>
+
+        <p class="inline-error hidden" id="transfer-error"></p>
+
+        <div class="dialog-actions">
+          <button type="button" class="btn-outline" id="transfer-cancel">
+            Never mind
+          </button>
+          <button type="submit" class="btn-primary" id="transfer-save">
+            Submit for approval
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="edit-dialog">
       <form id="edit-form">
         <h2 class="dialog-title">Change this request</h2>
@@ -146,11 +184,14 @@
       // Module-level state must be declared before the init calls below run,
       // otherwise `let` bindings are still in their temporal dead zone.
       const dialog = document.getElementById("edit-dialog");
+      const transferDialog = document.getElementById("transfer-dialog");
       let bookingsById = new Map(); // keyed by id so the dialog can prefill
       let allBookings = [];
       let statusFilter = "all";
       let editingId = null;
+      let transferringId = null;
       let approvedVehicles = [];
+      let pendingTransferBookingIds = new Set();
 
       const profile = await guardPage("operator");
       if (profile) {
@@ -158,6 +199,7 @@
         await loadApprovedVehicles();
         initForm();
         initEditDialog();
+        initTransferDialog();
         initStatusFilter();
         await loadRequests();
       }
@@ -327,17 +369,30 @@
       }
 
       async function loadRequests() {
-        const { data } = await supabase
-          .from("bookings")
-          .select(
-            "id, operator_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, bays ( id, name )"
-          )
-          .eq("operator_id", profile.id)
-          .order("booking_date", { ascending: false })
-          .order("slot", { ascending: false });
+        const [{ data }, { data: transfers }] = await Promise.all([
+          supabase
+            .from("bookings")
+            .select(
+              "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, bays ( id, name )"
+            )
+            .eq("operator_id", profile.id)
+            .order("booking_date", { ascending: false })
+            .order("slot", { ascending: false }),
+          // Bookings this operator has already asked to hand off, still
+          // awaiting a staff decision - editing/cancelling/re-transferring
+          // while that's in review would race with the approval.
+          supabase
+            .from("booking_transfers")
+            .select("booking_id")
+            .eq("from_operator_id", profile.id)
+            .eq("status", "pending"),
+        ]);
 
         allBookings = data ?? [];
         bookingsById = new Map(allBookings.map((b) => [b.id, b]));
+        pendingTransferBookingIds = new Set(
+          (transfers ?? []).map((t) => t.booking_id)
+        );
         renderRequestsTable();
       }
 
@@ -377,19 +432,31 @@
                     const withinLockout =
                       slotStartMillis(b.booking_date, b.slot) - Date.now() <
                       BOOKING_LEAD_TIME_MS;
+                    const transferPending = pendingTransferBookingIds.has(b.id);
                     const editable =
                       (b.status === "pending" || b.status === "approved") &&
-                      !withinLockout;
+                      !withinLockout &&
+                      !transferPending;
                     return `
                   <tr>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
                     <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
-                    <td data-label="Operator">${escapeHtml(b.operator_name)}</td>
+                    <td data-label="Operator">${
+                      b.previous_operator_name
+                        ? `<s class="transferred-from">${escapeHtml(
+                            b.previous_operator_name
+                          )}</s> `
+                        : ""
+                    }${escapeHtml(b.operator_name)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
                     <td data-label="Status">${statusBadge(b.status)}${
                       b.revision_count > 0
                         ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
+                        : ""
+                    }${
+                      transferPending
+                        ? `<span class="revised" title="A transfer request for this booking is awaiting PITX staff review">transfer&nbsp;pending</span>`
                         : ""
                     }</td>
                     <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
@@ -401,7 +468,13 @@
                           )}">Change</button>`
                         : ""
                     }${
-                      b.status === "pending"
+                      editable
+                        ? `<button type="button" class="btn-link" data-transfer="${escapeHtml(
+                            b.id
+                          )}">Transfer</button>`
+                        : ""
+                    }${
+                      b.status === "pending" && !transferPending
                         ? `<button type="button" class="btn-link danger" data-cancel="${escapeHtml(
                             b.id
                           )}">Cancel</button>`
@@ -421,6 +494,69 @@
         host.querySelectorAll("[data-edit]").forEach((btn) => {
           btn.addEventListener("click", () => openEdit(btn.dataset.edit));
         });
+        host.querySelectorAll("[data-transfer]").forEach((btn) => {
+          btn.addEventListener("click", () => openTransfer(btn.dataset.transfer));
+        });
+      }
+
+      /* -------------------------------------------------- transfer dialog */
+
+      function initTransferDialog() {
+        document
+          .getElementById("transfer-cancel")
+          .addEventListener("click", () => transferDialog.close());
+        document
+          .getElementById("transfer-form")
+          .addEventListener("submit", saveTransfer);
+      }
+
+      function openTransfer(bookingId) {
+        const booking = bookingsById.get(bookingId);
+        if (!booking) return;
+        transferringId = bookingId;
+
+        document.getElementById("transfer_username").value = "";
+        document.getElementById("transfer_plate_no").value = "";
+        document.getElementById("transfer_reason").value = "";
+        document.getElementById("transfer-context").textContent =
+          `${booking.booking_date}, ${formatSlot(booking.slot)} — ${booking.route}`;
+        document.getElementById("transfer-error").className = "inline-error hidden";
+        transferDialog.showModal();
+      }
+
+      async function saveTransfer(event) {
+        event.preventDefault();
+        const errorEl = document.getElementById("transfer-error");
+        const saveBtn = document.getElementById("transfer-save");
+        errorEl.className = "inline-error hidden";
+
+        const toUsername = document.getElementById("transfer_username").value.trim();
+        const newPlateNo = document.getElementById("transfer_plate_no").value.trim();
+        const reason = document.getElementById("transfer_reason").value.trim();
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Submitting…";
+
+        // Cross-operator, so this goes through a SECURITY DEFINER function
+        // rather than a client-visible update - see migration 0010.
+        const { error } = await supabase.rpc("request_booking_transfer", {
+          p_booking_id: transferringId,
+          p_to_username: toUsername,
+          p_new_plate_no: newPlateNo,
+          p_reason: reason || null,
+        });
+
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Submit for approval";
+
+        if (error) {
+          errorEl.textContent = error.message;
+          errorEl.className = "inline-error";
+          return;
+        }
+
+        transferDialog.close();
+        await loadRequests();
       }
 
       /* ------------------------------------------------------ edit dialog */

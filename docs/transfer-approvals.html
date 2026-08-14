@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transfer approvals · PITX Bus Bay Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Transport Operations &middot; Handoffs</p>
+          <h1>Transfer approvals</h1>
+          <p class="subtle">
+            An operator who can't make a scheduled slot may hand it to
+            another operator by internal agreement. Approving here moves the
+            booking to the new operator immediately - reject if the
+            arrangement can't be confirmed.
+          </p>
+        </div>
+        <p class="subtle" id="queue-count"></p>
+      </div>
+
+      <div class="hidden" id="message"></div>
+      <div id="requests"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        showMessage,
+        escapeHtml,
+        formatSlot,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      await load();
+
+      async function load() {
+        const { data, error } = await supabase
+          .from("booking_transfers")
+          .select(
+            "id, to_username, new_plate_no, reason, created_at, " +
+              "bookings ( booking_date, slot, route, operator_name, plate_no ), " +
+              "from_profile:profiles!booking_transfers_from_operator_id_fkey ( username, operator_name ), " +
+              "to_profile:profiles!booking_transfers_to_operator_id_fkey ( username, operator_name )"
+          )
+          .eq("status", "pending")
+          .order("created_at", { ascending: true });
+
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+
+        const requests = data ?? [];
+        const host = document.getElementById("requests");
+
+        document.getElementById("queue-count").textContent =
+          requests.length === 0
+            ? "Queue clear"
+            : `${requests.length} awaiting review`;
+
+        if (requests.length === 0) {
+          host.innerHTML = `<p class="empty">No transfer requests awaiting approval.</p>`;
+          return;
+        }
+
+        host.innerHTML = requests
+          .map((t) => {
+            const b = t.bookings;
+            const fromLabel =
+              t.from_profile?.operator_name || t.from_profile?.username || "Operator";
+            const toLabel =
+              t.to_profile?.operator_name || t.to_profile?.username || t.to_username;
+            return `
+              <div class="request-card">
+                <div class="request-head">
+                  <div>
+                    <p class="request-who">
+                      ${escapeHtml(fromLabel)} &rarr; ${escapeHtml(toLabel)}
+                    </p>
+                    <p class="subtle">
+                      ${b ? escapeHtml(b.booking_date) + " &middot; " + escapeHtml(formatSlot(b.slot)) : "Booking no longer exists"}
+                      ${b?.route ? ` &middot; ${escapeHtml(b.route)}` : ""}
+                    </p>
+                    <p class="subtle">
+                      Current plate ${escapeHtml(b?.plate_no ?? "—")} &rarr;
+                      new plate ${escapeHtml(t.new_plate_no)}
+                    </p>
+                    ${
+                      t.reason
+                        ? `<p class="subtle">Reason: ${escapeHtml(t.reason)}</p>`
+                        : ""
+                    }
+                  </div>
+                  <p class="request-when">Requested ${escapeHtml(
+                    new Date(t.created_at).toLocaleString()
+                  )}</p>
+                </div>
+
+                <div class="request-actions">
+                  <form data-approve="${escapeHtml(t.id)}">
+                    <button type="submit" class="btn-approve">Approve</button>
+                  </form>
+                  <form data-reject="${escapeHtml(t.id)}">
+                    <input placeholder="Reason (optional)" />
+                    <button type="submit" class="btn-danger-outline">Reject</button>
+                  </form>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        host.querySelectorAll("[data-approve]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            approve(form.dataset.approve);
+          });
+        });
+        host.querySelectorAll("[data-reject]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            reject(form.dataset.reject, form.querySelector("input").value.trim());
+          });
+        });
+      }
+
+      async function approve(transferId) {
+        showMessage("message", "");
+        const { error } = await supabase.rpc("approve_booking_transfer", {
+          p_transfer_id: transferId,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        await load();
+      }
+
+      async function reject(transferId, reason) {
+        showMessage("message", "");
+        const { error } = await supabase.rpc("reject_booking_transfer", {
+          p_transfer_id: transferId,
+          p_reason: reason || null,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        await load();
+      }
+    </script>
+  </body>
+</html>

@@ -84,7 +84,7 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, route, plate_no, slot, status, bays ( id, name )"
+              "id, operator_name, previous_operator_name, route, plate_no, slot, status, bays ( id, name )"
             )
             .eq("booking_date", currentDate)
             .in("status", ["pending", "approved"])
@@ -160,7 +160,13 @@
                           : `<ul class="bookings-list">${rows
                               .map(
                                 (b) =>
-                                  `<li>${statusBadge(b.status)}<span>${escapeHtml(
+                                  `<li>${statusBadge(b.status)}<span>${
+                                    b.previous_operator_name
+                                      ? `<s class="transferred-from">${escapeHtml(
+                                          b.previous_operator_name
+                                        )}</s> `
+                                      : ""
+                                  }${escapeHtml(
                                     b.operator_name
                                   )} &middot; ${escapeHtml(
                                     b.plate_no
