@@ -329,7 +329,7 @@ just a visual check.
 Continuation of #14 above - see that entry for the full story of what
 was wrong and why the first attempt didn't fix it.
 
-### 16. `PENDING_HASH` — 4-hour lead time on booking creation and changes (14 Aug)
+### 16. `ec29fa0` — 4-hour lead time on booking creation and changes (14 Aug)
 
 New requests and changes both now need at least 4 hours' notice before
 the scheduled slot:
