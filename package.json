@@ -6,6 +6,7 @@
   "scripts": {
     "serve": "node scripts/serve-docs.mjs 3100",
     "create-staff": "node scripts/create-staff.mjs",
+    "create-operator": "node scripts/create-operator.mjs",
     "migrate": "node scripts/run-migration.mjs"
   },
   "dependencies": {

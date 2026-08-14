@@ -102,6 +102,21 @@ first one from the command line. This needs `.env.local` (copy
 npm run create-staff -- pitx.admin ChangeMe123 "PITX Terminal Ops"
 ```
 
+### 4b. Create operator accounts
+
+Same chicken-and-egg situation as staff accounts until the Edge Function
+below is deployed - operators can't self-signup, so bootstrap each one
+from the command line:
+
+```bash
+npm run create-operator -- jacliner.ops ChangeMe123 "Jac Liner"
+```
+
+Every operator account has identical functionality - access is granted by
+`role = 'operator'` in `profiles`, not per-account, so a new operator can
+book, register vehicles, and transfer bookings exactly like any other the
+moment its account exists.
+
 ### 5. Deploy the account-creation Edge Function
 
 Staff create accounts from the **Accounts** page, which calls the
@@ -301,6 +316,7 @@ supabase/
 
 scripts/
   create-staff.mjs           Bootstrap the first staff account
+  create-operator.mjs        Create an operator account (until the Edge Function is deployed)
   run-migration.mjs          Apply migrations over a Postgres connection
   serve-docs.mjs             Serve docs/ locally, like GitHub Pages does
 ```
