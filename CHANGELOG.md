@@ -449,6 +449,33 @@ confirming access is granted purely by role, so the new account has
 every function (booking, vehicles, transfers) with no special-casing
 needed.
 
+### 20. `d7b666c` — Booking form drops the Operator field; transfer picks a real account (14 Aug)
+
+Two related cleanups on the booking/transfer flow:
+
+- The booking form had a free-text "Operator" input the operator typed
+  their own company name into every time - redundant now that
+  `profiles.operator_name` already is the account's identity. Removed
+  the field entirely; `operator_name` on a new booking is always read
+  from the signed-in account. Submitting is blocked (with a clear
+  message) for the edge case of an account with no operator name set,
+  rather than hitting a raw NOT NULL error.
+- The transfer dialog's "receiving operator" was a free-text username -
+  easy to typo, no feedback until the RPC call rejected it. Replaced
+  with a `<select>` populated from a new `list_operator_accounts()`
+  function (migration `0011_operator_directory.sql`), listing every
+  *other* operator account by display name. A narrow SECURITY DEFINER
+  lookup (just username + operator_name, self excluded) rather than
+  opening the `profiles` table up via RLS, since operators still can't
+  read each other's full profile row directly.
+
+Verified live: the booking form has no Operator input and a submitted
+booking still gets the account's operator_name; the transfer dropdown
+lists only the *other* operator account (confirmed via a raw RLS test
+that it excludes self, and that direct `profiles` access is still
+restricted to one's own row); a transfer submitted through the dropdown
+still goes through the same approval flow from #18.
+
 ---
 
 ## What the app does now
