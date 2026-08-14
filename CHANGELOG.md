@@ -476,6 +476,46 @@ that it excludes self, and that direct `profiles` access is still
 restricted to one's own row); a transfer submitted through the dropdown
 still goes through the same approval flow from #18.
 
+### 21. `0d1bf94` — Transfer needs the receiving operator's confirmation before staff can approve (14 Aug)
+
+Previously a transfer went straight from the sending operator's request
+to the staff queue, taking the "internal agreement" on the sender's
+word alone. Now the receiving operator has to actually confirm in-app
+first:
+
+- `booking_transfers.recipient_response` (`pending` / `accepted` /
+  `declined`). `approve_booking_transfer()` now raises if it isn't
+  `accepted` - enforced inside the function, not just hidden in the
+  UI, so staff can't approve around a missing confirmation even
+  calling the RPC directly.
+- New `accept_booking_transfer()` / `decline_booking_transfer()`
+  functions, callable only by the transfer's `to_operator_id`.
+  Declining closes the request immediately - it never reaches staff.
+- `dashboard.html` gained an **Incoming transfer requests** section:
+  transfers awaiting this operator's own response, with Confirm/Decline.
+- `transfer-approvals.html` only shows Approve/Reject once
+  `recipient_response = 'accepted'`; otherwise it shows "Waiting on
+  \<name\> to confirm".
+
+Building this surfaced two real RLS bugs, not just missing features:
+the recipient's dashboard tried to embed `bookings` (for date/route)
+and `profiles` (for the sender's name) through `booking_transfers`, but
+RLS blocks both - an operator can only read bookings they own and
+profiles rows that are their own, and this booking/profile belongs to
+someone else. Fixed by snapshotting `booking_date`/`slot`/`route`/
+`previous_plate_no` (migration `0013`) and `from_operator_name`
+(migration `0014`) onto `booking_transfers` itself at request time,
+readable by both sides with no RLS widening needed.
+
+Verified live end-to-end, including the negative case: submitted a
+transfer -> staff queue correctly showed "waiting on Jac Liner to
+confirm" with no Approve button -> a raw `approve_booking_transfer()`
+RPC call as staff was rejected server-side ("The receiving operator has
+not confirmed this transfer yet.") -> confirmed as the recipient, whose
+dashboard now correctly showed the sender's name and booking details ->
+staff queue then showed Approve/Reject -> approved -> Schedule showed
+the struck-through handoff, same as #18.
+
 ---
 
 ## What the app does now
