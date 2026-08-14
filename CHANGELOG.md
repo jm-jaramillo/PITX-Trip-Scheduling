@@ -291,7 +291,7 @@ round-trip through `request_vehicle_change()` on an edit (seats
 page, and confirmed every field persisted. Confirmed a completely fresh
 browser tab shows zero console errors on every page.
 
-### 14. `PENDING_HASH` — Fixed vertical misalignment of row action buttons (14 Aug)
+### 14. `1dd13e5` — Fixed vertical misalignment of row action buttons (14 Aug)
 
 The user pointed out the "Change" link on My requests sat visibly
 off-center in its row - closer to the row below than the row it
