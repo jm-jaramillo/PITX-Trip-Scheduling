@@ -28,12 +28,7 @@
       </div>
 
       <div class="card">
-        <form class="grid grid-2 grid-5" id="booking-form">
-          <div class="field">
-            <label for="operator_name">Operator</label>
-            <input id="operator_name" name="operator_name" required />
-          </div>
-
+        <form class="grid grid-2 grid-4" id="booking-form">
           <div class="field">
             <label for="route">Route</label>
             <input
@@ -98,8 +93,8 @@
 
         <div class="dialog-grid">
           <div class="field">
-            <label for="transfer_username">Receiving operator's username</label>
-            <input id="transfer_username" required />
+            <label for="transfer_username">Receiving operator</label>
+            <select id="transfer_username" required></select>
           </div>
           <div class="field">
             <label for="transfer_plate_no">Their plate no.</label>
@@ -179,6 +174,7 @@
         escapeHtml,
         slotStartMillis,
         BOOKING_LEAD_TIME_MS,
+        showMessage,
       } from "./assets/app.js";
 
       // Module-level state must be declared before the init calls below run,
@@ -192,11 +188,12 @@
       let transferringId = null;
       let approvedVehicles = [];
       let pendingTransferBookingIds = new Set();
+      let operatorAccounts = [];
 
       const profile = await guardPage("operator");
       if (profile) {
         renderNav(profile);
-        await loadApprovedVehicles();
+        await Promise.all([loadApprovedVehicles(), loadOperatorAccounts()]);
         initForm();
         initEditDialog();
         initTransferDialog();
@@ -228,6 +225,15 @@
         approvedVehicles = data ?? [];
       }
 
+      // The transfer dialog's "Receiving operator" dropdown - other
+      // operator accounts, via a narrow SECURITY DEFINER function rather
+      // than a direct profiles query (RLS only lets an operator read their
+      // own row). See migration 0011.
+      async function loadOperatorAccounts() {
+        const { data } = await supabase.rpc("list_operator_accounts");
+        operatorAccounts = data ?? [];
+      }
+
       function plateOptionsHtml(selected) {
         if (approvedVehicles.length === 0) {
           return `<option value="" disabled selected>No approved vehicles</option>`;
@@ -248,9 +254,6 @@
       }
 
       function initForm() {
-        document.getElementById("operator_name").value =
-          profile.operator_name || "";
-
         const dateInput = document.getElementById("booking_date");
         dateInput.min = todayISO();
         dateInput.value = todayISO();
@@ -266,8 +269,19 @@
         document
           .getElementById("no-vehicles-note")
           .classList.toggle("hidden", approvedVehicles.length > 0);
-        document.getElementById("submit").disabled =
-          approvedVehicles.length === 0;
+
+        // The account has no operator name to stamp on a booking with -
+        // shouldn't happen for a normally-created account, but block
+        // submitting rather than silently failing the NOT NULL insert.
+        const canSubmit = approvedVehicles.length > 0 && Boolean(profile.operator_name);
+        document.getElementById("submit").disabled = !canSubmit;
+        if (!profile.operator_name) {
+          showMessage(
+            "form-error",
+            "Your account has no operator name set - ask PITX staff to add one before you can request a slot.",
+            "error"
+          );
+        }
 
         document
           .getElementById("booking-form")
@@ -306,7 +320,6 @@
         errorEl.className = "inline-error hidden";
         okEl.className = "inline-ok hidden";
 
-        const operatorName = document.getElementById("operator_name").value.trim();
         const route = document.getElementById("route").value.trim();
         const plateNo = document.getElementById("plate_no").value.trim();
         const bookingDate = document.getElementById("booking_date").value;
@@ -317,7 +330,12 @@
           errorEl.className = "inline-error";
         }
 
-        if (!operatorName || !route || !plateNo || !bookingDate || slotRaw === "") {
+        if (!profile.operator_name) {
+          return fail(
+            "Your account has no operator name set - ask PITX staff to add one before you can request a slot."
+          );
+        }
+        if (!route || !plateNo || !bookingDate || slotRaw === "") {
           return fail("Please fill in every field.");
         }
         if (bookingDate < todayISO()) {
@@ -340,7 +358,7 @@
 
         const { error } = await supabase.from("bookings").insert({
           operator_id: profile.id,
-          operator_name: operatorName,
+          operator_name: profile.operator_name,
           route,
           plate_no: plateNo,
           booking_date: bookingDate,
@@ -510,12 +528,31 @@
           .addEventListener("submit", saveTransfer);
       }
 
+      function operatorOptionsHtml() {
+        if (operatorAccounts.length === 0) {
+          return `<option value="" disabled selected>No other operator accounts yet</option>`;
+        }
+        return (
+          `<option value="" disabled selected>Select an operator</option>` +
+          operatorAccounts
+            .map(
+              (o) =>
+                `<option value="${escapeHtml(o.username)}">${escapeHtml(
+                  o.operator_name || o.username
+                )}</option>`
+            )
+            .join("")
+        );
+      }
+
       function openTransfer(bookingId) {
         const booking = bookingsById.get(bookingId);
         if (!booking) return;
         transferringId = bookingId;
 
-        document.getElementById("transfer_username").value = "";
+        const operatorSelect = document.getElementById("transfer_username");
+        operatorSelect.innerHTML = operatorOptionsHtml();
+        operatorSelect.disabled = operatorAccounts.length === 0;
         document.getElementById("transfer_plate_no").value = "";
         document.getElementById("transfer_reason").value = "";
         document.getElementById("transfer-context").textContent =

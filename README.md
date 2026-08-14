@@ -3,11 +3,13 @@
 Provincial bus operators request a 30-minute bus bay slot; PITX staff review
 and approve/reject each request, assigning a specific bay on approval.
 
-- **Operators** submit a request: Operator name, Route, Plate No. (picked
-  from their approved vehicles), Date, and a 30-minute time slot (12:00-12:30
-  AM, 12:30-1:00 AM, ... 48 slots a day, the terminal runs 24/7). They can
-  filter their own request list by status (All / Approved / Pending /
-  Declined) and cancel a request while it's still pending.
+- **Operators** submit a request: Route, Plate No. (picked from their
+  approved vehicles), Date, and a 30-minute time slot (12:00-12:30 AM,
+  12:30-1:00 AM, ... 48 slots a day, the terminal runs 24/7) - the Operator
+  name isn't a form field, it's whatever's on the account (`profiles.operator_name`).
+  They can filter their own request list by status (All / Approved / Pending
+  / Declined), cancel a request while it's still pending, and hand an
+  already-booked slot to another operator (see "Transferring a booking").
 - **PITX staff** see every pending request, approve it (picking one of the
   bays not already taken for that slot) or reject it with an optional note,
   view a day-by-day schedule broken into 30-minute slots, manage the bay
@@ -69,7 +71,11 @@ Open the project's **SQL Editor** and run, in order:
 10. [`supabase/migrations/0010_booking_transfers.sql`](supabase/migrations/0010_booking_transfers.sql) -
    lets an operator hand off a booking to another operator, subject to
    PITX staff approval (see "Transferring a booking").
-11. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+11. [`supabase/migrations/0011_operator_directory.sql`](supabase/migrations/0011_operator_directory.sql) -
+   adds `list_operator_accounts()`, a narrow read-only lookup so the
+   transfer dialog can offer a dropdown of real operator accounts instead
+   of a free-text username.
+12. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -211,10 +217,12 @@ server-side.
 
 When one operator can't make a slot and has an internal arrangement for
 another operator to cover it, the current owner opens **Transfer** next to
-**Change**/**Cancel** on their dashboard and enters the receiving
-operator's username, their plate number, and an optional reason. Same
-eligibility as **Change** (pending/approved, at least 4 hours out, and no
-other transfer already awaiting review on that booking).
+**Change**/**Cancel** on their dashboard and picks the receiving operator
+from a dropdown (every other operator account, via
+`list_operator_accounts()` - migration `0011`), enters their plate number,
+and an optional reason. Same eligibility as **Change** (pending/approved,
+at least 4 hours out, and no other transfer already awaiting review on
+that booking).
 
 The request sits in a separate **Transfer approvals** staff queue - it
 doesn't touch the live booking until decided:
