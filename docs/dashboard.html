@@ -100,7 +100,7 @@
           </div>
           <div class="field">
             <label for="transfer_plate_no">Their plate no.</label>
-            <input id="transfer_plate_no" required />
+            <select id="transfer_plate_no" required></select>
           </div>
           <div class="field span-all">
             <label for="transfer_reason">Reason (optional)</label>
@@ -631,6 +631,12 @@
         document
           .getElementById("transfer-form")
           .addEventListener("submit", saveTransfer);
+        // The plate dropdown depends on which operator is picked - it
+        // isn't known until then, since it's the *receiving* operator's
+        // own approved vehicles, not the sender's.
+        document
+          .getElementById("transfer_username")
+          .addEventListener("change", (e) => loadTransferPlateOptions(e.target.value));
       }
 
       function operatorOptionsHtml() {
@@ -650,6 +656,40 @@
         );
       }
 
+      // Populates "Their plate no." from the chosen operator's own
+      // approved vehicles - via list_operator_vehicles() (migration 0016),
+      // since the sender can't read another operator's vehicles table
+      // directly (RLS only allows reading your own).
+      async function loadTransferPlateOptions(toUsername) {
+        const plateSelect = document.getElementById("transfer_plate_no");
+        if (!toUsername) {
+          plateSelect.innerHTML = `<option value="" disabled selected>Pick an operator first</option>`;
+          plateSelect.disabled = true;
+          return;
+        }
+        plateSelect.innerHTML = `<option value="" disabled selected>Loading…</option>`;
+        plateSelect.disabled = true;
+
+        const { data } = await supabase.rpc("list_operator_vehicles", {
+          p_username: toUsername,
+        });
+        const vehicles = data ?? [];
+
+        plateSelect.innerHTML =
+          vehicles.length === 0
+            ? `<option value="" disabled selected>No approved vehicles for this operator</option>`
+            : `<option value="" disabled selected>Select a vehicle</option>` +
+              vehicles
+                .map(
+                  (v) =>
+                    `<option value="${escapeHtml(v.plate_no)}">${escapeHtml(v.plate_no)}${
+                      v.bus_number ? ` — Bus No. ${escapeHtml(v.bus_number)}` : ""
+                    }</option>`
+                )
+                .join("");
+        plateSelect.disabled = vehicles.length === 0;
+      }
+
       function openTransfer(bookingId) {
         const booking = bookingsById.get(bookingId);
         if (!booking) return;
@@ -658,7 +698,9 @@
         const operatorSelect = document.getElementById("transfer_username");
         operatorSelect.innerHTML = operatorOptionsHtml();
         operatorSelect.disabled = operatorAccounts.length === 0;
-        document.getElementById("transfer_plate_no").value = "";
+        document.getElementById("transfer_plate_no").innerHTML =
+          `<option value="" disabled selected>Pick an operator first</option>`;
+        document.getElementById("transfer_plate_no").disabled = true;
         document.getElementById("transfer_reason").value = "";
         document.getElementById("transfer-context").textContent =
           `${booking.booking_date}, ${formatSlot(booking.slot)} — ${booking.route}`;

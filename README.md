@@ -86,7 +86,10 @@ Open the project's **SQL Editor** and run, in order:
    same idea for the sender's display name, for the same RLS reason.
 15. [`supabase/migrations/0015_vehicle_or_cr_numbers.sql`](supabase/migrations/0015_vehicle_or_cr_numbers.sql) -
    re-adds per-vehicle OR No. and CR No. fields to vehicle registration.
-16. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+16. [`supabase/migrations/0016_transfer_recipient_vehicles.sql`](supabase/migrations/0016_transfer_recipient_vehicles.sql) -
+   adds `list_operator_vehicles()`, and validates a transfer's plate
+   against the receiving operator's approved vehicles server-side.
+17. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -230,10 +233,13 @@ When one operator can't make a slot and has an internal arrangement for
 another operator to cover it, the current owner opens **Transfer** next to
 **Change**/**Cancel** on their dashboard and picks the receiving operator
 from a dropdown (every other operator account, via
-`list_operator_accounts()` - migration `0011`), enters their plate number,
-and an optional reason. Same eligibility as **Change** (pending/approved,
-at least 4 hours out, and no other transfer already awaiting review on
-that booking).
+`list_operator_accounts()` - migration `0011`), then picks **their plate
+no.** from a second dropdown sourced from *that* operator's own approved
+vehicles (`list_operator_vehicles()` - migration `0016`) - not free text,
+so a transfer can't name a plate the receiving operator hasn't actually
+registered and had approved. Plus an optional reason. Same eligibility as
+**Change** (pending/approved, at least 4 hours out, and no other transfer
+already awaiting review on that booking).
 
 The receiving operator sees it under **Incoming transfer requests** on
 their own dashboard and must **Confirm** or **Decline** before anything
@@ -270,7 +276,10 @@ plain RLS can't express. The recipient's dashboard reads the booking's
 date/slot/route and the sender's name off snapshot columns on
 `booking_transfers` itself (migrations `0013`, `0014`) rather than joining
 to `bookings`/`profiles` - RLS blocks both joins for an operator who isn't
-the booking's owner or the profile's own account.
+the booking's owner or the profile's own account. `request_booking_transfer()`
+also re-validates the chosen plate server-side against the receiving
+operator's approved vehicles, so a raw RPC call can't submit a plate the
+dropdown wouldn't have offered.
 
 ## Vehicle registration
 
