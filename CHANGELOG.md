@@ -433,6 +433,22 @@ inserting a test booking with `previous_operator_name` set and confirming
 the rendered markup and CSS (`<s class="transferred-from">`) render
 correctly, then removing the test row.
 
+### 19. `29f2731` — `create-operator` script; bootstrap Jac Liner operator account (14 Aug)
+
+Needed a second operator account to test/demo the transfer feature
+(#18) against, and there was no way to create one without the
+still-undeployed `create-account` Edge Function. Added
+`scripts/create-operator.mjs`, a direct copy of `create-staff.mjs`'s
+approach (service-role `auth.admin.createUser` + a matching `profiles`
+row) with `role: 'operator'` instead of `'staff'`.
+
+Created a live `jacliner.ops` account (operator name "Jac Liner").
+Verified against the database that it has an identical shape to the
+existing `genesis.ops` account - both `role = 'operator'` in `profiles` -
+confirming access is granted purely by role, so the new account has
+every function (booking, vehicles, transfers) with no special-casing
+needed.
+
 ---
 
 ## What the app does now
