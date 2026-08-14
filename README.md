@@ -64,7 +64,9 @@ Open the project's **SQL Editor** and run, in order:
    replaces vehicle registration's field set to match the PITX/MWM
    Terminals paper form exactly, and adds the `operator_profiles` table for
    that form's company-level fields.
-9. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+9. [`supabase/migrations/0009_four_hour_lockout.sql`](supabase/migrations/0009_four_hour_lockout.sql) -
+   requires new/changed bookings to be at least 4 hours ahead of their slot.
+10. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -158,6 +160,21 @@ request instead.
 Staff see a **"changed after approval"** badge on any pending request that
 had previously been approved, so they know they're re-confirming a slot the
 operator already held rather than granting a new one.
+
+**4-hour lead time.** New requests and changes both need at least 4 hours'
+notice before the scheduled slot:
+
+- A new request's slot must be at least 4 hours away at submission time.
+- An existing booking can't be changed once its *current* slot is within 4
+  hours (the **Change** button disappears - only **Cancel** still shows);
+  and whatever new slot is being requested must itself be at least 4 hours
+  out.
+
+Enforced in the database (an RLS check on insert, and inside
+`request_booking_change()`), not just hidden in the UI - the app just
+mirrors the same rule client-side so operators get an immediate answer
+instead of a raw database error. Staff approve/reject and operator
+cancellation are unaffected by this rule.
 
 Edits go through the `request_booking_change()` database function rather
 than a direct update. Postgres RLS is row-level, not column-level, so a

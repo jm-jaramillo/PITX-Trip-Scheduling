@@ -139,6 +139,8 @@
         todayISO,
         statusBadge,
         escapeHtml,
+        slotStartMillis,
+        BOOKING_LEAD_TIME_MS,
       } from "./assets/app.js";
 
       // Module-level state must be declared before the init calls below run,
@@ -256,6 +258,17 @@
         if (bookingDate < todayISO()) {
           return fail("Booking date can't be in the past.");
         }
+        // Mirrors the DB-enforced rule (migration 0009) so operators get an
+        // immediate answer instead of a raw RLS-violation error - the
+        // database check is still what actually protects this.
+        if (
+          slotStartMillis(bookingDate, Number(slotRaw)) - Date.now() <
+          BOOKING_LEAD_TIME_MS
+        ) {
+          return fail(
+            "Bookings must be made at least 4 hours before the scheduled time. Please choose a later slot."
+          );
+        }
 
         submitBtn.disabled = true;
         submitBtn.textContent = "Submitting…";
@@ -273,7 +286,13 @@
         submitBtn.disabled = false;
         submitBtn.textContent = "Request slot";
 
-        if (error) return fail(error.message);
+        if (error) {
+          return fail(
+            error.code === "42501" || /row-level security/i.test(error.message)
+              ? "Bookings must be made at least 4 hours before the scheduled time."
+              : error.message
+          );
+        }
 
         okEl.textContent =
           "Request submitted. PITX staff will review it shortly.";
@@ -330,8 +349,14 @@
                   .map((b) => {
                     // Only live bookings can be changed; rejected/cancelled
                     // ones are closed - the operator submits a new request.
+                    // Once within 4 hours of the scheduled slot, it's also
+                    // locked - too close to change (matches migration 0009).
+                    const withinLockout =
+                      slotStartMillis(b.booking_date, b.slot) - Date.now() <
+                      BOOKING_LEAD_TIME_MS;
                     const editable =
-                      b.status === "pending" || b.status === "approved";
+                      (b.status === "pending" || b.status === "approved") &&
+                      !withinLockout;
                     return `
                   <tr>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
@@ -434,6 +459,20 @@
         const errorEl = document.getElementById("edit-error");
         const saveBtn = document.getElementById("edit-save");
         errorEl.className = "inline-error hidden";
+
+        const newBookingDate = document.getElementById("edit_booking_date").value;
+        const newSlot = Number(document.getElementById("edit_slot").value);
+        // Immediate feedback for the common case; request_booking_change()
+        // (migration 0009) is the real check, including for the booking's
+        // *current* slot, which this client-side check doesn't re-verify -
+        // the "Change" button is already hidden once that happens, so this
+        // only guards the new time being requested.
+        if (slotStartMillis(newBookingDate, newSlot) - Date.now() < BOOKING_LEAD_TIME_MS) {
+          errorEl.textContent = "Please choose a time at least 4 hours from now.";
+          errorEl.className = "inline-error";
+          return;
+        }
+
         saveBtn.disabled = true;
         saveBtn.textContent = "Submitting…";
 
@@ -444,8 +483,8 @@
           p_booking_id: editingId,
           p_route: document.getElementById("edit_route").value,
           p_plate_no: document.getElementById("edit_plate_no").value,
-          p_booking_date: document.getElementById("edit_booking_date").value,
-          p_slot: Number(document.getElementById("edit_slot").value),
+          p_booking_date: newBookingDate,
+          p_slot: newSlot,
         });
 
         saveBtn.disabled = false;

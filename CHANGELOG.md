@@ -27,6 +27,7 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 | Request filtering | Operators can filter their own requests: All / Approved / Pending / Declined |
 | Vehicle detail | Matches the official PITX/MWM Terminals paper form exactly (superseded 14 Aug; originally franchise no./body no./seat config, replaced not extended) |
 | Operator profile | One-time company details (name, owner, TIN, OR serial no., booking system, 2 contacts), no approval needed |
+| Booking lead time | New requests and changes both need at least 4 hours' notice before the scheduled slot |
 
 ---
 
@@ -328,6 +329,44 @@ just a visual check.
 Continuation of #14 above - see that entry for the full story of what
 was wrong and why the first attempt didn't fix it.
 
+### 16. `PENDING_HASH` — 4-hour lead time on booking creation and changes (14 Aug)
+
+New requests and changes both now need at least 4 hours' notice before
+the scheduled slot:
+
+- A new request's slot must be at least 4 hours away at submission time.
+- An existing booking can't be changed once its *current* slot is within
+  4 hours (the **Change** button disappears from the operator's list -
+  **Cancel** is untouched); and whatever new slot is being requested must
+  itself be at least 4 hours out.
+
+Enforced at the database level, the actual boundary: the 4-hour check on
+new bookings lives in the `bookings_insert_own` RLS policy's `WITH CHECK`
+(deliberately not a table-level `CHECK` constraint - that would apply to
+*every* write, including staff's approve/reject `UPDATE`, which must stay
+unrestricted regardless of how little time is left). The check on changes
+lives inside `request_booking_change()`, checked against the booking's
+*current* slot before applying anything, plus a second check against the
+newly-requested slot. A shared `slot_start_at()` SQL function (the actual
+UTC instant a `(booking_date, slot)` pair represents, computed via
+Postgres's `timestamp ... AT TIME ZONE 'Asia/Manila'` idiom) backs both.
+The client mirrors the same rule (a JS port of `slot_start_at`) purely for
+an immediate answer instead of a raw RLS-violation error - the database
+is what actually protects this, verified by attempting both a raw insert
+and a raw `request_booking_change()` call as the operator's own
+authenticated role, bypassing the app entirely, and confirming Postgres
+itself rejects both with the same friendly messages the app shows.
+
+Verified end-to-end: a slot ~52 minutes out was rejected client-side and
+(via direct SQL, bypassing the app) rejected at the RLS layer too; a slot
+~5h52m out succeeded. A booking moved (via direct SQL, simulating one
+that aged into the window) to ~52 minutes out lost its **Change** button
+while keeping **Cancel**, and a direct RPC call against it was rejected
+with *"This booking starts within 4 hours and can no longer be
+changed."* A separate RPC call requesting a too-soon *new* slot on an
+otherwise-eligible booking was rejected with *"Please choose a time at
+least 4 hours from now."*
+
 ---
 
 ## What the app does now
@@ -452,3 +491,11 @@ error rather than failing silently.
   knowing if this pattern recurs: an additive migration followed by a
   replacing one, both against a live database, is a data-loss risk on
   the second migration if real records exist by then.
+- **The 4-hour lead time only restricts operators.** Staff can still
+  approve or reject a request with any amount of time left (by design -
+  otherwise a request submitted with 4h01m of notice could become
+  unapprovable the moment staff get to it), and operators can still
+  cancel a pending booking inside the 4-hour window (also by design -
+  only asked to restrict creation and modification, not cancellation).
+  Worth deciding whether cancellation should eventually have its own
+  cutoff too.

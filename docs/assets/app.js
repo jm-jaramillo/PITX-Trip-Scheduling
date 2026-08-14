@@ -39,6 +39,27 @@ export function formatSlot(slot) {
   return `${formatClock(start)} – ${formatClock(end % (24 * 60))}`;
 }
 
+/** Bookings must be made/changed at least this far ahead of their slot -
+ * mirrors the same rule enforced server-side (see migration 0009). This
+ * copy is for immediate UI feedback only; the database is still the real
+ * boundary, since a client can always be bypassed. */
+export const BOOKING_LEAD_TIME_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * The real UTC instant a (bookingDate, slot) pair represents. PITX runs on
+ * Philippine time (UTC+8, no DST), so this treats bookingDate/slot as
+ * local Manila time and converts to a plain UTC epoch millis for
+ * comparison against Date.now() - mirrors public.slot_start_at() in
+ * migration 0009.
+ */
+export function slotStartMillis(bookingDate, slot) {
+  const [y, m, d] = bookingDate.split("-").map(Number);
+  const totalMinutes = slot * 30;
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  return Date.UTC(y, m - 1, d, hour, minute) - 8 * 60 * 60 * 1000;
+}
+
 export function todayISO() {
   const now = new Date();
   return [
