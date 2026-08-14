@@ -516,7 +516,7 @@ dashboard now correctly showed the sender's name and booking details ->
 staff queue then showed Approve/Reject -> approved -> Schedule showed
 the struck-through handoff, same as #18.
 
-### 22. `pending` — Operator profile: TIN No. label drops "(Paranaque)" (14 Aug)
+### 22. `caff799` — Operator profile: TIN No. label drops "(Paranaque)" (14 Aug)
 
 Label-only fix on `operator-profile.html` - "TIN No. (Paranaque)" is now
 just "TIN No.". No schema/behavior change.
