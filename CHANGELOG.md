@@ -584,6 +584,34 @@ Verified against the database: all 21 rows created with
 `role = 'operator'`, bringing the total operator account count to 23
 (plus the pre-existing `genesis.ops` and `jacliner.ops`).
 
+### 25. `55a6948` — Transfer's plate no. is a dropdown from the receiving operator's vehicles (14 Aug)
+
+"Their plate no." on the transfer dialog was free text - easy to typo,
+and nothing stopped naming a plate the receiving operator never
+actually registered. Now it's a dropdown sourced from that operator's
+own approved vehicles:
+
+- New `list_operator_vehicles(p_username)` function (migration `0016`)
+  - narrow SECURITY DEFINER lookup (plate_no + bus_number, approved
+    only), same shape as `list_operator_accounts()` (#20). Needed
+    because the sender can't query another operator's vehicles table
+    directly - RLS only allows reading your own.
+- `dashboard.html`: the plate field is a `<select>`, populated on the
+  "Receiving operator" dropdown's change - starts disabled ("Pick an
+  operator first"), shows "No approved vehicles for this operator" if
+  they have none.
+- `request_booking_transfer()` also validates the plate server-side
+  against the receiving operator's approved vehicles, so a raw RPC
+  call can't submit a plate the dropdown wouldn't have offered.
+
+Verified live: picking an operator in the dropdown correctly populated
+the plate dropdown with their actual approved vehicle
+(`JAC-777 — Bus No. Bus 7` for Jac Liner), and the submission
+round-tripped correctly in the database. Also verified server-side: a
+raw RPC call with a plate not in the receiving operator's approved
+list was rejected ("That plate isn't one of the receiving operator's
+approved vehicles.").
+
 ---
 
 ## What the app does now
