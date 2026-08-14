@@ -66,7 +66,10 @@ Open the project's **SQL Editor** and run, in order:
    that form's company-level fields.
 9. [`supabase/migrations/0009_four_hour_lockout.sql`](supabase/migrations/0009_four_hour_lockout.sql) -
    requires new/changed bookings to be at least 4 hours ahead of their slot.
-10. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+10. [`supabase/migrations/0010_booking_transfers.sql`](supabase/migrations/0010_booking_transfers.sql) -
+   lets an operator hand off a booking to another operator, subject to
+   PITX staff approval (see "Transferring a booking").
+11. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -189,6 +192,36 @@ policy loose enough to permit editing would also let an operator write
 change to those four fields and decides the status/bay transition
 server-side.
 
+## Transferring a booking
+
+When one operator can't make a slot and has an internal arrangement for
+another operator to cover it, the current owner opens **Transfer** next to
+**Change**/**Cancel** on their dashboard and enters the receiving
+operator's username, their plate number, and an optional reason. Same
+eligibility as **Change** (pending/approved, at least 4 hours out, and no
+other transfer already awaiting review on that booking).
+
+The request sits in a separate **Transfer approvals** staff queue - it
+doesn't touch the live booking until decided:
+
+| Staff decision | Effect |
+|---|---|
+| **Approve** | Booking's operator, operator name, and plate are swapped to the receiving operator immediately - no further re-approval needed. The bay assignment and slot are untouched. |
+| **Reject** | Booking is untouched; the request is closed. |
+
+Once approved, the **Schedule** and the receiving operator's **My
+requests** both show the previous operator's name struck through, right
+before the new one, e.g. ~~Genesis Trans~~ Batangas Star Lines. The
+original operator will no longer see the booking in their own list - it
+now belongs to the receiving operator's account.
+
+There is no in-app acceptance step for the receiving operator; PITX staff
+approval is the only check that the arrangement is genuine. Goes through
+the `request_booking_transfer()` / `approve_booking_transfer()` /
+`reject_booking_transfer()` database functions (migration `0010`), since
+crossing operator accounts needs its own authorization checks that plain
+RLS can't express.
+
 ## Vehicle registration
 
 Operators register vehicles from **My vehicles**, either by scanning a photo
@@ -250,6 +283,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   operator-profile.html     Operator: one-time company details (no approval)
   staff.html                 Staff: pending booking queue (approve / reject)
   vehicle-approvals.html     Staff: pending vehicle queue (approve / reject)
+  transfer-approvals.html    Staff: pending booking-transfer queue (approve / reject)
   schedule.html              Staff: 30-minute-slot capacity grid for a date
   bays.html                  Staff: manage the bay list
   accounts.html              Staff: create logins (via Edge Function)

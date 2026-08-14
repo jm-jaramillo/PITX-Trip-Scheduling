@@ -28,6 +28,7 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 | Vehicle detail | Matches the official PITX/MWM Terminals paper form exactly (superseded 14 Aug; originally franchise no./body no./seat config, replaced not extended) |
 | Operator profile | One-time company details (name, owner, TIN, OR serial no., booking system, 2 contacts), no approval needed |
 | Booking lead time | New requests and changes both need at least 4 hours' notice before the scheduled slot |
+| Booking transfer | An operator may hand off a booked slot to another operator (internal agreement); needs PITX staff approval; schedule shows the previous operator struck through next to the new one |
 
 ---
 
@@ -385,6 +386,53 @@ listed slot was 4:30 PM (just past the 4-hour mark) through 11:30 PM -
 to tomorrow immediately repopulated all 48 slots starting from
 midnight.
 
+### 18. `db723c2` — Operator-to-operator booking transfer, staff-approved (14 Aug)
+
+Some routes have multiple operators plying them, and one may have an
+internal arrangement with another to cover a slot it can't make. Added a
+dedicated handoff flow rather than folding it into the existing "Change"
+edit, since it crosses operator accounts and the existing edit function is
+deliberately scoped to a single operator's own bookings:
+
+- New `booking_transfers` table (migration `0010`) plus three SECURITY
+  DEFINER functions: `request_booking_transfer()` (the current owner
+  proposes handing off to another operator, identified by username -
+  there's no operator directory in the UI, so the two companies already
+  know each other from their own arrangement), and staff-only
+  `approve_booking_transfer()` / `reject_booking_transfer()`. Approving
+  swaps `operator_id`, `operator_name`, and `plate_no` on the booking to
+  the receiving operator and stamps `previous_operator_name` with the old
+  name; rejecting leaves the booking untouched.
+- Reuses the same 4-hour lead time as edits (a handoff is still a change
+  to an active booking) and blocks a second transfer request from
+  stacking on a booking that already has one pending.
+- New **Transfer approvals** staff page (mirrors Vehicle approvals):
+  lists pending handoffs with both operators, the plate change, and an
+  optional reason; Approve/Reject.
+- Operator dashboard: a **Transfer** button next to Change/Cancel on
+  eligible bookings, opening a small dialog (receiving operator's
+  username, their plate, optional reason). While a transfer is awaiting
+  review, Change/Cancel/Transfer are all hidden on that row (shows
+  "transfer pending" instead) so it can't be edited out from under the
+  review.
+- **Schedule** and **My requests** both show `~~Old Operator~~ New
+  Operator` once a transfer is approved - the previous operator's name
+  struck through, immediately followed by the current one.
+- The receiving operator has no in-app acceptance step; PITX staff
+  approval is the only gate, matching what was asked for. Noted as a
+  known gap below.
+
+Verified against the live database with the same RLS-bypassing SQL
+harness used throughout: a non-staff operator calling
+`approve_booking_transfer()` directly is rejected ("Only PITX staff can
+decide on transfers"); requesting a transfer to one's own username is
+rejected ("You can't transfer a booking to yourself"); requesting a
+transfer to a nonexistent username is rejected ("No operator account
+found with that username"). The struck-through display was verified by
+inserting a test booking with `previous_operator_name` set and confirming
+the rendered markup and CSS (`<s class="transferred-from">`) render
+correctly, then removing the test row.
+
 ---
 
 ## What the app does now
@@ -488,6 +536,16 @@ error rather than failing silently.
   which vehicle registration.
 - **No limit on vehicles per operator**, and no per-operator cap on
   concurrent pending vehicle submissions.
+- **The receiving operator has no in-app acceptance step for a transfer.**
+  Whoever currently owns the booking just types in the other operator's
+  username and plate; PITX staff are the only check that the "internal
+  agreement" is real before the booking silently moves to a different
+  account. There's also no notice to the *original* operator once staff
+  approve it — the booking simply stops appearing in their "My requests"
+  list.
+- **A transfer only remembers one hop back.** If a booking is transferred
+  twice, the schedule/dashboard strikethrough shows only the immediately
+  preceding operator, not the full chain.
 - **OCR accuracy depends entirely on photo quality.** It was verified
   against a clean, straight-on synthetic image; real photos — glare, skew,
   worn print — will do meaningfully worse. That's inherent to running OCR
