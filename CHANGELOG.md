@@ -367,6 +367,24 @@ changed."* A separate RPC call requesting a too-soon *new* slot on an
 otherwise-eligible booking was rejected with *"Please choose a time at
 least 4 hours from now."*
 
+### 17. `PENDING_HASH` — Time slot dropdown hides slots already too close (14 Aug)
+
+The 4-hour rule from #16 was previously only enforced on submit - an
+operator could still see and pick a too-soon slot, then get told no.
+The **Time slot** dropdown on the request form now only lists slots that
+are still at least 4 hours out for whatever date is selected, and
+re-filters whenever the date changes (the valid set differs per date -
+today usually has early slots already too close; any future date starts
+from midnight). If every slot for the selected date is too close, the
+dropdown shows "No times left today" and disables itself rather than
+offering an empty-feeling list.
+
+Verified: for "today" (with ~12:08 PM as current time), the first
+listed slot was 4:30 PM (just past the 4-hour mark) through 11:30 PM -
+15 valid slots, all earlier ones correctly excluded. Switching the date
+to tomorrow immediately repopulated all 48 slots starting from
+midnight.
+
 ---
 
 ## What the app does now

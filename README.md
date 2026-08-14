@@ -176,6 +176,12 @@ mirrors the same rule client-side so operators get an immediate answer
 instead of a raw database error. Staff approve/reject and operator
 cancellation are unaffected by this rule.
 
+The new-request **Time slot** dropdown only ever lists slots that are
+still at least 4 hours out for the selected date, so there's nothing to
+reject in the first place - picking a date shows "No times left today"
+once every remaining slot is too close, and re-picks the list whenever
+the date changes.
+
 Edits go through the `request_booking_change()` database function rather
 than a direct update. Postgres RLS is row-level, not column-level, so a
 policy loose enough to permit editing would also let an operator write

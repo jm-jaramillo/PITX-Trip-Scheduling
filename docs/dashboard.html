@@ -213,11 +213,10 @@
         dateInput.min = todayISO();
         dateInput.value = todayISO();
 
-        document.getElementById("slot").innerHTML =
-          `<option value="" disabled selected>Select a time</option>` +
-          SLOTS.map(
-            (s) => `<option value="${s}">${escapeHtml(formatSlot(s))}</option>`
-          ).join("");
+        populateSlotOptions();
+        // The set of slots still >= 4 hours out depends on which date is
+        // picked, so refresh the list whenever the date changes.
+        dateInput.addEventListener("change", populateSlotOptions);
 
         const plateSelect = document.getElementById("plate_no");
         plateSelect.innerHTML = plateOptionsHtml(null);
@@ -231,6 +230,30 @@
         document
           .getElementById("booking-form")
           .addEventListener("submit", submitBooking);
+      }
+
+      // Only offers slots that are still >= 4 hours out for the selected
+      // date - mirrors the same rule enforced server-side (migration
+      // 0009), so operators never see a time they'd just be told to pick
+      // again after submitting.
+      function populateSlotOptions() {
+        const slotSelect = document.getElementById("slot");
+        const bookingDate = document.getElementById("booking_date").value;
+
+        const available = SLOTS.filter(
+          (s) => slotStartMillis(bookingDate, s) - Date.now() >= BOOKING_LEAD_TIME_MS
+        );
+
+        slotSelect.innerHTML =
+          available.length === 0
+            ? `<option value="" disabled selected>No times left today</option>`
+            : `<option value="" disabled selected>Select a time</option>` +
+              available
+                .map(
+                  (s) => `<option value="${s}">${escapeHtml(formatSlot(s))}</option>`
+                )
+                .join("");
+        slotSelect.disabled = available.length === 0;
       }
 
       async function submitBooking(event) {
