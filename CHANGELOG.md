@@ -805,6 +805,12 @@ dialog's "not in the current list" fallback if they don't match.
 Verified live: the dropdown now lists all 8 routes as plain endpoint
 names with no PITX prefix/suffix.
 
+### 33. `1c699a9` — Dashboard dialogs say "Cancel" instead of "Never mind" (17 Aug)
+
+Wording-only fix on the Change and Transfer dialogs' dismiss button -
+matches the wording already used everywhere else (`vehicles.html`'s
+add/edit dialogs already said "Cancel"). No schema/behavior change.
+
 ---
 
 ## What the app does now
