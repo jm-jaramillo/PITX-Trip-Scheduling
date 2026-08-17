@@ -839,6 +839,14 @@ td strong,
   color: var(--faint);
 }
 
+/* A whole table row dimmed (e.g. a past date on My schedule) - `td`'s own
+   explicit color would otherwise win over the inherited .muted color on
+   the row, since any explicit rule beats inheritance regardless of
+   specificity. */
+tr.muted td {
+  color: var(--faint);
+}
+
 /* hour rows on the schedule get a subtle emphasis when occupied */
 .hour-cell {
   font-weight: 700;

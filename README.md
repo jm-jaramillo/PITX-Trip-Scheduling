@@ -8,8 +8,9 @@ and approve/reject each request, assigning a specific bay on approval.
   12:30-1:00 AM, ... 48 slots a day, the terminal runs 24/7) - the Operator
   name isn't a form field, it's whatever's on the account (`profiles.operator_name`).
   They can filter their own request list by status (All / Approved / Pending
-  / Declined), cancel a request while it's still pending, and hand an
-  already-booked slot to another operator (see "Transferring a booking").
+  / Declined), cancel a request while it's still pending, hand an
+  already-booked slot to another operator (see "Transferring a booking"),
+  and see their own approved slots with bay assignments on **My schedule**.
 - **PITX staff** see every pending request, approve it (picking one of the
   bays not already taken for that slot) or reject it with an optional note,
   view a day-by-day schedule broken into 30-minute slots, manage the bay
@@ -328,6 +329,18 @@ photos, one folder per operator, with the same RLS-style access rule as
 everything else: an operator can only reach their own folder, staff can
 read all of them.
 
+## My schedule (operators)
+
+A read-only view of the operator's own **approved** bookings, sorted
+chronologically, with the bay assigned to each - "where do I actually
+need to show up." Pending and declined requests don't appear here (see
+**My requests** for the full picture, including revision/transfer status).
+Defaults to **Upcoming** (today onward); switch to **All** to include
+past slots, shown dimmed. No new tables or functions - it's the same
+`bookings` row RLS already scopes to `operator_id = auth.uid()`, just
+filtered to `status = 'approved'` and presented as a simple list rather
+than the request-management table on **My requests**.
+
 ## How capacity works
 
 Operators don't pick a specific bay - just a date and a 30-minute slot.
@@ -344,6 +357,7 @@ day (48 slots).
 docs/                        THE SITE ITSELF (served by GitHub Pages)
   index.html                 Sign in
   dashboard.html             Operator: request form + own requests
+  my-schedule.html           Operator: own approved slots + bay assignments
   vehicles.html              Operator: register/edit vehicles (scan or manual)
   operator-profile.html     Operator: one-time company details (no approval)
   staff.html                 Staff: pending booking queue (approve / reject)

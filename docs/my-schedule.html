@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My schedule · PITX Bus Bay Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Provincial Slot Booking</p>
+          <h1>My schedule</h1>
+          <p class="subtle">
+            Your approved slots and the bay assigned to each. Pending and
+            declined requests aren't shown here - see
+            <a href="dashboard.html">My requests</a> for those.
+          </p>
+        </div>
+        <div class="mode-switch" role="tablist" id="range-filter">
+          <button type="button" class="mode-tab is-active" data-range="upcoming">Upcoming</button>
+          <button type="button" class="mode-tab" data-range="all">All</button>
+        </div>
+      </div>
+
+      <div id="schedule"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        formatSlot,
+        todayISO,
+        statusBadge,
+        escapeHtml,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("operator");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      let allApproved = [];
+      let range = "upcoming";
+
+      initRangeFilter();
+      await load();
+
+      function initRangeFilter() {
+        document.querySelectorAll("#range-filter [data-range]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            range = btn.dataset.range;
+            document
+              .querySelectorAll("#range-filter [data-range]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            render();
+          });
+        });
+      }
+
+      async function load() {
+        // Only approved bookings have a bay assigned - pending/declined
+        // ones already show elsewhere (My requests), so this page stays
+        // focused on "where do I actually need to show up".
+        const { data, error } = await supabase
+          .from("bookings")
+          .select(
+            "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, bays ( id, name )"
+          )
+          .eq("operator_id", profile.id)
+          .eq("status", "approved")
+          .order("booking_date", { ascending: true })
+          .order("slot", { ascending: true });
+
+        if (error) {
+          document.getElementById("schedule").innerHTML =
+            `<p class="empty">Couldn't load your schedule: ${escapeHtml(error.message)}</p>`;
+          return;
+        }
+
+        allApproved = data ?? [];
+        render();
+      }
+
+      function render() {
+        const today = todayISO();
+        const rows =
+          range === "upcoming"
+            ? allApproved.filter((b) => b.booking_date >= today)
+            : allApproved;
+
+        const host = document.getElementById("schedule");
+
+        if (rows.length === 0) {
+          host.innerHTML = `<p class="empty">${
+            range === "upcoming"
+              ? "No upcoming approved slots."
+              : "No approved slots yet."
+          }</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th><th>Time slot</th><th>Operator</th><th>Route</th>
+                  <th>Plate No.</th><th>Bay</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map((b) => {
+                    const isPast = b.booking_date < today;
+                    return `
+                  <tr${isPast ? ' class="muted"' : ""}>
+                    <td data-label="Date">${escapeHtml(b.booking_date)}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
+                    <td data-label="Operator">${
+                      b.previous_operator_name
+                        ? `<s class="transferred-from">${escapeHtml(
+                            b.previous_operator_name
+                          )}</s> `
+                        : ""
+                    }${escapeHtml(b.operator_name)}</td>
+                    <td data-label="Route">${escapeHtml(b.route)}</td>
+                    <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
+                    <td data-label="Bay"><strong>${escapeHtml(
+                      b.bays?.name ?? "—"
+                    )}</strong></td>
+                    <td data-label="Status">${statusBadge(b.status)}</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+    </script>
+  </body>
+</html>
