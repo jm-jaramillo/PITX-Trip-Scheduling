@@ -146,6 +146,14 @@
           <pre id="raw-text"></pre>
         </details>
 
+        <div class="field" style="margin-top: 14px">
+          <label for="f_supporting_doc">
+            Supporting document <span class="fineprint">(optional &mdash; franchise/CPC, insurance, etc.)</span>
+          </label>
+          <input type="file" id="f_supporting_doc" accept="image/*,.pdf" />
+          <p class="fineprint" id="f_supporting_doc_name"></p>
+        </div>
+
         <p class="inline-error hidden" id="save-error"></p>
 
         <div class="dialog-actions">
@@ -220,6 +228,13 @@
           </div>
         </div>
 
+        <div class="field">
+          <label for="e_supporting_doc">Supporting document</label>
+          <p class="fineprint hidden" id="e_supporting_doc_current"></p>
+          <input type="file" id="e_supporting_doc" accept="image/*,.pdf" />
+          <p class="fineprint" id="e_supporting_doc_name"></p>
+        </div>
+
         <p class="inline-error hidden" id="edit-error"></p>
 
         <div class="dialog-actions">
@@ -248,10 +263,25 @@
 
       let vehiclesById = new Map();
       let pendingPhotoFile = null;
+      let pendingSupportingDocFile = null;
+      let pendingEditSupportingDocFile = null;
 
       initAddDialog();
       initEditDialog();
       await loadVehicles();
+
+      // Uploads a file into this operator's own vehicle-docs folder and
+      // returns its storage path - shared by both the OR/CR photo and the
+      // supporting-document upload, add and edit alike.
+      async function uploadVehicleDoc(file, subfolder) {
+        const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+        const path = `${profile.id}/${subfolder}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage
+          .from("vehicle-docs")
+          .upload(path, file, { contentType: file.type || "application/octet-stream" });
+        if (error) throw error;
+        return path;
+      }
 
       function airconLabel(aircon) {
         if (aircon === true) return "Aircon";
@@ -265,7 +295,7 @@
         const { data, error } = await supabase
           .from("vehicles")
           .select(
-            "id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, status, rejection_reason, revision_count"
+            "id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, supporting_doc_path, supporting_doc_name, status, rejection_reason, revision_count"
           )
           .eq("operator_id", profile.id)
           .order("created_at", { ascending: false });
@@ -283,6 +313,20 @@
           return;
         }
 
+        // Signed URLs so a private-bucket document can be opened directly
+        // from the list - same pattern as vehicle-approvals.html's photo
+        // links.
+        const docUrls = await Promise.all(
+          data.map((v) =>
+            v.supporting_doc_path
+              ? supabase.storage
+                  .from("vehicle-docs")
+                  .createSignedUrl(v.supporting_doc_path, 300)
+                  .then((r) => r.data?.signedUrl ?? null)
+              : Promise.resolve(null)
+          )
+        );
+
         host.innerHTML = `
           <div class="table-wrap">
             <table>
@@ -292,13 +336,14 @@
                   <th>OR No.</th><th>CR No.</th>
                   <th>Route</th><th>Bus No.</th><th>Seating capacity</th>
                   <th>Seat</th><th>Aircon</th><th>Date granted</th>
-                  <th>Date expiry</th><th>Status</th><th>Note</th><th></th>
+                  <th>Date expiry</th><th>Status</th>
+                  <th>Document</th><th>Note</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 ${data
                   .map(
-                    (v) => `
+                    (v, i) => `
                   <tr>
                     <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}${
                       v.revision_count > 0
@@ -319,6 +364,13 @@
                     <td data-label="Status"><span class="badge badge-${escapeHtml(
                       v.status
                     )}">${escapeHtml(v.status)}</span></td>
+                    <td data-label="Document">${
+                      docUrls[i]
+                        ? `<a href="${docUrls[i]}" target="_blank" rel="noopener">${escapeHtml(
+                            v.supporting_doc_name || "View"
+                          )}</a>`
+                        : "—"
+                    }</td>
                     <td data-label="Note">${escapeHtml(v.rejection_reason ?? "—")}</td>
                     <td>
                       <button type="button" class="btn-link" data-edit="${escapeHtml(
@@ -379,12 +431,21 @@
         });
 
         document
+          .getElementById("f_supporting_doc")
+          .addEventListener("change", (e) => {
+            pendingSupportingDocFile = e.target.files?.[0] ?? null;
+            document.getElementById("f_supporting_doc_name").textContent =
+              pendingSupportingDocFile ? pendingSupportingDocFile.name : "";
+          });
+
+        document
           .getElementById("add-form")
           .addEventListener("submit", saveNewVehicle);
       }
 
       function resetAddForm() {
         pendingPhotoFile = null;
+        pendingSupportingDocFile = null;
         document.getElementById("mode-scan").classList.add("is-active");
         document.getElementById("mode-manual").classList.remove("is-active");
         document.getElementById("scan-panel").classList.remove("hidden");
@@ -397,6 +458,8 @@
         document.getElementById("review-note").className = "fineprint hidden";
         document.getElementById("raw-text-wrap").className = "raw-text hidden";
         document.getElementById("save-error").className = "inline-error hidden";
+        document.getElementById("f_supporting_doc").value = "";
+        document.getElementById("f_supporting_doc_name").textContent = "";
         for (const id of [
           "f_plate_no",
           "f_case_number",
@@ -497,6 +560,19 @@
           }
         }
 
+        let supportingDocPath = null;
+        if (pendingSupportingDocFile) {
+          try {
+            supportingDocPath = await uploadVehicleDoc(pendingSupportingDocFile, "supporting");
+          } catch (uploadError) {
+            errorEl.textContent = `Document upload failed: ${uploadError.message}`;
+            errorEl.className = "inline-error";
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save vehicle";
+            return;
+          }
+        }
+
         const { error } = await supabase.from("vehicles").insert({
           operator_id: profile.id,
           plate_no: plateNo,
@@ -513,6 +589,8 @@
           date_granted: document.getElementById("f_date_granted").value || null,
           date_expiry: document.getElementById("f_date_expiry").value || null,
           photo_path: photoPath,
+          supporting_doc_path: supportingDocPath,
+          supporting_doc_name: pendingSupportingDocFile?.name ?? null,
           source: pendingPhotoFile ? "scanned" : "manual",
           status: "pending",
         });
@@ -551,14 +629,40 @@
         document
           .getElementById("edit-delete")
           .addEventListener("click", deleteVehicle);
+        document
+          .getElementById("e_supporting_doc")
+          .addEventListener("change", (e) => {
+            pendingEditSupportingDocFile = e.target.files?.[0] ?? null;
+            document.getElementById("e_supporting_doc_name").textContent =
+              pendingEditSupportingDocFile ? pendingEditSupportingDocFile.name : "";
+          });
       }
 
       let editingId = null;
 
-      function openEdit(vehicleId) {
+      async function openEdit(vehicleId) {
         const v = vehiclesById.get(vehicleId);
         if (!v) return;
         editingId = vehicleId;
+
+        pendingEditSupportingDocFile = null;
+        document.getElementById("e_supporting_doc").value = "";
+        document.getElementById("e_supporting_doc_name").textContent = "";
+        const currentDocEl = document.getElementById("e_supporting_doc_current");
+        if (v.supporting_doc_path) {
+          const { data } = await supabase.storage
+            .from("vehicle-docs")
+            .createSignedUrl(v.supporting_doc_path, 300);
+          currentDocEl.innerHTML = data?.signedUrl
+            ? `Current: <a href="${data.signedUrl}" target="_blank" rel="noopener">${escapeHtml(
+                v.supporting_doc_name || "view document"
+              )}</a> - choose a file below to replace it.`
+            : "";
+          currentDocEl.classList.toggle("hidden", !data?.signedUrl);
+        } else {
+          currentDocEl.textContent = "";
+          currentDocEl.classList.add("hidden");
+        }
 
         document.getElementById("e_plate_no").value = v.plate_no;
         document.getElementById("e_case_number").value = v.case_number ?? "";
@@ -610,6 +714,28 @@
         saveBtn.disabled = true;
         saveBtn.textContent = "Saving…";
 
+        // Keep the existing supporting document unless a new one was
+        // chosen - request_vehicle_change() sets exactly what it's given,
+        // so the current path/name have to be passed through explicitly.
+        const existing = vehiclesById.get(editingId);
+        let supportingDocPath = existing?.supporting_doc_path ?? null;
+        let supportingDocName = existing?.supporting_doc_name ?? null;
+        if (pendingEditSupportingDocFile) {
+          try {
+            supportingDocPath = await uploadVehicleDoc(
+              pendingEditSupportingDocFile,
+              "supporting"
+            );
+            supportingDocName = pendingEditSupportingDocFile.name;
+          } catch (uploadError) {
+            errorEl.textContent = `Document upload failed: ${uploadError.message}`;
+            errorEl.className = "inline-error";
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save changes";
+            return;
+          }
+        }
+
         // Goes through request_vehicle_change() rather than a direct
         // UPDATE: it owns the pending/approved transition server-side so
         // the client can't set status itself (see migration 0005).
@@ -627,6 +753,8 @@
           p_aircon: readAirconValue("e_aircon"),
           p_date_granted: document.getElementById("e_date_granted").value || null,
           p_date_expiry: document.getElementById("e_date_expiry").value || null,
+          p_supporting_doc_path: supportingDocPath,
+          p_supporting_doc_name: supportingDocName,
         });
 
         saveBtn.disabled = false;

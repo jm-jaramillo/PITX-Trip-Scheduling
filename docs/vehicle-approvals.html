@@ -53,7 +53,7 @@
           .select(
             // vehicles has two FKs into profiles (operator_id, decided_by),
             // so the embed needs the constraint name to disambiguate which.
-            "id, operator_id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+            "id, operator_id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, supporting_doc_path, supporting_doc_name, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
           )
           .eq("status", "pending")
           .order("created_at", { ascending: true });
@@ -82,6 +82,16 @@
               ? supabase.storage
                   .from("vehicle-docs")
                   .createSignedUrl(v.photo_path, 300)
+                  .then((r) => r.data?.signedUrl ?? null)
+              : Promise.resolve(null)
+          )
+        );
+        const supportingDocUrls = await Promise.all(
+          requests.map((v) =>
+            v.supporting_doc_path
+              ? supabase.storage
+                  .from("vehicle-docs")
+                  .createSignedUrl(v.supporting_doc_path, 300)
                   .then((r) => r.data?.signedUrl ?? null)
               : Promise.resolve(null)
           )
@@ -152,6 +162,15 @@
                   photoUrls[i]
                     ? `<p class="subtle" style="margin-top: 10px">
                         <a href="${photoUrls[i]}" target="_blank" rel="noopener">View submitted OR/CR photo &rarr;</a>
+                      </p>`
+                    : ""
+                }
+                ${
+                  supportingDocUrls[i]
+                    ? `<p class="subtle" style="margin-top: 4px">
+                        <a href="${supportingDocUrls[i]}" target="_blank" rel="noopener">View supporting document${
+                          v.supporting_doc_name ? ` (${escapeHtml(v.supporting_doc_name)})` : ""
+                        } &rarr;</a>
                       </p>`
                     : ""
                 }

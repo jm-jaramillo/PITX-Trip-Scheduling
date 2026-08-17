@@ -94,7 +94,11 @@ Open the project's **SQL Editor** and run, in order:
    against the receiving operator's approved vehicles server-side.
 17. [`supabase/migrations/0017_operator_profile_contact_email.sql`](supabase/migrations/0017_operator_profile_contact_email.sql) -
    adds `contact1_email`/`contact2_email` to `operator_profiles`.
-18. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+18. [`supabase/migrations/0018_vehicle_supporting_document.sql`](supabase/migrations/0018_vehicle_supporting_document.sql) -
+   adds `supporting_doc_path`/`supporting_doc_name` to `vehicles`.
+19. [`supabase/migrations/0019_vehicle_change_supporting_document.sql`](supabase/migrations/0019_vehicle_change_supporting_document.sql) -
+   lets `request_vehicle_change()` update the supporting document too.
+20. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -435,6 +439,27 @@ A private Supabase Storage bucket (`vehicle-docs`) holds the uploaded
 photos, one folder per operator, with the same RLS-style access rule as
 everything else: an operator can only reach their own folder, staff can
 read all of them.
+
+### Supporting document
+
+Separate from the OR/CR scan photo, an operator can attach one
+**supporting document** per vehicle (franchise/CPC, insurance, etc.) -
+any image or PDF (migration `0018_vehicle_supporting_document.sql`),
+uploaded to the same `vehicle-docs` bucket under
+`<operator_id>/supporting/<uuid>.<ext>`, so it's covered by the bucket's
+existing per-operator-folder storage policies with no changes needed
+there.
+
+Available when registering a new vehicle, and editable afterward -
+re-opening **Edit vehicle** shows "Current: `<filename>` - choose a file
+below to replace it" if one's already attached, and keeps it unchanged if
+no new file is chosen (`request_vehicle_change()`'s signature grew two
+parameters for this - migration `0019`, same drop-and-recreate reasoning
+as every prior signature change, since operators can only edit a vehicle
+through this function, not a direct UPDATE - migration 0005 removed their
+direct UPDATE policy entirely). Staff see a **"View supporting document
+(`<filename>`)"** link on **Vehicle approvals** alongside the existing
+OR/CR photo link, when one was uploaded.
 
 ## My schedule (operators)
 
