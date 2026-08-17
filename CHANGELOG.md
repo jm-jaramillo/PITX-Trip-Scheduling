@@ -671,6 +671,38 @@ correctly within a day.
 Verified live: **All** now lists Aug 17 (today), 15, 14, 12 in that
 order, with Aug 14's two slots still 6:30 AM before 4:00 PM.
 
+### 29. `12593fe` — PITX staff can delete accounts (17 Aug)
+
+Added a "Delete" action per row on **Accounts** (hidden on staff's own
+row - can't delete yourself, enforced server-side too, not just by
+hiding the button):
+
+- New `delete-account` Edge Function, same auth pattern as
+  `create-account` (verifies the caller is signed-in staff before
+  doing anything privileged).
+- New `scripts/delete-account.mjs` CLI fallback (`npm run
+  delete-account -- <username>`), same reasoning as
+  `create-operator.mjs` - usable until the Edge Function is deployed.
+
+Deleting an account cascades to that operator's own vehicles (existing
+FK), but **not** to `bookings.operator_id` or any `decided_by` column -
+those deliberately don't cascade, so deleting an account that still
+has bookings or approval decisions on record fails with a clear error
+instead of silently orphaning that history. Supabase's admin API wraps
+the actual Postgres FK violation into a generic "Database error
+deleting user" message rather than passing it through, so both the
+Edge Function and the CLI script treat *any* `deleteUser` failure as
+"still referenced elsewhere" rather than trying to pattern-match a
+message they don't control.
+
+Verified against the live database with the CLI script (identical
+logic to the Edge Function, so this is a real functional test, not
+just a code read): created a disposable test account and deleted it
+successfully; then confirmed `genesis.ops` (has bookings) and
+`pitx.admin` (has approval decisions) are both correctly blocked with
+the friendly error message, and neither account was actually removed
+from the database afterward.
+
 ---
 
 ## What the app does now
@@ -739,16 +771,20 @@ error rather than failing silently.
 1. ~~Point GitHub Pages at `/docs`.~~ **Done** — live at
    <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>.
 
-2. **Deploy the Edge Function** so staff can create accounts in-app. Not
-   done yet (confirmed: the endpoint 404s as of this writing):
+2. **Deploy the Edge Functions** so staff can create *and delete* accounts
+   in-app. Not done yet (confirmed: the `create-account` endpoint 404s as
+   of this writing; `delete-account` is new as of #29 and hasn't been
+   attempted):
 
    ```bash
    npx supabase login
    npx supabase link --project-ref nuezknlzwfkfxlicrgol
    npx supabase functions deploy create-account
+   npx supabase functions deploy delete-account
    ```
 
-   Until then, use `npm run create-staff` locally.
+   Until then, use `npm run create-staff` / `npm run create-operator` /
+   `npm run delete-account` locally.
 
 ---
 
