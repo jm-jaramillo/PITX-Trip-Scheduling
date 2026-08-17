@@ -14,7 +14,7 @@ and approve/reject each request, assigning a specific bay on approval.
 - **PITX staff** see every pending request, approve it (picking one of the
   bays not already taken for that slot) or reject it with an optional note,
   view a day-by-day schedule broken into 30-minute slots, manage the bay
-  list, and create login accounts (there is no self-signup).
+  list, and create or delete login accounts (there is no self-signup).
 
 ## How it's built
 
@@ -138,22 +138,42 @@ Every operator account has identical functionality - access is granted by
 book, register vehicles, and transfer bookings exactly like any other the
 moment its account exists.
 
-### 5. Deploy the account-creation Edge Function
+### 5. Deploy the account-creation and account-deletion Edge Functions
 
 Staff create accounts from the **Accounts** page, which calls the
 [`create-account`](supabase/functions/create-account/index.ts) Edge
-Function. Until it's deployed, that page shows "Could not reach the
-account-creation service" and every other feature still works.
+Function, and delete them with the
+[`delete-account`](supabase/functions/delete-account/index.ts) Edge
+Function. Until each is deployed, that page's create/delete action shows
+"Could not reach the account-creation/deletion service" and every other
+feature still works.
 
 ```bash
 npm install -g supabase          # or: npx supabase
 supabase login                   # opens your browser
 supabase link --project-ref <your-project-ref>
 supabase functions deploy create-account
+supabase functions deploy delete-account
 ```
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are
 injected into deployed functions automatically - no secrets to set by hand.
+
+Until `delete-account` is deployed, delete an account from the command
+line instead (same underlying logic):
+
+```bash
+npm run delete-account -- jacliner.ops
+```
+
+Deleting an account cascades to that operator's own vehicles, but
+**not** to any bookings it made or any approve/reject decisions it made
+as staff (`bookings.operator_id`/`decided_by` deliberately don't
+cascade) - deleting an account that's still referenced there fails with
+a clear "still has bookings ... on record" error rather than silently
+orphaning that history. Staff also can't delete their own account (no
+"Delete" button next to their own row on **Accounts**, and the Edge
+Function rejects it server-side too).
 
 ### 6. Publish to GitHub Pages
 
@@ -381,10 +401,12 @@ supabase/
   migrations/                Schema, RLS policies, booking-change function
   seed.sql                   Optional starter bays
   functions/create-account/  Edge Function for privileged account creation
+  functions/delete-account/  Edge Function for privileged account deletion
 
 scripts/
   create-staff.mjs           Bootstrap the first staff account
   create-operator.mjs        Create an operator account (until the Edge Function is deployed)
+  delete-account.mjs         Delete an account (until the Edge Function is deployed)
   run-migration.mjs          Apply migrations over a Postgres connection
   serve-docs.mjs             Serve docs/ locally, like GitHub Pages does
 ```

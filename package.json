@@ -7,6 +7,7 @@
     "serve": "node scripts/serve-docs.mjs 3100",
     "create-staff": "node scripts/create-staff.mjs",
     "create-operator": "node scripts/create-operator.mjs",
+    "delete-account": "node scripts/delete-account.mjs",
     "migrate": "node scripts/run-migration.mjs"
   },
   "dependencies": {

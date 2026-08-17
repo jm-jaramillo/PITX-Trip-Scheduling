@@ -100,7 +100,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Username</th><th>Role</th><th>Operator name</th><th>Created</th>
+                  <th>Username</th><th>Role</th><th>Operator name</th><th>Created</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -114,6 +114,13 @@
                     <td data-label="Created">${escapeHtml(
                       new Date(p.created_at).toLocaleDateString()
                     )}</td>
+                    <td>${
+                      p.id === profile.id
+                        ? ""
+                        : `<button type="button" class="btn-link danger" data-delete="${escapeHtml(
+                            p.id
+                          )}" data-username="${escapeHtml(p.username)}">Delete</button>`
+                    }</td>
                   </tr>`
                   )
                   .join("")}
@@ -121,6 +128,62 @@
             </table>
           </div>
         `;
+
+        document.getElementById("list").querySelectorAll("[data-delete]").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            deleteAccount(btn.dataset.delete, btn.dataset.username)
+          );
+        });
+      }
+
+      async function deleteAccount(userId, username) {
+        if (
+          !confirm(
+            `Delete the account "${username}"? This can't be undone. It'll fail ` +
+              `instead if that account still has bookings, vehicles, or approval ` +
+              `decisions on record.`
+          )
+        ) {
+          return;
+        }
+
+        showMessage("message", "");
+
+        // Same reasoning as account creation: needs the service_role key,
+        // which never reaches this public page - runs in the
+        // `delete-account` Edge Function instead.
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+
+        let result;
+        try {
+          const response = await fetch(
+            `${SUPABASE_URL}/functions/v1/delete-account`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({ user_id: userId }),
+            }
+          );
+          result = await response.json();
+        } catch {
+          result = {
+            error:
+              "Could not reach the account-deletion service. Is the " +
+              "`delete-account` Edge Function deployed?",
+          };
+        }
+
+        if (result?.error) {
+          showMessage("message", result.error);
+          return;
+        }
+
+        showMessage("message", `Account "${result.username}" deleted.`, "ok");
+        await load();
       }
 
       async function createAccount(event) {
