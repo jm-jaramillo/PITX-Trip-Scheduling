@@ -332,11 +332,12 @@ read all of them.
 ## My schedule (operators)
 
 A read-only **timeline** of the operator's own **approved** bookings -
-grouped by day, each day's slots connected top-to-bottom by a dot-and-line
-rail in chronological order, showing the assigned bay, route, and plate
-per slot. "Where do I actually need to show up," not a data-entry table.
-Today is tagged and highlighted; past days render dimmed but stay in
-place rather than disappearing. Pending and declined requests don't
+grouped by day, most recent day first, each day's own slots connected
+top-to-bottom by a dot-and-line rail in time order, showing the assigned
+bay, route, and plate per slot. "Where do I actually need to show up,"
+not a data-entry table. Today is tagged and highlighted; past days
+render dimmed but stay in place rather than disappearing. Pending and
+declined requests don't
 appear here (see **My requests** for the full picture, including
 revision/transfer status). Defaults to **Upcoming** (today onward);
 switch to **All** to include past days. No new tables or functions -

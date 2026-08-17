@@ -78,7 +78,7 @@
           )
           .eq("operator_id", profile.id)
           .eq("status", "approved")
-          .order("booking_date", { ascending: true })
+          .order("booking_date", { ascending: false })
           .order("slot", { ascending: true });
 
         if (error) {
