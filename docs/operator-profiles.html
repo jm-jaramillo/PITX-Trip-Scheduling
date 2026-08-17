@@ -112,82 +112,69 @@
           return;
         }
 
-        host.innerHTML = filtered
-          .map((r) => {
-            const p = r.companyProfile;
-            const label = r.operator_name || r.username;
-            return `
-              <div class="request-card">
-                <div class="request-head">
-                  <div>
-                    <p class="request-who">
-                      ${escapeHtml(label)}
-                      ${
-                        p
-                          ? ""
-                          : `<span class="badge badge-pending" style="margin-left: 8px">no profile yet</span>`
-                      }
-                    </p>
-                    <p class="subtle">@${escapeHtml(r.username)}</p>
-                  </div>
-                </div>
-
-                ${
-                  !p
-                    ? ""
-                    : `
-                  <div class="grid grid-2" style="margin-top: 14px">
-                    <div>
-                      <p class="subtle"><strong>Company</strong></p>
-                      <p>${escapeHtml(p.company_name || "—")}</p>
-                    </div>
-                    <div>
-                      <p class="subtle"><strong>Owner</strong></p>
-                      <p>${escapeHtml(p.company_owner || "—")}</p>
-                    </div>
-                    <div>
-                      <p class="subtle"><strong>TIN No.</strong></p>
-                      <p>${escapeHtml(p.tin_no || "—")}</p>
-                    </div>
-                    <div>
-                      <p class="subtle"><strong>Serial Number (OR)</strong></p>
-                      <p>${escapeHtml(p.or_serial_number || "—")}</p>
-                    </div>
-                    <div>
-                      <p class="subtle"><strong>Booking system</strong></p>
-                      <p>${
-                        p.has_booking_system
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Operator</th><th>Username</th><th>Company</th>
+                  <th>Owner</th><th>TIN No.</th><th>Serial Number (OR)</th>
+                  <th>Booking system</th><th>NAU</th>
+                  <th>Contact person 1</th><th>Contact person 2</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered
+                  .map((r) => {
+                    const p = r.companyProfile;
+                    const label = r.operator_name || r.username;
+                    return `
+                  <tr>
+                    <td class="cell-strong" data-label="Operator">${escapeHtml(label)}${
+                      p
+                        ? ""
+                        : `<span class="badge badge-pending" style="margin-left: 8px">no profile yet</span>`
+                    }</td>
+                    <td data-label="Username">@${escapeHtml(r.username)}</td>
+                    <td data-label="Company">${escapeHtml(p?.company_name || "—")}</td>
+                    <td data-label="Owner">${escapeHtml(p?.company_owner || "—")}</td>
+                    <td data-label="TIN No.">${escapeHtml(p?.tin_no || "—")}</td>
+                    <td data-label="Serial Number (OR)">${escapeHtml(
+                      p?.or_serial_number || "—"
+                    )}</td>
+                    <td data-label="Booking system">${
+                      !p
+                        ? "—"
+                        : p.has_booking_system
                           ? escapeHtml(p.booking_system_name || "Yes")
                           : "No"
-                      }</p>
-                    </div>
-                    <div>
-                      <p class="subtle"><strong>NAU</strong></p>
-                      <p>${escapeHtml(p.nau || "—")}</p>
-                    </div>
-                    <div>
-                      <p class="subtle"><strong>Contact person 1</strong></p>
-                      <p>${escapeHtml(p.contact1_name || "—")}${
-                        p.contact1_position ? ` (${escapeHtml(p.contact1_position)})` : ""
-                      }${p.contact1_number ? ` &middot; ${escapeHtml(p.contact1_number)}` : ""}${
-                        p.contact1_email ? ` &middot; ${escapeHtml(p.contact1_email)}` : ""
-                      }</p>
-                    </div>
-                    <div>
-                      <p class="subtle"><strong>Contact person 2</strong></p>
-                      <p>${escapeHtml(p.contact2_name || "—")}${
-                        p.contact2_position ? ` (${escapeHtml(p.contact2_position)})` : ""
-                      }${p.contact2_number ? ` &middot; ${escapeHtml(p.contact2_number)}` : ""}${
-                        p.contact2_email ? ` &middot; ${escapeHtml(p.contact2_email)}` : ""
-                      }</p>
-                    </div>
-                  </div>
-                `
-                }
-              </div>
-            `;
-          })
-          .join("");
+                    }</td>
+                    <td data-label="NAU">${escapeHtml(p?.nau || "—")}</td>
+                    <td data-label="Contact person 1">${
+                      p?.contact1_name
+                        ? `${escapeHtml(p.contact1_name)}${
+                            p.contact1_position ? ` (${escapeHtml(p.contact1_position)})` : ""
+                          }${
+                            p.contact1_number ? ` &middot; ${escapeHtml(p.contact1_number)}` : ""
+                          }${p.contact1_email ? ` &middot; ${escapeHtml(p.contact1_email)}` : ""}`
+                        : "—"
+                    }</td>
+                    <td data-label="Contact person 2">${
+                      p?.contact2_name
+                        ? `${escapeHtml(p.contact2_name)}${
+                            p.contact2_position ? ` (${escapeHtml(p.contact2_position)})` : ""
+                          }${
+                            p.contact2_number ? ` &middot; ${escapeHtml(p.contact2_number)}` : ""
+                          }${p.contact2_email ? ` &middot; ${escapeHtml(p.contact2_email)}` : ""}`
+                        : "—"
+                    }</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
       }
     </script>
   </body>

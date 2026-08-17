@@ -47,6 +47,12 @@
 
       await load();
 
+      function airconLabel(aircon) {
+        if (aircon === true) return "Aircon";
+        if (aircon === false) return "Non-aircon";
+        return "—";
+      }
+
       async function load() {
         const { data, error } = await supabase
           .from("vehicles")
@@ -76,118 +82,65 @@
           return;
         }
 
-        const photoUrls = await Promise.all(
-          requests.map((v) =>
-            v.photo_path
-              ? supabase.storage
-                  .from("vehicle-docs")
-                  .createSignedUrl(v.photo_path, 300)
-                  .then((r) => r.data?.signedUrl ?? null)
-              : Promise.resolve(null)
-          )
-        );
-        const supportingDocUrls = await Promise.all(
-          requests.map((v) =>
-            v.supporting_doc_path
-              ? supabase.storage
-                  .from("vehicle-docs")
-                  .createSignedUrl(v.supporting_doc_path, 300)
-                  .then((r) => r.data?.signedUrl ?? null)
-              : Promise.resolve(null)
-          )
-        );
-
-        host.innerHTML = requests
-          .map((v, i) => {
-            const operatorLabel =
-              v.profiles?.operator_name || v.profiles?.username || "Operator";
-            return `
-              <div class="request-card">
-                <div class="request-head">
-                  <div>
-                    <p class="request-who">${escapeHtml(v.plate_no)}${
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Plate No.</th><th>Operator</th><th>Case No.</th>
+                  <th>MV File #</th><th>OR No.</th><th>CR No.</th>
+                  <th>Route</th><th>Bus No.</th><th>Seating</th>
+                  <th>Seat</th><th>Aircon</th><th>Date granted</th>
+                  <th>Date expiry</th><th>Documents</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${requests
+                  .map((v) => {
+                    const operatorLabel =
+                      v.profiles?.operator_name || v.profiles?.username || "Operator";
+                    return `
+                  <tr>
+                    <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}${
                       v.previously_approved
                         ? `<span class="revised">changed after approval</span>`
                         : v.revision_count > 0
                           ? `<span class="revised">changed &times;${v.revision_count}</span>`
                           : ""
-                    }</p>
-                    <p class="subtle">
-                      ${escapeHtml(operatorLabel)}${
-                        v.route ? ` &middot; Route ${escapeHtml(v.route)}` : ""
-                      }
-                    </p>
-                    ${(() => {
-                      const parts = [];
-                      if (v.case_number)
-                        parts.push(`Case No. ${escapeHtml(v.case_number)}`);
-                      if (v.mv_file_number)
-                        parts.push(`MV File # ${escapeHtml(v.mv_file_number)}`);
-                      if (v.or_number)
-                        parts.push(`OR No. ${escapeHtml(v.or_number)}`);
-                      if (v.cr_number)
-                        parts.push(`CR No. ${escapeHtml(v.cr_number)}`);
-                      if (v.bus_number)
-                        parts.push(`Bus No. ${escapeHtml(v.bus_number)}`);
-                      if (v.seating_capacity || v.seat_type) {
-                        parts.push(
-                          `${v.seating_capacity ?? "?"} seats${
-                            v.seat_type ? ` (${escapeHtml(v.seat_type)})` : ""
-                          }`
-                        );
-                      }
-                      if (v.aircon !== null && v.aircon !== undefined) {
-                        parts.push(v.aircon ? "Aircon" : "Non-aircon");
-                      }
-                      return parts.length
-                        ? `<p class="subtle">${parts.join(" &middot; ")}</p>`
-                        : "";
-                    })()}
-                  </div>
-                  <p class="request-when">
-                    ${
-                      v.date_granted
-                        ? `Granted ${escapeHtml(v.date_granted)}`
-                        : "No grant date given"
-                    }
-                    ${
-                      v.date_expiry
-                        ? `<br />Expires ${escapeHtml(v.date_expiry)}`
-                        : ""
-                    }
-                  </p>
-                </div>
+                    }</td>
+                    <td data-label="Operator">${escapeHtml(operatorLabel)}</td>
+                    <td data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
+                    <td data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
+                    <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
+                    <td data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
+                    <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
+                    <td data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
+                    <td data-label="Seating">${v.seating_capacity ?? "—"}</td>
+                    <td data-label="Seat">${escapeHtml(v.seat_type ?? "—")}</td>
+                    <td data-label="Aircon">${airconLabel(v.aircon)}</td>
+                    <td data-label="Date granted">${escapeHtml(v.date_granted ?? "—")}</td>
+                    <td data-label="Date expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
+                    <td data-label="Documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
+                    <td>
+                      <div class="row-actions">
+                        <form data-approve="${escapeHtml(v.id)}">
+                          <button type="submit" class="btn-approve">Approve</button>
+                        </form>
+                        <form data-reject="${escapeHtml(v.id)}">
+                          <input placeholder="Reason (optional)" />
+                          <button type="submit" class="btn-danger-outline">Reject</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
 
-                ${
-                  photoUrls[i]
-                    ? `<p class="subtle" style="margin-top: 10px">
-                        <a href="${photoUrls[i]}" target="_blank" rel="noopener">View submitted OR/CR photo &rarr;</a>
-                      </p>`
-                    : ""
-                }
-                ${
-                  supportingDocUrls[i]
-                    ? `<p class="subtle" style="margin-top: 4px">
-                        <a href="${supportingDocUrls[i]}" target="_blank" rel="noopener">View supporting document${
-                          v.supporting_doc_name ? ` (${escapeHtml(v.supporting_doc_name)})` : ""
-                        } &rarr;</a>
-                      </p>`
-                    : ""
-                }
-
-                <div class="request-actions">
-                  <form data-approve="${escapeHtml(v.id)}">
-                    <button type="submit" class="btn-approve">Approve</button>
-                  </form>
-                  <form data-reject="${escapeHtml(v.id)}">
-                    <input placeholder="Reason (optional)" />
-                    <button type="submit" class="btn-danger-outline">Reject</button>
-                  </form>
-                </div>
-              </div>
-            `;
-          })
-          .join("");
+        resolveDocLinks(requests);
 
         host.querySelectorAll("[data-approve]").forEach((form) => {
           form.addEventListener("submit", (e) => {
@@ -201,6 +154,43 @@
             reject(form.dataset.reject, form.querySelector("input").value.trim());
           });
         });
+      }
+
+      // Signed URLs are resolved after the table paints (rather than
+      // blocking the initial render on every row's storage round-trip),
+      // same pattern as vehicles-database.html.
+      async function resolveDocLinks(rows) {
+        await Promise.all(
+          rows.map(async (v) => {
+            const cell = document.querySelector(`[data-vehicle-docs="${v.id}"]`);
+            if (!cell) return;
+
+            const links = [];
+            if (v.photo_path) {
+              const { data } = await supabase.storage
+                .from("vehicle-docs")
+                .createSignedUrl(v.photo_path, 300);
+              if (data?.signedUrl) {
+                links.push(
+                  `<a href="${data.signedUrl}" target="_blank" rel="noopener">OR/CR photo</a>`
+                );
+              }
+            }
+            if (v.supporting_doc_path) {
+              const { data } = await supabase.storage
+                .from("vehicle-docs")
+                .createSignedUrl(v.supporting_doc_path, 300);
+              if (data?.signedUrl) {
+                links.push(
+                  `<a href="${data.signedUrl}" target="_blank" rel="noopener">${escapeHtml(
+                    v.supporting_doc_name || "Supporting doc"
+                  )}</a>`
+                );
+              }
+            }
+            cell.innerHTML = links.length ? links.join("<br />") : "—";
+          })
+        );
       }
 
       async function approve(vehicleId) {
