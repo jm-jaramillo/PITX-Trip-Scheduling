@@ -879,6 +879,31 @@ own list and the staff Vehicle approvals queue, then edited the
 vehicle without touching the document and confirmed via the database
 that the path/name survived rather than being nulled out.
 
+### 36. `5ea6e0d` — Staff-only Vehicles database page (17 Aug)
+
+New `docs/vehicles-database.html`, added to the staff nav between
+Vehicle approvals and Transfer approvals. Read-only list of **every**
+registered vehicle across **every** operator, any status - Vehicle
+approvals only ever showed the pending queue, so there was no way to
+browse the whole fleet (an operator's already-approved vehicles, or
+ones staff previously rejected).
+
+- Status filter (All / Approved / Pending / Declined) and a search box
+  over plate no., operator, and bus no.
+- Each row resolves signed URLs for whatever documents that vehicle
+  has on file (OR/CR scan photo, supporting document from #35), same
+  pattern already used on `vehicles.html`/`vehicle-approvals.html`.
+- No new migration - `vehicles`' existing select policy already lets
+  staff read every row regardless of status (`operator_id = auth.uid()
+  or is_staff()`, migration `0003`); this is the first UI built
+  specifically for browsing the whole fleet rather than only the
+  pending queue.
+
+Verified live: page lists all registered vehicles with operator names
+resolved via the FK embed, status filter tabs work, search correctly
+narrowed down to a single plate, nav link renders and highlights
+correctly as the active page.
+
 ---
 
 ## What the app does now
