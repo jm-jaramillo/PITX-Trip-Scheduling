@@ -792,6 +792,19 @@ A&B Liner's two contacts including the new email field, with the
 summary line now reading "23 of 23 operators have submitted a
 profile".
 
+### 32. `7b84713` — Route dropdown: drop the redundant "PITX -" (17 Aug)
+
+Every route is a PITX trip by definition, so showing "PITX" on every
+option was redundant. Trimmed each `ROUTES` entry in `app.js` down to
+just the other endpoint - `"Baguio via Inner Cities"` instead of
+`"PITX - Baguio via Inner Cities"`, `"Tuguegarao City, Cagayan"`
+instead of `"Tuguegarao City, Cagayan - PITX"`, etc. Existing bookings'
+stored route strings are untouched - already covered by the Change
+dialog's "not in the current list" fallback if they don't match.
+
+Verified live: the dropdown now lists all 8 routes as plain endpoint
+names with no PITX prefix/suffix.
+
 ---
 
 ## What the app does now
