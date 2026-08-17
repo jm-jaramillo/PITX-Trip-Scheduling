@@ -19,6 +19,23 @@ export function usernameToEmail(username) {
   return `${username.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
 }
 
+/* ---------------------------------------------------------------- routes */
+
+// The fixed set of PITX-served provincial routes, from the operator
+// database spreadsheet's "Routes" sheet - a booking's route is picked from
+// this list rather than typed freehand, so it can't drift into near-
+// duplicate variants of the same route.
+export const ROUTES = [
+  "Tuguegarao City, Cagayan - PITX",
+  "San Carlos City, Pangasinan - PITX",
+  "Dagupan City, Pangasinan - PITX",
+  "Olongapo City, Zambales - PITX",
+  "PITX - Baguio via Inner Cities",
+  "PITX - Banaue, Ifugao",
+  "PITX - Sta. Ana, Cagayan",
+  "PITX - Mariveles, Bataan",
+];
+
 /* ------------------------------------------------------------------ time */
 
 // 48 half-hour slots per day. Slot N covers [N*30, N*30+30) minutes past

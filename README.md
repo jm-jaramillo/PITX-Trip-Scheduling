@@ -3,7 +3,8 @@
 Provincial bus operators request a 30-minute bus bay slot; PITX staff review
 and approve/reject each request, assigning a specific bay on approval.
 
-- **Operators** submit a request: Route, Plate No. (picked from their
+- **Operators** submit a request: Route (picked from the fixed list of
+  PITX-served provincial routes), Plate No. (picked from their
   approved vehicles), Date, and a 30-minute time slot (12:00-12:30 AM,
   12:30-1:00 AM, ... 48 slots a day, the terminal runs 24/7) - the Operator
   name isn't a form field, it's whatever's on the account (`profiles.operator_name`).
@@ -91,7 +92,9 @@ Open the project's **SQL Editor** and run, in order:
 16. [`supabase/migrations/0016_transfer_recipient_vehicles.sql`](supabase/migrations/0016_transfer_recipient_vehicles.sql) -
    adds `list_operator_vehicles()`, and validates a transfer's plate
    against the receiving operator's approved vehicles server-side.
-17. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+17. [`supabase/migrations/0017_operator_profile_contact_email.sql`](supabase/migrations/0017_operator_profile_contact_email.sql) -
+   adds `contact1_email`/`contact2_email` to `operator_profiles`.
+18. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -314,6 +317,53 @@ filled theirs in is as useful to staff as seeing the ones who have. No
 new RLS needed: `operator_profiles`' existing `select` policy already
 lets staff read every row (`operator_id = auth.uid() or is_staff()`,
 migration `0008`), this is just the first UI built on top of it.
+
+Contact person 1/2 also have an **Email** field (migration
+`0017_operator_profile_contact_email.sql`) alongside the existing
+name/number/position - added when importing the company's real operator
+database, which has emails but the paper form's contact fields don't ask
+for one.
+
+### Route dropdown
+
+A booking's **Route** is picked from `ROUTES` in
+[`docs/assets/app.js`](docs/assets/app.js) - the fixed list of PITX-served
+provincial routes, sourced from the operator database's "Routes" sheet -
+rather than typed freehand, so it can't drift into near-duplicate
+variants of the same route (`"PITX - Batangas"` vs `"Batangas"` vs
+`"pitx batangas"`). The **Change** dialog preserves a booking's existing
+route even if it predates the fixed list (tagged "(not in the current
+list)"), same reasoning as the plate dropdown's "no longer approved"
+fallback - re-opening the dialog never silently loses a value it can't
+otherwise represent.
+
+### Real operator data import (17 Aug)
+
+The 23 operator accounts' company profiles were populated from a
+company-provided "Operator Database" spreadsheet (Operator List / Operator
+Profile / Routes sheets). Two account groupings needed a judgment call
+because the spreadsheet groups companies differently than the app's
+accounts do - resolved with the user before writing anything:
+
+- **Jac Liner / Jam Liner / Jam Liner-LLI** (3 separate accounts) - the
+  spreadsheet has one combined row ("JAC LINER INC/ LLI/ JAM LINER") plus
+  two standalone JAM LINER rows. Split per the user's direction: Jac Liner
+  gets the combined row's manager; Jam Liner gets both standalone rows'
+  contacts; Jam Liner/LLI gets the combined row's dispatcher (the only
+  contact tied to "LLI" specifically).
+- **Amihan / Philtranco** (2 separate accounts) - the spreadsheet has
+  standalone rows for each, plus a combined row with 5 more teller/
+  dispatcher contacts. Per the user: each account keeps only its own
+  standalone-row contacts; the combined row's 5 contacts aren't assigned
+  to either.
+
+No company owner / TIN / OR-serial-number / booking-system / NAU data
+exists in the spreadsheet, so those fields are empty for all 23 -
+including clearing Genesis Transport's previous *fictitious test* values
+in those fields, since real source data now takes priority over
+placeholder test data. Verified afterward that all 23 existing accounts
+matched something in the spreadsheet, so no account was left with a
+"blank" profile to delete.
 
 ## Vehicle registration
 

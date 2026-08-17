@@ -169,13 +169,17 @@
                       <p class="subtle"><strong>Contact person 1</strong></p>
                       <p>${escapeHtml(p.contact1_name || "—")}${
                         p.contact1_position ? ` (${escapeHtml(p.contact1_position)})` : ""
-                      }${p.contact1_number ? ` &middot; ${escapeHtml(p.contact1_number)}` : ""}</p>
+                      }${p.contact1_number ? ` &middot; ${escapeHtml(p.contact1_number)}` : ""}${
+                        p.contact1_email ? ` &middot; ${escapeHtml(p.contact1_email)}` : ""
+                      }</p>
                     </div>
                     <div>
                       <p class="subtle"><strong>Contact person 2</strong></p>
                       <p>${escapeHtml(p.contact2_name || "—")}${
                         p.contact2_position ? ` (${escapeHtml(p.contact2_position)})` : ""
-                      }${p.contact2_number ? ` &middot; ${escapeHtml(p.contact2_number)}` : ""}</p>
+                      }${p.contact2_number ? ` &middot; ${escapeHtml(p.contact2_number)}` : ""}${
+                        p.contact2_email ? ` &middot; ${escapeHtml(p.contact2_email)}` : ""
+                      }</p>
                     </div>
                   </div>
                 `

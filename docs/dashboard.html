@@ -33,12 +33,7 @@
         <form class="grid grid-2 grid-4" id="booking-form">
           <div class="field">
             <label for="route">Route</label>
-            <input
-              id="route"
-              name="route"
-              placeholder="e.g. PITX - Batangas"
-              required
-            />
+            <select id="route" name="route" required></select>
           </div>
 
           <div class="field">
@@ -135,7 +130,7 @@
         <div class="dialog-grid">
           <div class="field">
             <label for="edit_route">Route</label>
-            <input id="edit_route" required />
+            <select id="edit_route" required></select>
           </div>
           <div class="field">
             <label for="edit_plate_no">Plate No.</label>
@@ -170,6 +165,7 @@
         guardPage,
         renderNav,
         SLOTS,
+        ROUTES,
         formatSlot,
         todayISO,
         statusBadge,
@@ -358,7 +354,24 @@
         );
       }
 
+      // A plain list of the fixed PITX routes - unlike plate/edit_route,
+      // this dropdown never needs to preserve a legacy value that isn't in
+      // the list, since new bookings always pick from ROUTES.
+      function routeOptionsHtml(selected) {
+        return (
+          `<option value="" disabled${selected ? "" : " selected"}>Select a route</option>` +
+          ROUTES.map(
+            (r) =>
+              `<option value="${escapeHtml(r)}"${
+                r === selected ? " selected" : ""
+              }>${escapeHtml(r)}</option>`
+          ).join("")
+        );
+      }
+
       function initForm() {
+        document.getElementById("route").innerHTML = routeOptionsHtml(null);
+
         const dateInput = document.getElementById("booking_date");
         dateInput.min = todayISO();
         dateInput.value = todayISO();
@@ -763,7 +776,18 @@
         if (!booking) return;
         editingId = bookingId;
 
-        document.getElementById("edit_route").value = booking.route;
+        // Include the booking's current route even if it predates the
+        // fixed route list (e.g. old free-text test data), same reasoning
+        // as the plate fallback right below - never silently lose it.
+        const routeSelect = document.getElementById("edit_route");
+        const routeIsListed = ROUTES.includes(booking.route);
+        routeSelect.innerHTML =
+          routeOptionsHtml(booking.route) +
+          (routeIsListed
+            ? ""
+            : `<option value="${escapeHtml(booking.route)}" selected>${escapeHtml(
+                booking.route
+              )} (not in the current list)</option>`);
 
         // Include the booking's current plate even if it's no longer an
         // approved vehicle (e.g. that vehicle got edited/un-approved since),
