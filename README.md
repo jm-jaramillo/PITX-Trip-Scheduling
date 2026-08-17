@@ -310,6 +310,20 @@ also re-validates the chosen plate server-side against the receiving
 operator's approved vehicles, so a raw RPC call can't submit a plate the
 dropdown wouldn't have offered.
 
+## Vehicles database (staff)
+
+A read-only staff page listing **every** registered vehicle across
+**every** operator, any status - not just the pending queue on **Vehicle
+approvals**. Filterable by status (All / Approved / Pending / Declined)
+and searchable by plate no., operator, or bus no. Each row links to
+whatever documents that vehicle has on file (OR/CR scan photo,
+supporting document), resolved as signed URLs the same way the other
+pages that touch the `vehicle-docs` bucket already do. No new RLS
+needed - `vehicles`' existing `select` policy already lets staff read
+every row regardless of status (`operator_id = auth.uid() or is_staff()`,
+migration `0003`); this is simply the first UI built specifically for
+browsing the whole fleet rather than only the pending queue.
+
 ## Operator profiles (staff)
 
 A read-only staff page listing every operator account's company details
@@ -498,6 +512,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   operator-profile.html     Operator: one-time company details (no approval)
   staff.html                 Staff: pending booking queue (approve / reject)
   vehicle-approvals.html     Staff: pending vehicle queue (approve / reject)
+  vehicles-database.html     Staff: every registered vehicle, any status, searchable
   transfer-approvals.html    Staff: pending booking-transfer queue (approve / reject)
   schedule.html              Staff: 30-minute-slot capacity grid for a date
   bays.html                  Staff: manage the bay list

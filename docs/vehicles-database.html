@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vehicles · PITX Bus Bay Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Transport Operations &middot; Fleet Database</p>
+          <h1>Vehicles</h1>
+          <p class="subtle">
+            Every vehicle registered across all operators, any status - not
+            just the pending queue on <strong>Vehicle approvals</strong>.
+          </p>
+        </div>
+        <p class="subtle" id="summary-count"></p>
+      </div>
+
+      <div class="toolbar" style="justify-content: space-between; margin-bottom: 20px">
+        <div class="field" style="max-width: 360px; margin-bottom: 0">
+          <label for="search">Search</label>
+          <input id="search" placeholder="Plate no., operator, or bus no.…" />
+        </div>
+        <div class="mode-switch" role="tablist" id="status-filter">
+          <button type="button" class="mode-tab is-active" data-filter="all">All</button>
+          <button type="button" class="mode-tab" data-filter="approved">Approved</button>
+          <button type="button" class="mode-tab" data-filter="pending">Pending</button>
+          <button type="button" class="mode-tab" data-filter="rejected">Declined</button>
+        </div>
+      </div>
+
+      <div class="hidden" id="message"></div>
+      <div id="vehicle-list"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        showMessage,
+        statusBadge,
+        escapeHtml,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      let allVehicles = [];
+      let statusFilter = "all";
+
+      initStatusFilter();
+      document.getElementById("search").addEventListener("input", render);
+      await load();
+
+      function initStatusFilter() {
+        document.querySelectorAll("#status-filter [data-filter]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            statusFilter = btn.dataset.filter;
+            document
+              .querySelectorAll("#status-filter [data-filter]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            render();
+          });
+        });
+      }
+
+      function airconLabel(aircon) {
+        if (aircon === true) return "Aircon";
+        if (aircon === false) return "Non-aircon";
+        return "—";
+      }
+
+      async function load() {
+        // vehicles has two FKs into profiles (operator_id, decided_by), so
+        // the embed needs the constraint name to disambiguate which.
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select(
+            "id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, status, rejection_reason, photo_path, supporting_doc_path, supporting_doc_name, created_at, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+          )
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+
+        allVehicles = data ?? [];
+        render();
+      }
+
+      function render() {
+        const query = document.getElementById("search").value.trim().toLowerCase();
+
+        let rows =
+          statusFilter === "all"
+            ? allVehicles
+            : allVehicles.filter((v) => v.status === statusFilter);
+
+        if (query) {
+          rows = rows.filter((v) =>
+            [v.plate_no, v.bus_number, v.profiles?.operator_name, v.profiles?.username]
+              .filter(Boolean)
+              .some((s) => s.toLowerCase().includes(query))
+          );
+        }
+
+        document.getElementById("summary-count").textContent =
+          `${allVehicles.length} vehicle${allVehicles.length === 1 ? "" : "s"} registered across all operators`;
+
+        const host = document.getElementById("vehicle-list");
+
+        if (rows.length === 0) {
+          host.innerHTML = `<p class="empty">${
+            allVehicles.length === 0 ? "No vehicles registered yet." : "No matches."
+          }</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Plate No.</th><th>Operator</th><th>Case No.</th>
+                  <th>MV File #</th><th>OR No.</th><th>CR No.</th>
+                  <th>Route</th><th>Bus No.</th><th>Seating</th>
+                  <th>Seat</th><th>Aircon</th><th>Date granted</th>
+                  <th>Date expiry</th><th>Status</th><th>Note</th>
+                  <th>Documents</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map((v) => {
+                    const operatorLabel =
+                      v.profiles?.operator_name || v.profiles?.username || "—";
+                    return `
+                  <tr>
+                    <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
+                    <td data-label="Operator">${escapeHtml(operatorLabel)}</td>
+                    <td data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
+                    <td data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
+                    <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
+                    <td data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
+                    <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
+                    <td data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
+                    <td data-label="Seating">${v.seating_capacity ?? "—"}</td>
+                    <td data-label="Seat">${escapeHtml(v.seat_type ?? "—")}</td>
+                    <td data-label="Aircon">${airconLabel(v.aircon)}</td>
+                    <td data-label="Date granted">${escapeHtml(v.date_granted ?? "—")}</td>
+                    <td data-label="Date expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
+                    <td data-label="Status">${statusBadge(v.status)}</td>
+                    <td data-label="Note">${escapeHtml(v.rejection_reason ?? "—")}</td>
+                    <td data-label="Documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        resolveDocLinks(rows);
+      }
+
+      // Signed URLs are resolved after the table paints (rather than
+      // blocking the initial render on every row's storage round-trip),
+      // same reasoning as the other pages that link into vehicle-docs.
+      async function resolveDocLinks(rows) {
+        await Promise.all(
+          rows.map(async (v) => {
+            const cell = document.querySelector(`[data-vehicle-docs="${v.id}"]`);
+            if (!cell) return;
+
+            const links = [];
+            if (v.photo_path) {
+              const { data } = await supabase.storage
+                .from("vehicle-docs")
+                .createSignedUrl(v.photo_path, 300);
+              if (data?.signedUrl) {
+                links.push(
+                  `<a href="${data.signedUrl}" target="_blank" rel="noopener">OR/CR photo</a>`
+                );
+              }
+            }
+            if (v.supporting_doc_path) {
+              const { data } = await supabase.storage
+                .from("vehicle-docs")
+                .createSignedUrl(v.supporting_doc_path, 300);
+              if (data?.signedUrl) {
+                links.push(
+                  `<a href="${data.signedUrl}" target="_blank" rel="noopener">${escapeHtml(
+                    v.supporting_doc_name || "Supporting doc"
+                  )}</a>`
+                );
+              }
+            }
+            cell.innerHTML = links.length ? links.join("<br />") : "—";
+          })
+        );
+      }
+    </script>
+  </body>
+</html>

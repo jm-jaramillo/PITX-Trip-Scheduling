@@ -157,6 +157,7 @@ const OPERATOR_LINKS = [
 const STAFF_LINKS = [
   { href: "staff.html", label: "Pending requests" },
   { href: "vehicle-approvals.html", label: "Vehicle approvals" },
+  { href: "vehicles-database.html", label: "Vehicles" },
   { href: "transfer-approvals.html", label: "Transfer approvals" },
   { href: "schedule.html", label: "Schedule" },
   { href: "bays.html", label: "Bays" },
