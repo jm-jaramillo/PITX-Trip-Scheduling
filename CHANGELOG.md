@@ -846,6 +846,39 @@ rows) and in the staff Operator profiles page, which now reads "68 of
 68 operators have submitted a profile" - spot-checked A. Arandia
 Line's imported contacts render correctly there too.
 
+### 35. `7cbb6a5` — Vehicle registration: supporting document upload for staff (17 Aug)
+
+Operators can now attach one supporting document per vehicle
+(franchise/CPC, insurance, etc.) - any image or PDF, separate from the
+existing OR/CR scan photo.
+
+- Migration `0018`: `vehicles.supporting_doc_path` /
+  `supporting_doc_name`. Reuses the existing `vehicle-docs` bucket and
+  its per-operator-folder storage policies unchanged - new files land
+  under `<operator_id>/supporting/<uuid>.<ext>`, still within the same
+  folder prefix those policies already cover.
+- Migration `0019`: `request_vehicle_change()` grows two parameters to
+  carry the document through an edit. Operators can only edit a
+  vehicle through this function - migration `0005` removed their
+  direct UPDATE policy entirely - so this was the only way to let them
+  replace it later. Dropped and recreated, same reasoning as every
+  prior signature change in this project.
+- `vehicles.html`: file input on both Add and Edit dialogs. Edit shows
+  "Current: `<filename>` - choose a file below to replace it" when one
+  is attached, and explicitly passes the existing path/name through
+  when no new file is chosen, so an unrelated field edit can't wipe it
+  out. New "Document" column in the list, linked via a signed URL.
+- `vehicle-approvals.html`: staff see a "View supporting document
+  (`<filename>`)" link next to the existing OR/CR photo link.
+
+Verified live end-to-end, not just a code read: uploaded a real file
+through a vehicle registration, confirmed the exact bytes round-tripped
+through a live signed URL (curled it back and got the file's actual
+content), saw the Document link and filename in both the operator's
+own list and the staff Vehicle approvals queue, then edited the
+vehicle without touching the document and confirmed via the database
+that the path/name survived rather than being nulled out.
+
 ---
 
 ## What the app does now
