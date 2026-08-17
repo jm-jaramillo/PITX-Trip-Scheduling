@@ -21,8 +21,8 @@
           <p class="eyebrow">Provincial Slot Booking</p>
           <h1>My schedule</h1>
           <p class="subtle">
-            Your approved slots and the bay assigned to each. Pending and
-            declined requests aren't shown here - see
+            Your approved slots and the bay assigned to each, in order.
+            Pending and declined requests aren't shown here - see
             <a href="dashboard.html">My requests</a> for those.
           </p>
         </div>
@@ -42,7 +42,6 @@
         renderNav,
         formatSlot,
         todayISO,
-        statusBadge,
         escapeHtml,
       } from "./assets/app.js";
 
@@ -75,7 +74,7 @@
         const { data, error } = await supabase
           .from("bookings")
           .select(
-            "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, bays ( id, name )"
+            "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, bays ( id, name )"
           )
           .eq("operator_id", profile.id)
           .eq("status", "approved")
@@ -90,6 +89,18 @@
 
         allApproved = data ?? [];
         render();
+      }
+
+      function formatDateHeading(iso) {
+        const [y, m, d] = iso.split("-").map(Number);
+        // Noon avoids any timezone edge landing on the wrong calendar day.
+        const date = new Date(y, m - 1, d, 12);
+        return date.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
       }
 
       function render() {
@@ -110,43 +121,57 @@
           return;
         }
 
-        host.innerHTML = `
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th><th>Time slot</th><th>Operator</th><th>Route</th>
-                  <th>Plate No.</th><th>Bay</th><th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows
-                  .map((b) => {
-                    const isPast = b.booking_date < today;
-                    return `
-                  <tr${isPast ? ' class="muted"' : ""}>
-                    <td data-label="Date">${escapeHtml(b.booking_date)}</td>
-                    <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
-                    <td data-label="Operator">${
-                      b.previous_operator_name
-                        ? `<s class="transferred-from">${escapeHtml(
-                            b.previous_operator_name
-                          )}</s> `
-                        : ""
-                    }${escapeHtml(b.operator_name)}</td>
-                    <td data-label="Route">${escapeHtml(b.route)}</td>
-                    <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
-                    <td data-label="Bay"><strong>${escapeHtml(
-                      b.bays?.name ?? "—"
-                    )}</strong></td>
-                    <td data-label="Status">${statusBadge(b.status)}</td>
-                  </tr>`;
-                  })
-                  .join("")}
-              </tbody>
-            </table>
-          </div>
-        `;
+        // One group per calendar date, each rendered as its own vertical
+        // timeline - a booking list reads better chronologically grouped
+        // by day than as one flat table.
+        const byDate = new Map();
+        for (const b of rows) {
+          if (!byDate.has(b.booking_date)) byDate.set(b.booking_date, []);
+          byDate.get(b.booking_date).push(b);
+        }
+
+        host.innerHTML = [...byDate.entries()]
+          .map(([date, bookings]) => {
+            const isPast = date < today;
+            return `
+              <section class="tl-day${isPast ? " tl-day-past" : ""}">
+                <h2 class="tl-day-heading">
+                  ${escapeHtml(formatDateHeading(date))}
+                  ${date === today ? '<span class="tl-today-tag">Today</span>' : ""}
+                </h2>
+                <div class="timeline">
+                  ${bookings
+                    .map(
+                      (b) => `
+                    <div class="timeline-item">
+                      <div class="timeline-rail">
+                        <span class="timeline-dot"></span>
+                        <span class="timeline-line"></span>
+                      </div>
+                      <div class="timeline-card">
+                        <div class="timeline-time">${escapeHtml(formatSlot(b.slot))}</div>
+                        <div class="timeline-main">
+                          <span class="bay-tag">${escapeHtml(b.bays?.name ?? "No bay")}</span>
+                          <span class="timeline-route">${escapeHtml(b.route)}</span>
+                          <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>
+                        </div>
+                        ${
+                          b.previous_operator_name
+                            ? `<div class="subtle">
+                                <s class="transferred-from">${escapeHtml(
+                                  b.previous_operator_name
+                                )}</s> ${escapeHtml(b.operator_name)}
+                              </div>`
+                            : ""
+                        }
+                      </div>
+                    </div>`
+                    )
+                    .join("")}
+                </div>
+              </section>`;
+          })
+          .join("");
       }
     </script>
   </body>

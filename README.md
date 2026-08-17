@@ -331,14 +331,17 @@ read all of them.
 
 ## My schedule (operators)
 
-A read-only view of the operator's own **approved** bookings, sorted
-chronologically, with the bay assigned to each - "where do I actually
-need to show up." Pending and declined requests don't appear here (see
-**My requests** for the full picture, including revision/transfer status).
-Defaults to **Upcoming** (today onward); switch to **All** to include
-past slots, shown dimmed. No new tables or functions - it's the same
-`bookings` row RLS already scopes to `operator_id = auth.uid()`, just
-filtered to `status = 'approved'` and presented as a simple list rather
+A read-only **timeline** of the operator's own **approved** bookings -
+grouped by day, each day's slots connected top-to-bottom by a dot-and-line
+rail in chronological order, showing the assigned bay, route, and plate
+per slot. "Where do I actually need to show up," not a data-entry table.
+Today is tagged and highlighted; past days render dimmed but stay in
+place rather than disappearing. Pending and declined requests don't
+appear here (see **My requests** for the full picture, including
+revision/transfer status). Defaults to **Upcoming** (today onward);
+switch to **All** to include past days. No new tables or functions -
+it's the same `bookings` row RLS already scopes to `operator_id = auth.uid()`,
+just filtered to `status = 'approved'` and presented as a timeline rather
 than the request-management table on **My requests**.
 
 ## How capacity works

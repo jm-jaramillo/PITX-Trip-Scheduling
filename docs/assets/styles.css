@@ -847,6 +847,120 @@ tr.muted td {
   color: var(--faint);
 }
 
+/* ----------------------------------------------------- My schedule timeline */
+
+.tl-day {
+  margin-bottom: 32px;
+}
+
+.tl-day-heading {
+  font-family: Manrope, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--title);
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tl-today-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--blue-ink);
+  background: var(--blue-wash);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* Past days keep their structure but read as done-and-dusted. */
+.tl-day-past .tl-day-heading {
+  color: var(--faint);
+}
+.tl-day-past .timeline-dot {
+  background: var(--faint);
+}
+.tl-day-past .timeline-time,
+.tl-day-past .timeline-route,
+.tl-day-past .timeline-plate {
+  color: var(--faint);
+}
+.tl-day-past .bay-tag {
+  color: var(--faint);
+  background: var(--ground-alt);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 16px;
+}
+
+/* The dot-and-line rail: a dot per item, with a connecting line down to
+   the next one (omitted on the last item so the timeline doesn't dangle). */
+.timeline-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.timeline-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--blue-dot);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.timeline-line {
+  flex: 1;
+  width: 2px;
+  background: var(--divider);
+  margin-top: 4px;
+}
+
+.timeline-item:last-child .timeline-line {
+  display: none;
+}
+
+.timeline-card {
+  flex: 1;
+  padding-bottom: 22px;
+}
+
+.timeline-time {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--title);
+  margin-bottom: 6px;
+}
+
+.timeline-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.timeline-route {
+  color: var(--text);
+}
+
+.timeline-plate {
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
 /* hour rows on the schedule get a subtle emphasis when occupied */
 .hour-cell {
   font-weight: 700;
