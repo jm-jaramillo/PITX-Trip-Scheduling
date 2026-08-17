@@ -14,7 +14,8 @@ and approve/reject each request, assigning a specific bay on approval.
 - **PITX staff** see every pending request, approve it (picking one of the
   bays not already taken for that slot) or reject it with an optional note,
   view a day-by-day schedule broken into 30-minute slots, manage the bay
-  list, and create or delete login accounts (there is no self-signup).
+  list, browse every operator's company profile, and create or delete
+  login accounts (there is no self-signup).
 
 ## How it's built
 
@@ -302,6 +303,18 @@ also re-validates the chosen plate server-side against the receiving
 operator's approved vehicles, so a raw RPC call can't submit a plate the
 dropdown wouldn't have offered.
 
+## Operator profiles (staff)
+
+A read-only staff page listing every operator account's company details
+(the same fields the operator fills in on their own **Operator profile**),
+plus a search box (username, operator name, or company name). Accounts
+that haven't submitted a profile yet still show up in the list - tagged
+"no profile yet" rather than being omitted - since knowing *who hasn't*
+filled theirs in is as useful to staff as seeing the ones who have. No
+new RLS needed: `operator_profiles`' existing `select` policy already
+lets staff read every row (`operator_id = auth.uid() or is_staff()`,
+migration `0008`), this is just the first UI built on top of it.
+
 ## Vehicle registration
 
 Operators register vehicles from **My vehicles**, either by scanning a photo
@@ -389,7 +402,8 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   transfer-approvals.html    Staff: pending booking-transfer queue (approve / reject)
   schedule.html              Staff: 30-minute-slot capacity grid for a date
   bays.html                  Staff: manage the bay list
-  accounts.html              Staff: create logins (via Edge Function)
+  operator-profiles.html     Staff: read-only view of every operator's company profile
+  accounts.html              Staff: create/delete logins (via Edge Functions)
   assets/
     config.js                Supabase URL + public anon key
     app.js                   Shared client, auth guard, nav, helpers

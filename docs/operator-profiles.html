@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Operator profiles · PITX Bus Bay Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Transport Operations &middot; Company Details</p>
+          <h1>Operator profiles</h1>
+          <p class="subtle">
+            Read-only view of each operator account's company details, from
+            the top of the PITX/MWM Terminals registration form. Operators
+            edit their own on <strong>Operator profile</strong> - no
+            approval step, so what's shown here is always current.
+          </p>
+        </div>
+        <p class="subtle" id="summary-count"></p>
+      </div>
+
+      <div class="field" style="max-width: 360px; margin-bottom: 20px">
+        <label for="search">Search</label>
+        <input
+          id="search"
+          placeholder="Username, operator, or company name…"
+        />
+      </div>
+
+      <div class="hidden" id="message"></div>
+      <div id="list"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        showMessage,
+        escapeHtml,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      let rows = [];
+
+      document.getElementById("search").addEventListener("input", render);
+      await load();
+
+      async function load() {
+        // Every operator account, not just the ones that have saved a
+        // profile - staff need to see who *hasn't* submitted one yet, not
+        // just the ones who have.
+        const [{ data: operators, error: opError }, { data: profiles, error: profError }] =
+          await Promise.all([
+            supabase
+              .from("profiles")
+              .select("id, username, operator_name")
+              .eq("role", "operator")
+              .order("operator_name", { ascending: true, nullsFirst: false })
+              .order("username", { ascending: true }),
+            supabase.from("operator_profiles").select("*"),
+          ]);
+
+        if (opError || profError) {
+          showMessage("message", (opError ?? profError).message);
+          return;
+        }
+
+        const byOperatorId = new Map((profiles ?? []).map((p) => [p.operator_id, p]));
+        rows = (operators ?? []).map((o) => ({
+          ...o,
+          companyProfile: byOperatorId.get(o.id) ?? null,
+        }));
+
+        render();
+      }
+
+      function render() {
+        const query = document.getElementById("search").value.trim().toLowerCase();
+        const filtered = query
+          ? rows.filter((r) =>
+              [r.username, r.operator_name, r.companyProfile?.company_name]
+                .filter(Boolean)
+                .some((v) => v.toLowerCase().includes(query))
+            )
+          : rows;
+
+        const withProfile = rows.filter((r) => r.companyProfile).length;
+        document.getElementById("summary-count").textContent =
+          `${withProfile} of ${rows.length} operators have submitted a profile`;
+
+        const host = document.getElementById("list");
+
+        if (filtered.length === 0) {
+          host.innerHTML = `<p class="empty">${
+            rows.length === 0 ? "No operator accounts yet." : "No matches."
+          }</p>`;
+          return;
+        }
+
+        host.innerHTML = filtered
+          .map((r) => {
+            const p = r.companyProfile;
+            const label = r.operator_name || r.username;
+            return `
+              <div class="request-card">
+                <div class="request-head">
+                  <div>
+                    <p class="request-who">
+                      ${escapeHtml(label)}
+                      ${
+                        p
+                          ? ""
+                          : `<span class="badge badge-pending" style="margin-left: 8px">no profile yet</span>`
+                      }
+                    </p>
+                    <p class="subtle">@${escapeHtml(r.username)}</p>
+                  </div>
+                </div>
+
+                ${
+                  !p
+                    ? ""
+                    : `
+                  <div class="grid grid-2" style="margin-top: 14px">
+                    <div>
+                      <p class="subtle"><strong>Company</strong></p>
+                      <p>${escapeHtml(p.company_name || "—")}</p>
+                    </div>
+                    <div>
+                      <p class="subtle"><strong>Owner</strong></p>
+                      <p>${escapeHtml(p.company_owner || "—")}</p>
+                    </div>
+                    <div>
+                      <p class="subtle"><strong>TIN No.</strong></p>
+                      <p>${escapeHtml(p.tin_no || "—")}</p>
+                    </div>
+                    <div>
+                      <p class="subtle"><strong>Serial Number (OR)</strong></p>
+                      <p>${escapeHtml(p.or_serial_number || "—")}</p>
+                    </div>
+                    <div>
+                      <p class="subtle"><strong>Booking system</strong></p>
+                      <p>${
+                        p.has_booking_system
+                          ? escapeHtml(p.booking_system_name || "Yes")
+                          : "No"
+                      }</p>
+                    </div>
+                    <div>
+                      <p class="subtle"><strong>NAU</strong></p>
+                      <p>${escapeHtml(p.nau || "—")}</p>
+                    </div>
+                    <div>
+                      <p class="subtle"><strong>Contact person 1</strong></p>
+                      <p>${escapeHtml(p.contact1_name || "—")}${
+                        p.contact1_position ? ` (${escapeHtml(p.contact1_position)})` : ""
+                      }${p.contact1_number ? ` &middot; ${escapeHtml(p.contact1_number)}` : ""}</p>
+                    </div>
+                    <div>
+                      <p class="subtle"><strong>Contact person 2</strong></p>
+                      <p>${escapeHtml(p.contact2_name || "—")}${
+                        p.contact2_position ? ` (${escapeHtml(p.contact2_position)})` : ""
+                      }${p.contact2_number ? ` &middot; ${escapeHtml(p.contact2_number)}` : ""}</p>
+                    </div>
+                  </div>
+                `
+                }
+              </div>
+            `;
+          })
+          .join("");
+      }
+    </script>
+  </body>
+</html>

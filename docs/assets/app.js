@@ -141,6 +141,7 @@ const STAFF_LINKS = [
   { href: "transfer-approvals.html", label: "Transfer approvals" },
   { href: "schedule.html", label: "Schedule" },
   { href: "bays.html", label: "Bays" },
+  { href: "operator-profiles.html", label: "Operator profiles" },
   { href: "accounts.html", label: "Accounts" },
 ];
 
