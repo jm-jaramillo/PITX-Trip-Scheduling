@@ -640,6 +640,26 @@ correctly showed only the one 2026-08-17-forward booking; All showed
 all 5 approved bookings sorted by date, with the 4 past ones visibly
 dimmed after the CSS fix; nav highlights "My schedule" as the active page.
 
+### 27. `9e3a3ca` — My schedule: timeline instead of a table (17 Aug)
+
+Rebuilt the page's rendering from a plain table to a chronological
+**timeline**: grouped by calendar date, each day heading followed by a
+vertical dot-and-line rail connecting that day's approved slots in
+order (time, bay tag, route, plate). Today is tagged; past days render
+visibly dimmed but stay in place under **All** rather than
+disappearing, so the operator can still see what already happened.
+
+New CSS: `.tl-day`/`.tl-day-heading`/`.tl-today-tag` for the day
+grouping, `.timeline`/`.timeline-item`/`.timeline-rail`/`.timeline-dot`/
+`.timeline-line`/`.timeline-card` for the rail - the connecting line is
+hidden on each day's last item so the timeline doesn't dangle past the
+final slot of the day.
+
+Verified live: a single-slot day shows just a dot with no trailing
+line; a two-slot day (Aug 14) shows the connecting line between dots;
+today's slot renders full-color with a "Today" tag; earlier days stay
+visible but dimmed under All.
+
 ---
 
 ## What the app does now
