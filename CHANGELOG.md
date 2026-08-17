@@ -728,6 +728,70 @@ correctly, tagged every other account "no profile yet", the summary
 line read "1 of 23 operators have submitted a profile", and the search
 box correctly filtered down to a single match.
 
+### 31. `af04f7b` — Route dropdown + real operator profile data, from the operator database (17 Aug)
+
+The user shared "Operator Database.xlsx" (Operator List / Operator
+Profile / Routes sheets) and asked for two things: a route dropdown
+sourced from it, and the site's operator profiles updated from its real
+data.
+
+**Route dropdown.** Added `ROUTES` to `app.js` - the 8 fixed
+PITX-served provincial routes from the spreadsheet's Routes sheet.
+Both the booking form's Route field and the Change dialog's are now
+`<select>`s instead of free text. The Change dialog still preserves a
+booking's existing route even if it predates the fixed list (tagged
+"(not in the current list)") - same pattern as the plate dropdown's
+"no longer approved" fallback, so re-opening the dialog never silently
+drops a value it can't otherwise represent.
+
+**Real operator_profiles data.** Populated all 23 existing operator
+accounts from the spreadsheet's Operator Profile sheet (company name +
+up to 2 contacts: name/position/number/email). Added
+`contact1_email`/`contact2_email` columns (migration `0017`) since the
+spreadsheet has real emails the paper form's contact fields don't ask
+for, and dropping them would lose real data.
+
+Two account groupings needed a judgment call, since the spreadsheet
+groups companies differently than this app's accounts do - asked the
+user before writing anything, per their own instruction to flag
+multiple entries:
+
+- **Jac Liner / Jam Liner / Jam Liner-LLI** (3 separate accounts): the
+  spreadsheet has one combined row ("JAC LINER INC/ LLI/ JAM LINER")
+  plus two standalone JAM LINER rows. Per the user (kept all three
+  genuinely separate): Jac Liner gets the combined row's manager
+  (Catherine Flores); Jam Liner gets both standalone rows' contacts
+  (Jose Aguilo, Catherine Flores); Jam Liner/LLI gets the combined
+  row's dispatcher (Jordan Maligaya) - the only contact tied to "LLI"
+  specifically ("Lucena Lines Inc.", per the user's clarification of
+  the acronym).
+- **Amihan / Philtranco** (2 separate accounts): the spreadsheet has
+  standalone rows for each, plus a combined row with 5 more
+  teller/dispatcher contacts. Per the user: each account keeps only
+  its own standalone-row contacts; the combined row's 5 contacts go to
+  neither.
+
+No company owner/TIN/OR-serial/booking-system/NAU data exists in the
+spreadsheet, so those fields are empty for all 23 - including clearing
+Genesis Transport's previous *fictitious test* values in those fields,
+since real source data now takes priority over placeholder test data.
+
+Also checked the user's third ask directly: whether any existing
+account had no match in the spreadsheet (in which case its blank
+`operator_profiles` row, if any, should be deleted). Confirmed all 23
+matched something, so nothing needed deleting.
+
+Verified live: booking form and Change dialog both show the 8-route
+dropdown; the Change dialog correctly preserved and labeled a legacy
+non-matching route ("Makait (not in the current list)") after bumping
+a test booking's date forward to make it editable, then reverted the
+date afterward; Genesis Transport's own Operator profile page shows
+the imported company name and contact (with email) and confirms the
+owner/TIN fields are now empty; the staff Operator profiles page shows
+A&B Liner's two contacts including the new email field, with the
+summary line now reading "23 of 23 operators have submitted a
+profile".
+
 ---
 
 ## What the app does now
