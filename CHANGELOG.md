@@ -904,6 +904,31 @@ resolved via the FK embed, status filter tabs work, search correctly
 narrowed down to a single plate, nav link renders and highlights
 correctly as the active page.
 
+### 37. `27880f9` — Vehicle approvals + Operator profiles: table view instead of cards (17 Aug)
+
+Both pages rendered their list as `.request-card` divs (one per row) -
+rewrote both to the same `<table>` + `data-label` pattern the other
+list pages already use (`vehicles.html`, `vehicles-database.html`,
+`schedule.html`), with the same responsive stacked-card fallback below
+640px but a real scannable table at normal widths.
+
+- `vehicle-approvals.html`: columns match `vehicles-database.html`'s
+  field set, with Approve/Reject in a trailing action column (same
+  `.row-actions` wrapper-div pattern as `dashboard.html`'s
+  Change/Transfer/Cancel row).
+- `operator-profiles.html`: one column per field, "no profile yet"
+  badge now inline in the Operator cell instead of the card header.
+
+No behavior change - same data, same actions, same signed-URL document
+resolution; just a denser layout for pages that can have dozens of
+rows (68 operators, and any number of pending vehicles).
+
+Verified live: both render as real `<table>`s at desktop width -
+inserted a temporary pending vehicle to confirm Approve/Reject render
+correctly in the table's action column, then removed it; operator
+profiles table correctly shows all 68 rows with contacts and the "no
+profile yet" badge inline.
+
 ---
 
 ## What the app does now
