@@ -24,16 +24,18 @@ export function usernameToEmail(username) {
 // The fixed set of PITX-served provincial routes, from the operator
 // database spreadsheet's "Routes" sheet - a booking's route is picked from
 // this list rather than typed freehand, so it can't drift into near-
-// duplicate variants of the same route.
+// duplicate variants of the same route. Every route is a PITX trip by
+// definition, so only the other endpoint is shown - no "PITX -" / "- PITX"
+// on either end.
 export const ROUTES = [
-  "Tuguegarao City, Cagayan - PITX",
-  "San Carlos City, Pangasinan - PITX",
-  "Dagupan City, Pangasinan - PITX",
-  "Olongapo City, Zambales - PITX",
-  "PITX - Baguio via Inner Cities",
-  "PITX - Banaue, Ifugao",
-  "PITX - Sta. Ana, Cagayan",
-  "PITX - Mariveles, Bataan",
+  "Tuguegarao City, Cagayan",
+  "San Carlos City, Pangasinan",
+  "Dagupan City, Pangasinan",
+  "Olongapo City, Zambales",
+  "Baguio via Inner Cities",
+  "Banaue, Ifugao",
+  "Sta. Ana, Cagayan",
+  "Mariveles, Bataan",
 ];
 
 /* ------------------------------------------------------------------ time */
