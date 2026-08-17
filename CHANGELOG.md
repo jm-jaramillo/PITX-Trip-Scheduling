@@ -660,6 +660,17 @@ line; a two-slot day (Aug 14) shows the connecting line between dots;
 today's slot renders full-color with a "Today" tag; earlier days stay
 visible but dimmed under All.
 
+### 28. `803e92c` — My schedule: most recent day first (17 Aug)
+
+Day grouping now sorts descending (today, then backward) instead of
+ascending (oldest first) - a one-line query change
+(`order("booking_date", { ascending: false })`); each day's own slots
+still sort ascending by time, so the rail still reads top-to-bottom
+correctly within a day.
+
+Verified live: **All** now lists Aug 17 (today), 15, 14, 12 in that
+order, with Aug 14's two slots still 6:30 AM before 4:00 PM.
+
 ---
 
 ## What the app does now
