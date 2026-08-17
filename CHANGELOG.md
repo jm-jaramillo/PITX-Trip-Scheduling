@@ -811,6 +811,41 @@ Wording-only fix on the Change and Transfer dialogs' dismiss button -
 matches the wording already used everywhere else (`vehicles.html`'s
 add/edit dialogs already said "Cancel"). No schema/behavior change.
 
+### 34. `f8f0df2` — Create accounts for every remaining operator in the spreadsheet (17 Aug)
+
+The earlier import (#31) only populated profiles for the 23 accounts
+that already existed - the user pointed out the spreadsheet's Operator
+Profile sheet has far more distinct companies than that, and asked for
+accounts to be created for every one of them. Fixed properly rather than
+patched:
+
+- 37 unambiguous new operators (own standalone row(s) in the
+  spreadsheet, no name/identity overlap with any other account), each
+  with `company_name` + up to 2 contacts imported the same way as the
+  original 23.
+- 8 more accounts covering 4 groupings that needed a judgment call
+  before creating anything - same category of decision as the earlier
+  Jac/Jam/LLI and Amihan/Philtranco calls, asked up front rather than
+  guessed: two identical-contact company pairs (Bataan Transit/First
+  North Luzon Transit; Eastern Metropolitan Bus/Rizal Metrolink), one
+  related-but-distinct pair (Elavil Tours/Elavil Transit), and a 3-way
+  combined row overlapping an already-created standalone account (San
+  Agustin/St. Anthony of Padua, split out from Batman Starexpress's
+  combined row). All four resolved as "keep as separate accounts" - see
+  README's "Real operator data import" section for the exact contact
+  split used on each.
+
+Every new account: `role = 'operator'`, password `TestPass123` (same
+convention as every account in this project), `operator_profiles` row
+with `company_name` + contacts - no owner/TIN/OR-serial/booking-system/
+NAU, since none of that exists in the spreadsheet for any of them.
+
+Total operator accounts: **68** (up from 23). Verified against the
+live database (68 operator accounts, 68 matching `operator_profiles`
+rows) and in the staff Operator profiles page, which now reads "68 of
+68 operators have submitted a profile" - spot-checked A. Arandia
+Line's imported contacts render correctly there too.
+
 ---
 
 ## What the app does now
