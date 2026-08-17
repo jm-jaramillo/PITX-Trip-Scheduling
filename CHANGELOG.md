@@ -612,6 +612,34 @@ raw RPC call with a plate not in the receiving operator's approved
 list was rejected ("That plate isn't one of the receiving operator's
 approved vehicles.").
 
+### 26. `285f469` — My schedule: operator view of approved bookings + bay assignments (17 Aug)
+
+New `docs/my-schedule.html`, added to the operator nav between My
+requests and My vehicles. A read-only list of the operator's own
+**approved** bookings only - "where do I actually need to show up" -
+sorted chronologically with the bay assigned to each. Defaults to
+**Upcoming** (`booking_date >= today`); an **All** tab includes past
+slots, shown dimmed. Shows the same transferred-from strikethrough as
+My requests/Schedule for handed-off bookings.
+
+No new tables or functions - it's the existing `bookings` RLS
+(`operator_id = auth.uid()`) filtered to `status = 'approved'`, just
+presented as a simple chronological list rather than the
+request-management table on My requests.
+
+Found and fixed a real CSS bug while building this: `tr.muted` alone
+didn't actually dim a row - `td`'s own explicit `color: var(--text)`
+rule beats an *inherited* color from an ancestor regardless of
+selector specificity (any explicit declaration always wins over
+inheritance). Added `tr.muted td { color: var(--faint) }` to override
+it directly; confirmed via `getComputedStyle` before (same color as
+normal rows) and after (correctly the faint gray) the fix.
+
+Verified live: page redirects to login when signed out; Upcoming
+correctly showed only the one 2026-08-17-forward booking; All showed
+all 5 approved bookings sorted by date, with the 4 past ones visibly
+dimmed after the CSS fix; nav highlights "My schedule" as the active page.
+
 ---
 
 ## What the app does now
