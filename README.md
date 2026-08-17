@@ -339,11 +339,18 @@ otherwise represent.
 
 ### Real operator data import (17 Aug)
 
-The 23 operator accounts' company profiles were populated from a
+The operator accounts' company profiles were populated from a
 company-provided "Operator Database" spreadsheet (Operator List / Operator
-Profile / Routes sheets). Two account groupings needed a judgment call
-because the spreadsheet groups companies differently than the app's
-accounts do - resolved with the user before writing anything:
+Profile / Routes sheets). This ran in two passes: first the 23 accounts
+that already existed, then - once the user pointed out the spreadsheet had
+many more operators than that - **45 more accounts created from scratch**
+for every remaining distinct company in the Operator Profile sheet
+(bringing the total to 68), same password convention as every other
+account here (`TestPass123`).
+
+Several account groupings needed a judgment call, since the spreadsheet
+groups companies differently than the app's accounts do - each resolved
+with the user before writing anything:
 
 - **Jac Liner / Jam Liner / Jam Liner-LLI** (3 separate accounts) - the
   spreadsheet has one combined row ("JAC LINER INC/ LLI/ JAM LINER") plus
@@ -356,12 +363,29 @@ accounts do - resolved with the user before writing anything:
   dispatcher contacts. Per the user: each account keeps only its own
   standalone-row contacts; the combined row's 5 contacts aren't assigned
   to either.
+- **Bataan Transit Co., Inc / First North Luzon Transit, Inc.** and
+  **Eastern Metropolitan Bus Corp / Rizal Metrolink Inc** - each pair
+  shares identical (or near-identical) contact info in the spreadsheet,
+  suggesting the same people running two legally-distinct companies. Per
+  the user: kept as separate accounts, each with its own copy of the
+  shared contact(s).
+- **Elavil Tours Phils Inc / Elavil Transit** - related by name and
+  family (Villamonte), but different contacts/regions. Per the user: kept
+  as two separate accounts, matching how the spreadsheet already lists
+  them as separate rows.
+- **San Agustin Trans Service Corp / St. Anthony of Padua Transport
+  System, Inc.** - split out from a 3-way combined row that also included
+  Batman Starexpress Corporation (already created separately from its own
+  standalone row). Per the user: created as their own accounts too, with
+  the combined row's 5 contacts split across San Agustin and St. Anthony
+  (2 each), leaving Batman Starexpress's already-assigned contacts
+  untouched.
 
 No company owner / TIN / OR-serial-number / booking-system / NAU data
-exists in the spreadsheet, so those fields are empty for all 23 -
+exists in the spreadsheet, so those fields are empty for every account -
 including clearing Genesis Transport's previous *fictitious test* values
 in those fields, since real source data now takes priority over
-placeholder test data. Verified afterward that all 23 existing accounts
+placeholder test data. Verified afterward that all pre-existing accounts
 matched something in the spreadsheet, so no account was left with a
 "blank" profile to delete.
 
