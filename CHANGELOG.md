@@ -703,6 +703,31 @@ successfully; then confirmed `genesis.ops` (has bookings) and
 the friendly error message, and neither account was actually removed
 from the database afterward.
 
+### 30. `b8e8f6f` — Staff-only Operator profiles page (17 Aug)
+
+New `docs/operator-profiles.html`, added to the staff nav between Bays
+and Accounts - fills a real gap: staff previously had no way to see an
+operator's company details (name, owner, TIN, OR serial number,
+booking system, NAU, two contacts) without database access.
+
+- Lists **every** operator account, not just ones with a saved
+  profile - accounts that haven't submitted one yet are tagged "no
+  profile yet" rather than omitted, since staff following up on who
+  still needs to fill theirs in is as useful as seeing the ones who
+  have.
+- A summary line ("N of M operators have submitted a profile") gives
+  the at-a-glance count.
+- Client-side search over username, operator name, and company name.
+- No new migration - `operator_profiles`' existing select policy
+  (`operator_id = auth.uid() or is_staff()`, migration `0008`) already
+  covers this; it's the first UI built on top of that access.
+
+Verified live: page correctly listed all 23 operator accounts, showed
+Genesis Transport's full saved profile with every field rendered
+correctly, tagged every other account "no profile yet", the summary
+line read "1 of 23 operators have submitted a profile", and the search
+box correctly filtered down to a single match.
+
 ---
 
 ## What the app does now
