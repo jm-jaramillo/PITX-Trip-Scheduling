@@ -1587,6 +1587,65 @@ re-linking pass itself.
 
 ---
 
+### 54. Re-link routes from the cleaned masterlist instead of fuzzy text matching (18 Aug)
+
+User: "For the routes, use the cleaned data of the vehicle masterlist for
+your reference as to reduce confusion" - handed over a cleaned version
+of the vehicle masterlist workbook whose `PROVL` sheet has previously-empty
+`City / Municipality` and `Province` columns now properly filled in per
+vehicle (the original workbook had these columns present but 100% empty,
+so #49/#50/#53 had no choice but to fuzzy-match the free-text "OPERATING
+ROUTE"/"FRANCHISE" columns).
+
+Replaced the one-off data-linking script's approach entirely: instead of
+parsing free text with word-token matching, each row's `City /
+Municipality, Province` pair is looked up directly against the 83
+canonical routes (normalizing only "Sta./Sto." &#8594; "Santa/Santo" and an
+optional "City" suffix - not fuzzy matching). Vehicles are matched to
+their DB row by **plate number** (unique and already in both the
+masterlist and the `vehicles` table), not by resolving operator names,
+which sidesteps the operator-name-alias matching entirely for this pass.
+
+Of 1,832 vehicles: 1,413 already had the correct canonical route; 117
+were corrected, including several rows previously stuck with obviously
+wrong text like `"SORSOGON"`, `"MASBATE"`, `"SABANG"`, and - notably -
+confirms and fully resolves the `"NAGA, CAMARINES NORTE"` cases flagged
+in #49/#53 as not a real place: the cleaned data independently confirms
+those vehicles are actually Naga City, Camarines **Sur**, and all 47 are
+now linked there. 87 "Nasugbu, Batangas" vehicles remain unresolved
+because the cleaned data (and the operators' own route/franchise text)
+doesn't say whether they run via Aguinaldo or via Kaybiang Tunnel - the
+two canonical Nasugbu routes are only distinguished by that detail, so
+these were left untouched rather than guessed. 63 vehicles had no
+City/Municipality or Province in the cleaned sheet at all and were also
+left untouched.
+
+**Separate finding, expanded**: 152 vehicles (up from the partial list
+noted in #53) have a clean, confidently-identified City/Municipality +
+Province that simply isn't among PITX's 83 canonical routes - the fuller
+list, now backed by clean data instead of guesses: Mabalacat City
+(Pampanga), San Pedro (Laguna), Guiuan (Eastern Samar), Placer (Masbate),
+Cebu City (Cebu), Caramoan (Camarines Sur), Biñan (Laguna), Maragondon
+(Cavite), Pasacao (Camarines Sur), Boac (Marinduque), Presentacion
+(Camarines Sur), Garchitorena (Camarines Sur), Donsol (Sorsogon), Santa
+Rosa (Laguna), Prieto Diaz (Sorsogon), Bauan (Batangas), Muntinlupa City
+(Metro Manila), Mandaon (Masbate). As before, adding a canonical route is
+a bigger decision (new gate assignment, etc.) than a data-linking fix, so
+these are left as-is pending that decision.
+
+Verified directly against the database: `route ILIKE '%NAGA%CAMARINES
+NORTE%'` now returns 0 rows (was silently wrong before); `route =
+'Naga City, Camarines Sur'` returns 47; spot-checked plates NKK8480 -&gt;
+Masbate City, Masbate, ARA5827 -&gt; Buhi, Camarines Sur, TYZ138 -&gt; Mendez
+(Mendez-Nuñez), Cavite all confirmed correct post-update.
+
+No app code changed - same as #53, this was purely a one-time data
+correction; the live runtime matcher already works correctly once
+`vehicles.route` holds an exact canonical string. `vehicles.franchise`
+was left untouched throughout, as always.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
