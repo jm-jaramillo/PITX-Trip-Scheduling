@@ -266,6 +266,21 @@ export function todayISO() {
   ].join("-");
 }
 
+// Marks a CPC/OR-CR validity date (or any date) that's already past, or
+// within 30 days - same window sync_expiry_notifications() (migration
+// 0024) uses for the notification panel, so a highlighted cell always
+// matches what triggered a notification. Plain string comparison works
+// since both sides are "YYYY-MM-DD".
+export function expiryCell(dateStr, escapeHtmlFn) {
+  if (!dateStr) return "—";
+  const today = todayISO();
+  const soon = addDays(today, 30);
+  const label = escapeHtmlFn(dateStr);
+  if (dateStr < today) return `<span class="expiry-overdue">${label}</span>`;
+  if (dateStr <= soon) return `<span class="expiry-soon">${label}</span>`;
+  return label;
+}
+
 export function addDays(iso, days) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
@@ -369,6 +384,12 @@ export function renderNav(profile) {
           .join("")}
       </nav>
       <div class="nav-right">
+        <div class="notif-wrap">
+          <button type="button" class="notif-bell" id="notif-bell" aria-label="Notifications">
+            &#128276;<span class="notif-badge hidden" id="notif-badge">0</span>
+          </button>
+          <div class="notif-panel hidden" id="notif-panel"></div>
+        </div>
         <span class="whoami">${escapeHtml(
           profile.operator_name || profile.username
         )} <span class="role">${escapeHtml(profile.role)}</span></span>
@@ -378,6 +399,111 @@ export function renderNav(profile) {
   `;
 
   document.getElementById("sign-out").addEventListener("click", signOut);
+  initNotifications(profile);
+}
+
+/* --------------------------------------------------------- notifications */
+
+const NOTIF_LIMIT = 30;
+
+// Relative "3h ago" / "2d ago" style timestamp - notifications are the
+// one place in the app that benefits from this over a plain date/time,
+// since "how long has this been waiting" is the actual question.
+function relativeTime(iso) {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+// Wired into renderNav() so every page gets the bell for free. Not
+// awaited by renderNav itself - the nav renders synchronously, this
+// fills in the badge/panel once the query comes back.
+async function initNotifications(profile) {
+  const bell = document.getElementById("notif-bell");
+  const panel = document.getElementById("notif-panel");
+  const badge = document.getElementById("notif-badge");
+  if (!bell || !panel || !badge) return;
+
+  // Best-effort - if this fails (e.g. offline), the panel just shows
+  // whatever notifications already exist rather than blocking on it.
+  try {
+    await supabase.rpc("sync_expiry_notifications");
+  } catch {
+    /* ignore - see comment above */
+  }
+
+  let query = supabase
+    .from("notifications")
+    .select("id, type, title, body, link, is_read, created_at")
+    .order("created_at", { ascending: false })
+    .limit(NOTIF_LIMIT);
+  query =
+    profile.role === "staff"
+      ? query.eq("recipient_role", "staff").or(`recipient_id.is.null,recipient_id.eq.${profile.id}`)
+      : query.eq("recipient_role", "operator").eq("recipient_id", profile.id);
+
+  const { data } = await query;
+  const notifications = data ?? [];
+  renderNotifPanel(notifications);
+
+  bell.addEventListener("click", (e) => {
+    e.stopPropagation();
+    panel.classList.toggle("hidden");
+  });
+  document.addEventListener("click", (e) => {
+    if (!panel.contains(e.target) && e.target !== bell) panel.classList.add("hidden");
+  });
+
+  function renderNotifPanel(items) {
+    const unreadCount = items.filter((n) => !n.is_read).length;
+    badge.textContent = String(unreadCount);
+    badge.classList.toggle("hidden", unreadCount === 0);
+
+    panel.innerHTML =
+      items.length === 0
+        ? `<p class="notif-empty">No notifications yet.</p>`
+        : `
+          <div class="notif-panel-head">
+            <span>Notifications</span>
+            ${unreadCount > 0 ? `<button type="button" class="btn-link" id="notif-mark-all">Mark all read</button>` : ""}
+          </div>
+          <div class="notif-list">
+            ${items
+              .map(
+                (n) => `
+                  <button type="button" class="notif-item${n.is_read ? "" : " is-unread"}" data-notif="${escapeHtml(n.id)}" data-link="${escapeHtml(n.link ?? "")}">
+                    <span class="notif-title">${escapeHtml(n.title)}</span>
+                    ${n.body ? `<span class="notif-body">${escapeHtml(n.body)}</span>` : ""}
+                    <span class="notif-time">${relativeTime(n.created_at)}</span>
+                  </button>
+                `
+              )
+              .join("")}
+          </div>
+        `;
+
+    document.getElementById("notif-mark-all")?.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const unreadIds = items.filter((n) => !n.is_read).map((n) => n.id);
+      await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
+      items.forEach((n) => (n.is_read = true));
+      renderNotifPanel(items);
+    });
+
+    panel.querySelectorAll("[data-notif]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.notif;
+        const link = btn.dataset.link;
+        await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+        if (link) location.href = link;
+      });
+    });
+  }
 }
 
 /* ----------------------------------------------------------------- render */

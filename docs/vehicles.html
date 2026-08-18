@@ -99,6 +99,26 @@
             <input id="f_cr_number" />
           </div>
           <div class="field">
+            <label for="f_chassis_no">Chassis No.</label>
+            <input id="f_chassis_no" />
+          </div>
+          <div class="field">
+            <label for="f_franchise">Franchise</label>
+            <input id="f_franchise" placeholder="e.g. Batangas City - Pasay City, SLEX" />
+          </div>
+          <div class="field">
+            <label for="f_sticker_no">Sticker No.</label>
+            <input id="f_sticker_no" />
+          </div>
+          <div class="field">
+            <label for="f_cpc_validity">CPC validity</label>
+            <input id="f_cpc_validity" type="date" />
+          </div>
+          <div class="field">
+            <label for="f_orcr_validity">OR/CR validity</label>
+            <input id="f_orcr_validity" type="date" />
+          </div>
+          <div class="field">
             <label for="f_route">Route</label>
             <input id="f_route" placeholder="e.g. PITX - Batangas" />
           </div>
@@ -191,6 +211,26 @@
             <input id="e_cr_number" />
           </div>
           <div class="field">
+            <label for="e_chassis_no">Chassis No.</label>
+            <input id="e_chassis_no" />
+          </div>
+          <div class="field">
+            <label for="e_franchise">Franchise</label>
+            <input id="e_franchise" placeholder="e.g. Batangas City - Pasay City, SLEX" />
+          </div>
+          <div class="field">
+            <label for="e_sticker_no">Sticker No.</label>
+            <input id="e_sticker_no" />
+          </div>
+          <div class="field">
+            <label for="e_cpc_validity">CPC validity</label>
+            <input id="e_cpc_validity" type="date" />
+          </div>
+          <div class="field">
+            <label for="e_orcr_validity">OR/CR validity</label>
+            <input id="e_orcr_validity" type="date" />
+          </div>
+          <div class="field">
             <label for="e_route">Route</label>
             <input id="e_route" placeholder="e.g. PITX - Batangas" />
           </div>
@@ -254,6 +294,7 @@
         renderNav,
         showMessage,
         ltfrbBadge,
+        expiryCell,
         escapeHtml,
       } from "./assets/app.js";
       import { extractOrCr } from "./assets/orcr-parser.js";
@@ -296,7 +337,7 @@
         const { data, error } = await supabase
           .from("vehicles")
           .select(
-            "id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, supporting_doc_path, supporting_doc_name, status, ltfrb_status, rejection_reason, revision_count"
+            "id, plate_no, case_number, mv_file_number, or_number, cr_number, chassis_no, franchise, cpc_validity, orcr_validity, sticker_no, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, supporting_doc_path, supporting_doc_name, status, ltfrb_status, rejection_reason, revision_count"
           )
           .eq("operator_id", profile.id)
           .order("created_at", { ascending: false });
@@ -353,6 +394,8 @@
                 <tr>
                   <th>Plate No.</th><th>Case No.</th><th>MV File #</th>
                   <th>OR No.</th><th>CR No.</th>
+                  <th>Chassis No.</th><th>Franchise</th><th>Sticker No.</th>
+                  <th>CPC validity</th><th>OR/CR validity</th>
                   <th>Route</th><th>Bus No.</th><th>Seating capacity</th>
                   <th>Seat</th><th>Aircon</th><th>Date granted</th>
                   <th>Date expiry</th><th>Status</th><th>LTFRB</th>
@@ -373,6 +416,11 @@
                     <td data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
                     <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
                     <td data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
+                    <td data-label="Chassis No.">${escapeHtml(v.chassis_no ?? "—")}</td>
+                    <td data-label="Franchise">${escapeHtml(v.franchise ?? "—")}</td>
+                    <td data-label="Sticker No.">${escapeHtml(v.sticker_no ?? "—")}</td>
+                    <td data-label="CPC validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
+                    <td data-label="OR/CR validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
                     <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
                     <td data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
                     <td data-label="Seating capacity">${v.seating_capacity ?? "—"}</td>
@@ -486,6 +534,11 @@
           "f_mv_file_number",
           "f_or_number",
           "f_cr_number",
+          "f_chassis_no",
+          "f_franchise",
+          "f_sticker_no",
+          "f_cpc_validity",
+          "f_orcr_validity",
           "f_route",
           "f_bus_number",
           "f_seating_capacity",
@@ -601,6 +654,11 @@
             document.getElementById("f_mv_file_number").value.trim() || null,
           or_number: document.getElementById("f_or_number").value.trim() || null,
           cr_number: document.getElementById("f_cr_number").value.trim() || null,
+          chassis_no: document.getElementById("f_chassis_no").value.trim() || null,
+          franchise: document.getElementById("f_franchise").value.trim() || null,
+          sticker_no: document.getElementById("f_sticker_no").value.trim() || null,
+          cpc_validity: document.getElementById("f_cpc_validity").value || null,
+          orcr_validity: document.getElementById("f_orcr_validity").value || null,
           route: document.getElementById("f_route").value.trim() || null,
           bus_number: document.getElementById("f_bus_number").value.trim() || null,
           seating_capacity: seatingRaw ? Number(seatingRaw) : null,
@@ -689,6 +747,11 @@
         document.getElementById("e_mv_file_number").value = v.mv_file_number ?? "";
         document.getElementById("e_or_number").value = v.or_number ?? "";
         document.getElementById("e_cr_number").value = v.cr_number ?? "";
+        document.getElementById("e_chassis_no").value = v.chassis_no ?? "";
+        document.getElementById("e_franchise").value = v.franchise ?? "";
+        document.getElementById("e_sticker_no").value = v.sticker_no ?? "";
+        document.getElementById("e_cpc_validity").value = v.cpc_validity ?? "";
+        document.getElementById("e_orcr_validity").value = v.orcr_validity ?? "";
         document.getElementById("e_route").value = v.route ?? "";
         document.getElementById("e_bus_number").value = v.bus_number ?? "";
         document.getElementById("e_seating_capacity").value = v.seating_capacity ?? "";
@@ -775,6 +838,11 @@
           p_date_expiry: document.getElementById("e_date_expiry").value || null,
           p_supporting_doc_path: supportingDocPath,
           p_supporting_doc_name: supportingDocName,
+          p_chassis_no: document.getElementById("e_chassis_no").value.trim(),
+          p_franchise: document.getElementById("e_franchise").value.trim(),
+          p_cpc_validity: document.getElementById("e_cpc_validity").value || null,
+          p_orcr_validity: document.getElementById("e_orcr_validity").value || null,
+          p_sticker_no: document.getElementById("e_sticker_no").value.trim(),
         });
 
         saveBtn.disabled = false;

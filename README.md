@@ -426,14 +426,28 @@ of the LTO OR/CR or entering the details by hand. Every field stays
 editable afterward regardless of how it was first entered.
 
 The vehicle fields match the PITX/MWM Terminals paper registration form,
-plus per-vehicle OR No. and CR No. (migration `0015_vehicle_or_cr_numbers.sql`):
-Plate No., Case No., MV File #, OR No., CR No., Route, Bus No., Seating
-capacity, Seat type (2x2/2x3), Aircon/Non-aircon, Date granted, and Date
-expiry. (The form's company-level fields - name, owner, TIN, OR serial
-number, booking system, NAU, two contacts - live separately on **Operator
-profile**, one row per operator account, editable any time with no
-approval step; that OR serial number is the *company's*, distinct from
-each vehicle's own OR No. here.)
+plus per-vehicle OR No. and CR No. (migration `0015_vehicle_or_cr_numbers.sql`)
+and five more from the LTFRB masterlist - Chassis No., Franchise, Sticker
+No., CPC validity, and OR/CR validity (migration
+`0023_vehicle_document_fields.sql`): Plate No., Case No., MV File #, OR
+No., CR No., Chassis No., Franchise, Sticker No., CPC validity, OR/CR
+validity, Route, Bus No., Seating capacity, Seat type (2x2/2x3),
+Aircon/Non-aircon, Date granted, and Date expiry. (The form's
+company-level fields - name, owner, TIN, OR serial number, booking
+system, NAU, two contacts - live separately on **Operator profile**, one
+row per operator account, editable any time with no approval step; that
+OR serial number is the *company's*, distinct from each vehicle's own OR
+No. here.)
+
+`Franchise` is the franchise's own number/description (e.g. "Batangas
+City - Pasay City, SLEX") - distinct from `Route`, which is the short
+operating-route text. `CPC validity` and `OR/CR validity` are separate
+from the pre-existing generic `Date expiry` field (whatever that was
+already tracking is untouched) - they're what `sync_expiry_notifications()`
+watches for the 30-day expiry warning, see **Notifications** below. A
+validity date within 30 days (or already past) renders in amber/red on
+every vehicle table (**My vehicles**, **Vehicle approvals**, **Vehicles**)
+via the shared `expiryCell()` helper in `app.js`.
 
 Registrations need PITX staff approval (**Vehicle approvals**), the same
 shape as bookings:
@@ -537,7 +551,62 @@ page in the app queries an unbounded table like this (bookings/vehicles
 elsewhere are always filtered by date, operator, or pending-status, which
 stay well under 1000).
 
-## My schedule (operators)
+## Notifications
+
+A bell icon in the top nav (migration `0024_notifications.sql`), on every
+page for both roles - `renderNav()` in `app.js` wires it up for free,
+nothing extra needed per-page. Clicking it opens a dropdown of up to the
+30 most recent notifications; clicking one marks it read and navigates to
+the relevant page.
+
+**Staff** get notified of:
+- a new booking request (**Pending requests**)
+- a new vehicle registration (**Vehicle approvals**)
+- a transfer request the receiving operator has confirmed and is ready
+  for staff review (**Transfer approvals**) - not before, since there's
+  nothing to approve until then
+
+**Operators** get notified when their own:
+- booking is approved or declined
+- vehicle is approved or declined
+- transfer request is approved or declined (and the *receiving* operator
+  also gets notified when a transfer is approved, since the booking is
+  now theirs)
+
+Both roles get notified when a vehicle's **CPC validity** or **OR/CR
+validity** is within 30 days (or already past) - see below.
+
+Every notification but the expiry ones is written by a Postgres trigger
+(`notify_booking_pending`, `notify_booking_decided`,
+`notify_vehicle_pending`, `notify_vehicle_decided`,
+`notify_transfer_pending`, `notify_transfer_decided`) the moment the
+underlying row's status changes - including an *edited* booking or
+vehicle that reverts from approved back to pending, which is just as much
+"something new for staff to review" as the first submission.
+
+**Expiry notifications work differently**, since a date getting closer
+isn't an event anything happens to trigger on. `sync_expiry_notifications()`
+scans every approved vehicle for a CPC/OR-CR validity date within the next
+30 days and inserts a notification for both the vehicle's own operator and
+a broadcast one for all staff - called from the client (`app.js`,
+`initNotifications()`) every time the nav renders, since this app has no
+scheduled server-side job to call it on a timer instead. It's idempotent
+(a partial unique index keyed on type/vehicle/recipient/validity-date, `on
+conflict do nothing`), so calling it on every page load never creates a
+duplicate - the same vehicle's same validity date only ever produces one
+notification per recipient, until the date changes (e.g. renewed) or it's
+a fresh 30-day window after last time.
+
+**Two known simplifications**, both intentional given the size of the ask
+relative to the rest of the app:
+- A staff **broadcast** notification (`recipient_id` null - "any staff
+  member can act on this") has no per-staff-member read-state - marking
+  it read marks it read for every staff account, not just whoever clicked
+  first. A fully correct per-recipient read state would need a separate
+  join table; not worth it yet for a small ops team.
+- The panel always shows the 30 most recent notifications for that
+  recipient, not a true unread-only inbox with pagination - fine at
+  current volume, would need real pagination if that changes.
 
 A read-only **timeline** of the operator's own **approved** bookings -
 grouped by day, most recent day first, each day's own slots connected

@@ -1166,6 +1166,62 @@ exactly 1 (the dropped JVH duplicate) to 1,835.
 
 ---
 
+### 44. Five more vehicle fields, expiry warnings, and a notification panel for both roles (18 Aug)
+
+Three asks bundled together since they touch the same tables:
+
+**Five new vehicle fields** (migration `0023_vehicle_document_fields.sql`):
+Chassis No., Franchise, CPC validity, OR/CR validity, Sticker No. Added to
+the **My vehicles** add/edit dialogs and table, **Vehicle approvals**, and
+**Vehicles** (staff fleet page); `request_vehicle_change()` grew five more
+parameters (same drop-and-recreate as every prior signature change).
+Backfilled all five for the 1,832 already-imported masterlist vehicles by
+re-reading the source spreadsheet's Chassis No./Franchise/Sticker No./
+"DATE OF VALIDITY CPC"/"OR/CR MONITORING" columns (the last two weren't
+captured at all in #42 - no field existed for them yet).
+
+**Expiry warnings**: a validity date within 30 days (or already past)
+now renders in amber/red on every vehicle table (`expiryCell()` helper in
+`app.js`), and feeds the new notification panel below. 100 real vehicles
+currently have an OR/CR validity within the next 30 days, 0 have a CPC
+validity in that window - confirmed directly against the live data before
+calling this done.
+
+**Notification panel, both roles** (migration `0024_notifications.sql`,
+`0025_vehicle_pending_notify_on_edit.sql`): a bell icon in the nav, wired
+into `renderNav()` so it's on every page for free. Staff get notified of
+new booking/vehicle/transfer requests; operators get notified when their
+own booking/vehicle/transfer is approved or declined; both get notified
+of a CPC/OR-CR expiring within 30 days. Full behavior documented in the
+new **Notifications** README section, including the two intentional
+simplifications (shared read-state on staff broadcasts, no true
+pagination yet).
+
+Found and fixed one bug during verification: `notify_vehicle_pending()`
+only had an INSERT trigger, unlike its bookings equivalent
+(`notify_booking_pending()`) which also fires when an edit reverts an
+already-decided row back to pending - so editing an approved vehicle
+correctly reverted it to pending, but staff never got notified there was
+something new to review. Migration 0025 adds the missing UPDATE trigger.
+
+Verified live end-to-end with a throwaway operator + staff account: a
+seeded vehicle with CPC/OR-CR validity inside the 30-day window produced
+both expiry notifications with the correct amber highlighting; clicking a
+notification marked it read (badge count dropped) and navigated to its
+linked page; editing that vehicle's fields round-tripped correctly
+through `request_vehicle_change()`, reverted it to pending, and (after
+the fix above) correctly notified staff; approving/rejecting it, and
+inserting/approving a test booking, each produced exactly one correctly-
+targeted notification. Test accounts, vehicles, bookings, and their
+notifications all cleaned up afterward - the 200 real expiry
+notifications already generated for real operators/staff from the actual
+100 near-expiry vehicles were left in place, since those are correct,
+not test data.
+
+Updates README per project convention.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
