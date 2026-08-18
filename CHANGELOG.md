@@ -969,6 +969,45 @@ first booking's dropdown correctly excluded Bay 34 (and vice versa);
 confirmed the unique constraint still rejects a double-assignment
 attempted directly via SQL, bypassing the UI entirely.
 
+### 39. `39dcd6d` — Route list expanded to all 83 destinations (18 Aug)
+
+The operator database spreadsheet gained a new "Sheet5"
+(destination/province/region, filtered to "Operational" status) - a far
+more complete route list than the original 8-route "Routes" sheet,
+which turned out to already be a subset of it (same 8 places, slightly
+different phrasing).
+
+- `ROUTES` in `app.js` replaced with all **83 destinations** from
+  Sheet5. Existing bookings using the old phrasing (e.g. "Tuguegarao
+  City, Cagayan") aren't renamed - the Change dialog's "not in the
+  current list" fallback (#31) already covers a stored route that
+  doesn't match an entry here.
+- `ROUTE_GATES` now derived from Sheet5's REGION column rather than
+  hand-picked per destination: CAR/I/II/III -> Gate 5, IV-A/IV-B ->
+  Gate 2, V-VIII/X-XIII -> Gate 4. Every prior route was Northern Luzon
+  (Gate 5); this is the first real exercise of the Gate 2/Gate 4
+  mapping from #38.
+- `dashboard.html`'s route dropdown now groups into 3 `<optgroup>`s
+  (North/Gate 5, Cavite-Batangas-Laguna-Quezon-Mindoro/Gate 2, Bicol-
+  Visayas-Mindanao/Gate 4) instead of one 83-item flat list - reuses
+  `ROUTE_GATES` rather than a separate grouping scheme.
+
+Found and fixed a real bug while verifying live: `GATE_GROUP_LABELS`
+was declared with `const` *after* `initForm()` was already being
+called at module top-level, so referencing it inside
+`routeOptionsHtml()` threw "Cannot access before initialization" the
+first time that function ran. Moved the declaration up with the other
+module-level state - the file's own top comment already calls out this
+exact ordering hazard from an earlier bug.
+
+Verified live: route dropdown renders all 83 options across the 3
+correct optgroups with no console errors (confirmed via a completely
+fresh tab, since the buggy tab's console had a stale cached error from
+before the fix); submitted a real booking with "Legazpi City, Albay"
+and confirmed it saved correctly; on Pending requests, that booking
+correctly showed "Legazpi City, Albay - Gate 4" with Bay 18-23
+suggested first.
+
 ---
 
 ## What the app does now
