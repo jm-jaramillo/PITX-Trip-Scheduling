@@ -1330,6 +1330,59 @@ Updates README per project convention.
 
 ---
 
+### 49. Link masterlist vehicles' `route` to a canonical route (18 Aug)
+
+#48's route-based vehicle grouping is only as good as `vehicles.route`
+actually corresponding to a real canonical route - and for every
+masterlist-imported vehicle, it didn't: `route` was set to the same
+franchise-description text as the new `franchise` field (#44), a full
+sentence like "TABACO, ALBAY- PASAY CITY" that the live word-overlap
+matcher could only catch by accident. Re-matched all 1,832 masterlist
+vehicles' original "OPERATING ROUTE" column (captured in the source
+spreadsheet but never stored anywhere - #42's import used the fuller
+FRANCHISE column for both `route` and `franchise`) against the 83
+canonical routes, and set `route` to the matched canonical string for
+any confident match - `franchise` is untouched, so the original
+full-sentence description isn't lost either way.
+
+**Two real matching bugs found and fixed before writing anything**,
+both from generic words that happen to double as a place name:
+
+- A canonical place that reduces to a single word after stripping
+  filler ("Batangas City" → just "BATANGAS" once "City" is stripped)
+  coincidentally equals the *province* name mentioned in nearly every
+  other same-province entry ("Nasugbu, Batangas", "Calatagan,
+  Batangas", ...) - a naive word-overlap match kept assigning all of
+  them to Batangas City. Fixed by matching the town and province
+  segments of each string separately, never letting a stray province
+  mention count as the town.
+- The same failure mode one level up: "Camarines" alone is shared by
+  both Camarines Sur and Camarines Norte, so "Naga, Camarines Norte"
+  matched Naga City, Camarines *Sur* on that shared word alone - caught
+  by the user pointing out there's no real "Naga, Camarines Norte" (Naga
+  City is in Camarines Sur). Fixed by only trusting a province word
+  that's unique to exactly one canonical province, with a strict
+  (not lenient) fallback when no word is unique - and left that specific
+  row's `route` untouched, since the source data's province is simply
+  wrong and guessing which real place was meant isn't safe.
+
+Matching **never guesses**: a route is only linked when unambiguous
+(exactly one canonical route qualifies); anything ambiguous (e.g. bare
+"Nasugbu" - two canonical Nasugbu routes exist) or not in the canonical
+list at all (Palawan, Cebu City, Guimaras - real places PITX just
+doesn't have a canonical route for) is left as-is with no data lost,
+since `franchise` still holds the full original text either way.
+
+**Result**: 1,443 of 1,908 resolved rows matched confidently and got
+`route` updated; 1,379 of those actually changed value (some already
+happened to equal their match). Verified directly against the database
+after writing: the flagged Naga/Camarines Norte rows are confirmed
+still unlinked (route == franchise, untouched), and a sample of newly-
+linked rows shows the clean canonical route alongside the original
+franchise description intact.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
