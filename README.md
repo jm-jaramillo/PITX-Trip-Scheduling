@@ -327,6 +327,20 @@ every row regardless of status (`operator_id = auth.uid() or is_staff()`,
 migration `0003`); this is simply the first UI built specifically for
 browsing the whole fleet rather than only the pending queue.
 
+**Plate No., Operator, CPC validity, and OR/CR validity are sortable** -
+click a column header to sort by it, click again to flip direction
+(ascending shows a &#9650;, descending &#9660;). A null validity date
+always sorts last regardless of direction, so an empty CPC/OR-CR column
+doesn't jump to the top on descending sort. **Status** and **LTFRB** sit
+immediately to the right of **Operator**, ahead of the rest of the
+fields, since those two are what staff scan for first. Client-side only
+- no query changes, since the whole fleet is already loaded into memory
+(see the pagination note above) and re-sorting it is instant either way.
+
+**My vehicles** (the operator's own list) has the same sort on Plate No.,
+CPC validity, and OR/CR validity - no Operator column there, since that
+list is already scoped to one operator.
+
 ## Operator profiles (staff)
 
 A read-only staff page listing every operator account's company details

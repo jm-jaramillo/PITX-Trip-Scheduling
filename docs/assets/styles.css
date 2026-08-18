@@ -643,6 +643,18 @@ th {
   white-space: nowrap;
 }
 
+/* Sortable column headers (vehicles.html, vehicles-database.html) - a
+   plain <th> click handler, no separate button element, so the arrow
+   suffix (&#9650;/&#9660;) just gets appended to the header's own text. */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sortable:hover {
+  color: var(--blue-ink);
+}
+
 td {
   padding: 12px 16px;
   font-size: 13px;

@@ -1222,6 +1222,32 @@ Updates README per project convention.
 
 ---
 
+### 45. Sortable columns and reordered Status/LTFRB on the fleet pages (18 Aug)
+
+**Vehicles** (staff fleet database): Plate No., Operator, CPC validity,
+and OR/CR validity are now sortable - click a header to sort, click
+again to flip direction, with an arrow indicator. Nulls always sort
+last regardless of direction. **Status** and **LTFRB** moved to sit
+immediately right of **Operator**, ahead of every other column, since
+those are what staff scan for first. Client-side only - the whole fleet
+is already loaded into memory (see #42's pagination fix), so re-sorting
+it doesn't touch the network.
+
+**My vehicles** (the operator's own list) got the same sort on Plate
+No., CPC validity, and OR/CR validity - no Operator column there, since
+that list is already scoped to one operator, so no column reordering
+either (nothing to move relative to).
+
+Verified live: clicking Plate No. sorted ascending with an arrow shown,
+clicking again flipped to descending; Operator and both validity-date
+sorts worked correctly, including nulls sorting last on both directions
+(tested with 3 seeded vehicles with a null CPC, a null OR/CR, and both
+set, to see the null-handling directly rather than relying on the real
+data's incidental gaps). Header order confirmed via the DOM: Plate No.,
+Operator, Status, LTFRB, then the rest.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

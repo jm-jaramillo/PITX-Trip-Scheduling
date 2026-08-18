@@ -307,6 +307,10 @@
       let pendingPhotoFile = null;
       let pendingSupportingDocFile = null;
       let pendingEditSupportingDocFile = null;
+      let lastVehicles = [];
+      let docUrlById = new Map();
+      let sortKey = null;
+      let sortDir = "asc";
 
       initAddDialog();
       initEditDialog();
@@ -331,6 +335,38 @@
         return "—";
       }
 
+      // Plate No., CPC validity, OR/CR validity are sortable - click a
+      // header to sort by it, click again to flip direction. Nulls
+      // always sort last regardless of direction. No Operator column
+      // here (this list is already scoped to one operator).
+      const SORT_VALUE = {
+        plate_no: (v) => v.plate_no?.toUpperCase() ?? null,
+        cpc_validity: (v) => v.cpc_validity ?? null,
+        orcr_validity: (v) => v.orcr_validity ?? null,
+      };
+
+      function sortTh(label, key) {
+        const active = sortKey === key;
+        const arrow = active ? (sortDir === "asc" ? " &#9650;" : " &#9660;") : "";
+        return `<th class="sortable" data-sort="${key}">${escapeHtml(label)}${arrow}</th>`;
+      }
+
+      function applySort(rows) {
+        if (!sortKey) return rows;
+        const getValue = SORT_VALUE[sortKey];
+        const dir = sortDir === "asc" ? 1 : -1;
+        return [...rows].sort((a, b) => {
+          const av = getValue(a);
+          const bv = getValue(b);
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          if (av < bv) return -1 * dir;
+          if (av > bv) return 1 * dir;
+          return 0;
+        });
+      }
+
       /* --------------------------------------------------------- list */
 
       async function loadVehicles() {
@@ -348,18 +384,19 @@
         }
 
         vehiclesById = new Map((data ?? []).map((v) => [v.id, v]));
-        const host = document.getElementById("vehicle-list");
+        lastVehicles = data ?? [];
 
-        if (!data || data.length === 0) {
-          host.innerHTML = `<p class="empty">No vehicles registered yet.</p>`;
+        if (lastVehicles.length === 0) {
+          document.getElementById("vehicle-list").innerHTML = `<p class="empty">No vehicles registered yet.</p>`;
           return;
         }
 
         // Signed URLs so a private-bucket document can be opened directly
         // from the list - same pattern as vehicle-approvals.html's photo
-        // links.
-        const docUrls = await Promise.all(
-          data.map((v) =>
+        // links. Keyed by vehicle id (not array index) so re-sorting
+        // afterward doesn't need to refetch these.
+        const urls = await Promise.all(
+          lastVehicles.map((v) =>
             v.supporting_doc_path
               ? supabase.storage
                   .from("vehicle-docs")
@@ -368,6 +405,14 @@
               : Promise.resolve(null)
           )
         );
+        docUrlById = new Map(lastVehicles.map((v, i) => [v.id, urls[i]]));
+
+        renderVehicleTable();
+      }
+
+      function renderVehicleTable() {
+        const host = document.getElementById("vehicle-list");
+        const data = applySort(lastVehicles);
 
         // Approved vehicles from the LTFRB masterlist import can still be
         // excluded from the booking form if their LTFRB status is inactive
@@ -392,10 +437,10 @@
             <table>
               <thead>
                 <tr>
-                  <th>Plate No.</th><th>Case No.</th><th>MV File #</th>
+                  ${sortTh("Plate No.", "plate_no")}<th>Case No.</th><th>MV File #</th>
                   <th>OR No.</th><th>CR No.</th>
                   <th>Chassis No.</th><th>Franchise</th><th>Sticker No.</th>
-                  <th>CPC validity</th><th>OR/CR validity</th>
+                  ${sortTh("CPC validity", "cpc_validity")}${sortTh("OR/CR validity", "orcr_validity")}
                   <th>Route</th><th>Bus No.</th><th>Seating capacity</th>
                   <th>Seat</th><th>Aircon</th><th>Date granted</th>
                   <th>Date expiry</th><th>Status</th><th>LTFRB</th>
@@ -405,7 +450,7 @@
               <tbody>
                 ${data
                   .map(
-                    (v, i) => `
+                    (v) => `
                   <tr>
                     <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}${
                       v.revision_count > 0
@@ -433,8 +478,8 @@
                     )}">${escapeHtml(v.status)}</span></td>
                     <td data-label="LTFRB">${ltfrbBadge(v.ltfrb_status)}</td>
                     <td data-label="Document">${
-                      docUrls[i]
-                        ? `<a href="${docUrls[i]}" target="_blank" rel="noopener">${escapeHtml(
+                      docUrlById.get(v.id)
+                        ? `<a href="${docUrlById.get(v.id)}" target="_blank" rel="noopener">${escapeHtml(
                             v.supporting_doc_name || "View"
                           )}</a>`
                         : "—"
@@ -455,6 +500,15 @@
 
         host.querySelectorAll("[data-edit]").forEach((btn) => {
           btn.addEventListener("click", () => openEdit(btn.dataset.edit));
+        });
+
+        host.querySelectorAll("[data-sort]").forEach((th) => {
+          th.addEventListener("click", () => {
+            const key = th.dataset.sort;
+            sortDir = sortKey === key && sortDir === "asc" ? "desc" : "asc";
+            sortKey = key;
+            renderVehicleTable();
+          });
         });
       }
 

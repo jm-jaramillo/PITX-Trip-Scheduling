@@ -63,6 +63,8 @@
 
       let allVehicles = [];
       let statusFilter = "all";
+      let sortKey = null;
+      let sortDir = "asc";
       // Supabase caps a single request at 1000 rows (PostgREST's default
       // max-rows setting) - the masterlist import (migration 0021/0022,
       // ~1,900 rows) pushed this table past that. Must be declared before
@@ -89,6 +91,39 @@
         if (aircon === true) return "Aircon";
         if (aircon === false) return "Non-aircon";
         return "—";
+      }
+
+      // Plate No., Operator, CPC validity, OR/CR validity are sortable -
+      // click a header to sort by it, click again to flip direction.
+      // Nulls always sort last regardless of direction, so an empty
+      // validity date doesn't jump to the top on descending sort.
+      const SORT_VALUE = {
+        plate_no: (v) => v.plate_no?.toUpperCase() ?? null,
+        operator: (v) => (v.profiles?.operator_name || v.profiles?.username)?.toUpperCase() ?? null,
+        cpc_validity: (v) => v.cpc_validity ?? null,
+        orcr_validity: (v) => v.orcr_validity ?? null,
+      };
+
+      function sortTh(label, key) {
+        const active = sortKey === key;
+        const arrow = active ? (sortDir === "asc" ? " &#9650;" : " &#9660;") : "";
+        return `<th class="sortable" data-sort="${key}">${escapeHtml(label)}${arrow}</th>`;
+      }
+
+      function applySort(rows) {
+        if (!sortKey) return rows;
+        const getValue = SORT_VALUE[sortKey];
+        const dir = sortDir === "asc" ? 1 : -1;
+        return [...rows].sort((a, b) => {
+          const av = getValue(a);
+          const bv = getValue(b);
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          if (av < bv) return -1 * dir;
+          if (av > bv) return 1 * dir;
+          return 0;
+        });
       }
 
       // Pages through with .range() until a page comes back short of the
@@ -136,6 +171,8 @@
           );
         }
 
+        rows = applySort(rows);
+
         document.getElementById("summary-count").textContent =
           `${allVehicles.length} vehicle${allVehicles.length === 1 ? "" : "s"} registered across all operators`;
 
@@ -153,13 +190,15 @@
             <table>
               <thead>
                 <tr>
-                  <th>Plate No.</th><th>Operator</th><th>Case No.</th>
+                  ${sortTh("Plate No.", "plate_no")}${sortTh("Operator", "operator")}
+                  <th>Status</th><th>LTFRB</th>
+                  <th>Case No.</th>
                   <th>MV File #</th><th>OR No.</th><th>CR No.</th>
                   <th>Chassis No.</th><th>Franchise</th><th>Sticker No.</th>
-                  <th>CPC validity</th><th>OR/CR validity</th>
+                  ${sortTh("CPC validity", "cpc_validity")}${sortTh("OR/CR validity", "orcr_validity")}
                   <th>Route</th><th>Bus No.</th><th>Seating</th>
                   <th>Seat</th><th>Aircon</th><th>Date granted</th>
-                  <th>Date expiry</th><th>Status</th><th>LTFRB</th><th>Note</th>
+                  <th>Date expiry</th><th>Note</th>
                   <th>Documents</th>
                 </tr>
               </thead>
@@ -172,6 +211,8 @@
                   <tr>
                     <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
                     <td data-label="Operator">${escapeHtml(operatorLabel)}</td>
+                    <td data-label="Status">${statusBadge(v.status)}</td>
+                    <td data-label="LTFRB">${ltfrbBadge(v.ltfrb_status)}</td>
                     <td data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
                     <td data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
                     <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
@@ -188,8 +229,6 @@
                     <td data-label="Aircon">${airconLabel(v.aircon)}</td>
                     <td data-label="Date granted">${escapeHtml(v.date_granted ?? "—")}</td>
                     <td data-label="Date expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
-                    <td data-label="Status">${statusBadge(v.status)}</td>
-                    <td data-label="LTFRB">${ltfrbBadge(v.ltfrb_status)}</td>
                     <td data-label="Note">${escapeHtml(v.rejection_reason ?? "—")}</td>
                     <td data-label="Documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
                   </tr>`;
@@ -201,6 +240,15 @@
         `;
 
         resolveDocLinks(rows);
+
+        host.querySelectorAll("[data-sort]").forEach((th) => {
+          th.addEventListener("click", () => {
+            const key = th.dataset.sort;
+            sortDir = sortKey === key && sortDir === "asc" ? "desc" : "asc";
+            sortKey = key;
+            render();
+          });
+        });
       }
 
       // Signed URLs are resolved after the table paints (rather than
