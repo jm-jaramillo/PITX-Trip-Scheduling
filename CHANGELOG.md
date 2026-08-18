@@ -1248,6 +1248,33 @@ Operator, Status, LTFRB, then the rest.
 
 ---
 
+### 46. Click a vehicle row for a details card, both roles (18 Aug)
+
+Clicking anywhere on a vehicle row (My vehicles, and the staff fleet
+database) now opens a read-only dialog showing every field on that
+vehicle at once, rather than scrolling a wide table sideways to see it
+all. One shared builder (`vehicleDetailsHtml()` in `app.js`) so the
+field list/order can't drift between the two pages - the staff version
+passes an extra Operator row up top that the operator's own list
+doesn't need, since that list is already scoped to one account.
+
+Clicking the Edit button (My vehicles) or a Documents link (either
+page) does its own thing instead of also popping the details card, even
+though both sit inside the clickable row - the row's click handler
+explicitly excludes clicks that land on a `button` or `a`.
+
+Verified live: clicking a row opens the card with the correct title and
+every field populated (confirmed the staff version's extra Operator/
+Status/LTFRB fields render, and the operator version correctly omits
+Operator); Close works; clicking Edit opens only the edit dialog, not
+the details card; a synthetic Documents link inside a row does not open
+the details card either. Test accounts and seeded data cleaned up
+after.
+
+Updates README per project convention.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

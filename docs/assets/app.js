@@ -547,6 +547,58 @@ export function ltfrbBadge(ltfrbStatus) {
   )}</span>`;
 }
 
+// Shared by vehicles.html (operator) and vehicles-database.html (staff)
+// for the "click a row to see the full card" detail dialog - one builder
+// so the field list/order can't drift between the two. `operatorLabel`
+// is only passed by the staff page (its own list is already scoped to
+// one operator, so there's nothing to show there). Documents are filled
+// in afterward by the caller - resolving their signed URLs is async and
+// each page already has its own storage-bucket helper for that.
+export function vehicleDetailsHtml(v, operatorLabel) {
+  const rows = [
+    operatorLabel != null ? ["Operator", escapeHtml(operatorLabel)] : null,
+    ["Status", statusBadge(v.status)],
+    ["LTFRB", ltfrbBadge(v.ltfrb_status)],
+    ["Case No.", escapeHtml(v.case_number ?? "—")],
+    ["MV File #", escapeHtml(v.mv_file_number ?? "—")],
+    ["OR No.", escapeHtml(v.or_number ?? "—")],
+    ["CR No.", escapeHtml(v.cr_number ?? "—")],
+    ["Chassis No.", escapeHtml(v.chassis_no ?? "—")],
+    ["Franchise", escapeHtml(v.franchise ?? "—")],
+    ["Sticker No.", escapeHtml(v.sticker_no ?? "—")],
+    ["CPC validity", expiryCell(v.cpc_validity, escapeHtml)],
+    ["OR/CR validity", expiryCell(v.orcr_validity, escapeHtml)],
+    ["Route", escapeHtml(v.route ?? "—")],
+    ["Bus No.", escapeHtml(v.bus_number ?? "—")],
+    ["Seating capacity", escapeHtml(v.seating_capacity ?? "—")],
+    ["Seat", escapeHtml(v.seat_type ?? "—")],
+    [
+      "Aircon",
+      v.aircon === true ? "Aircon" : v.aircon === false ? "Non-aircon" : "—",
+    ],
+    ["Date granted", escapeHtml(v.date_granted ?? "—")],
+    ["Date expiry", escapeHtml(v.date_expiry ?? "—")],
+    v.rejection_reason ? ["Note", escapeHtml(v.rejection_reason)] : null,
+  ].filter(Boolean);
+
+  return `
+    <div class="details-grid">
+      ${rows
+        .map(
+          ([label, value]) =>
+            `<div class="detail-item"><span class="detail-label">${escapeHtml(
+              label
+            )}</span><span class="detail-value">${value}</span></div>`
+        )
+        .join("")}
+      <div class="detail-item detail-documents">
+        <span class="detail-label">Documents</span>
+        <span class="detail-value" id="details-documents">&hellip;</span>
+      </div>
+    </div>
+  `;
+}
+
 export function showMessage(id, text, kind = "error") {
   const el = document.getElementById(id);
   if (!el) return;

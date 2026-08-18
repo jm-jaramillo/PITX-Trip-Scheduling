@@ -45,6 +45,14 @@
       <div id="vehicle-list"></div>
     </main>
 
+    <dialog class="details-dialog" id="details-dialog">
+      <h2 class="dialog-title" id="details-title"></h2>
+      <div id="details-body"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-outline" id="details-close">Close</button>
+      </div>
+    </dialog>
+
     <script type="module">
       import {
         supabase,
@@ -54,6 +62,7 @@
         statusBadge,
         ltfrbBadge,
         expiryCell,
+        vehicleDetailsHtml,
         escapeHtml,
       } from "./assets/app.js";
 
@@ -62,6 +71,7 @@
       renderNav(profile);
 
       let allVehicles = [];
+      let vehiclesById = new Map();
       let statusFilter = "all";
       let sortKey = null;
       let sortDir = "asc";
@@ -72,6 +82,7 @@
       const PAGE_SIZE = 1000;
 
       initStatusFilter();
+      initDetailsDialog();
       document.getElementById("search").addEventListener("input", render);
       await load();
 
@@ -152,7 +163,44 @@
           if (!data || data.length < PAGE_SIZE) break;
           from += PAGE_SIZE;
         }
+        vehiclesById = new Map(allVehicles.map((v) => [v.id, v]));
         render();
+      }
+
+      /* -------------------------------------------------- details dialog */
+
+      function initDetailsDialog() {
+        document
+          .getElementById("details-close")
+          .addEventListener("click", () => document.getElementById("details-dialog").close());
+      }
+
+      async function openDetails(vehicleId) {
+        const v = vehiclesById.get(vehicleId);
+        if (!v) return;
+
+        const operatorLabel = v.profiles?.operator_name || v.profiles?.username || "—";
+        document.getElementById("details-title").textContent = v.plate_no;
+        document.getElementById("details-body").innerHTML = vehicleDetailsHtml(v, operatorLabel);
+        document.getElementById("details-dialog").showModal();
+
+        const links = [];
+        if (v.photo_path) {
+          const { data } = await supabase.storage.from("vehicle-docs").createSignedUrl(v.photo_path, 300);
+          if (data?.signedUrl) links.push(`<a href="${data.signedUrl}" target="_blank" rel="noopener">OR/CR photo</a>`);
+        }
+        if (v.supporting_doc_path) {
+          const { data } = await supabase.storage.from("vehicle-docs").createSignedUrl(v.supporting_doc_path, 300);
+          if (data?.signedUrl) {
+            links.push(
+              `<a href="${data.signedUrl}" target="_blank" rel="noopener">${escapeHtml(
+                v.supporting_doc_name || "Supporting doc"
+              )}</a>`
+            );
+          }
+        }
+        const docsEl = document.getElementById("details-documents");
+        if (docsEl) docsEl.innerHTML = links.length ? links.join("") : "—";
       }
 
       function render() {
@@ -208,7 +256,7 @@
                     const operatorLabel =
                       v.profiles?.operator_name || v.profiles?.username || "—";
                     return `
-                  <tr>
+                  <tr class="row-clickable" data-vehicle-id="${escapeHtml(v.id)}">
                     <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
                     <td data-label="Operator">${escapeHtml(operatorLabel)}</td>
                     <td data-label="Status">${statusBadge(v.status)}</td>
@@ -247,6 +295,15 @@
             sortDir = sortKey === key && sortDir === "asc" ? "desc" : "asc";
             sortKey = key;
             render();
+          });
+        });
+
+        // Anything but the row itself (e.g. a Documents link) should do
+        // its own thing rather than also popping the details dialog.
+        host.querySelectorAll("[data-vehicle-id]").forEach((tr) => {
+          tr.addEventListener("click", (e) => {
+            if (e.target.closest("a")) return;
+            openDetails(tr.dataset.vehicleId);
           });
         });
       }

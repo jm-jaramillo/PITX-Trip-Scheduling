@@ -287,6 +287,15 @@
       </form>
     </dialog>
 
+    <!-- ------------------------------------------------- details dialog -->
+    <dialog class="details-dialog" id="details-dialog">
+      <h2 class="dialog-title" id="details-title"></h2>
+      <div id="details-body"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-outline" id="details-close">Close</button>
+      </div>
+    </dialog>
+
     <script type="module">
       import {
         supabase,
@@ -295,6 +304,7 @@
         showMessage,
         ltfrbBadge,
         expiryCell,
+        vehicleDetailsHtml,
         escapeHtml,
       } from "./assets/app.js";
       import { extractOrCr } from "./assets/orcr-parser.js";
@@ -314,6 +324,7 @@
 
       initAddDialog();
       initEditDialog();
+      initDetailsDialog();
       await loadVehicles();
 
       // Uploads a file into this operator's own vehicle-docs folder and
@@ -451,7 +462,7 @@
                 ${data
                   .map(
                     (v) => `
-                  <tr>
+                  <tr class="row-clickable" data-vehicle-id="${escapeHtml(v.id)}">
                     <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}${
                       v.revision_count > 0
                         ? `<span class="revised">changed</span>`
@@ -500,6 +511,15 @@
 
         host.querySelectorAll("[data-edit]").forEach((btn) => {
           btn.addEventListener("click", () => openEdit(btn.dataset.edit));
+        });
+
+        // Anything but the row itself (e.g. the Edit button) should do
+        // its own thing rather than also popping the details dialog.
+        host.querySelectorAll("[data-vehicle-id]").forEach((tr) => {
+          tr.addEventListener("click", (e) => {
+            if (e.target.closest("a, button")) return;
+            openDetails(tr.dataset.vehicleId);
+          });
         });
 
         host.querySelectorAll("[data-sort]").forEach((th) => {
@@ -746,6 +766,41 @@
           "ok"
         );
         await loadVehicles();
+      }
+
+      /* ----------------------------------------------- details dialog */
+
+      function initDetailsDialog() {
+        document
+          .getElementById("details-close")
+          .addEventListener("click", () => document.getElementById("details-dialog").close());
+      }
+
+      async function openDetails(vehicleId) {
+        const v = vehiclesById.get(vehicleId);
+        if (!v) return;
+
+        document.getElementById("details-title").textContent = v.plate_no;
+        document.getElementById("details-body").innerHTML = vehicleDetailsHtml(v);
+        document.getElementById("details-dialog").showModal();
+
+        const links = [];
+        if (v.photo_path) {
+          const { data } = await supabase.storage.from("vehicle-docs").createSignedUrl(v.photo_path, 300);
+          if (data?.signedUrl) links.push(`<a href="${data.signedUrl}" target="_blank" rel="noopener">OR/CR photo</a>`);
+        }
+        if (v.supporting_doc_path) {
+          const { data } = await supabase.storage.from("vehicle-docs").createSignedUrl(v.supporting_doc_path, 300);
+          if (data?.signedUrl) {
+            links.push(
+              `<a href="${data.signedUrl}" target="_blank" rel="noopener">${escapeHtml(
+                v.supporting_doc_name || "Supporting doc"
+              )}</a>`
+            );
+          }
+        }
+        const docsEl = document.getElementById("details-documents");
+        if (docsEl) docsEl.innerHTML = links.length ? links.join("") : "—";
       }
 
       /* -------------------------------------------------- edit dialog */

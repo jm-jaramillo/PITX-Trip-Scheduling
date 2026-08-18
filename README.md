@@ -341,6 +341,16 @@ fields, since those two are what staff scan for first. Client-side only
 CPC validity, and OR/CR validity - no Operator column there, since that
 list is already scoped to one operator.
 
+**Click a row on either page to open a read-only details card** - a
+dialog showing every field on that vehicle at once (`vehicleDetailsHtml()`
+in `app.js`, shared by both pages so the field list/order can't drift
+between them), rather than scrolling a wide table sideways. The staff
+version includes an Operator row up top the operator's own list doesn't
+need. Clicking the Edit button (My vehicles) or a Documents link
+(either page) does its own thing instead of also popping the details
+card - both are inside the row but explicitly excluded from the
+row-click handler.
+
 ## Operator profiles (staff)
 
 A read-only staff page listing every operator account's company details
