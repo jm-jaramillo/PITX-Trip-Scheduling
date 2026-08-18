@@ -57,6 +57,7 @@
           </div>
 
           <div class="span-all">
+            <p class="hint hidden" id="gate-full-hint"></p>
             <p class="inline-error hidden" id="form-error"></p>
             <p class="inline-ok hidden" id="form-ok"></p>
             <button type="submit" class="btn-primary" id="submit">
@@ -167,6 +168,7 @@
         SLOTS,
         ROUTES,
         ROUTE_GATES,
+        gateForRoute,
         formatSlot,
         todayISO,
         statusBadge,
@@ -188,6 +190,7 @@
       let approvedVehicles = [];
       let pendingTransferBookingIds = new Set();
       let operatorAccounts = [];
+      let activeBays = []; // { id, gate } - active bays only, for the gate-full hint
 
       // Route dropdown groups: matches how staff assign bays, and keeps
       // 80+ routes from being one unmanageable flat list.
@@ -200,7 +203,7 @@
       const profile = await guardPage("operator");
       if (profile) {
         renderNav(profile);
-        await Promise.all([loadApprovedVehicles(), loadOperatorAccounts()]);
+        await Promise.all([loadApprovedVehicles(), loadOperatorAccounts(), loadActiveBays()]);
         initForm();
         initEditDialog();
         initTransferDialog();
@@ -344,6 +347,98 @@
         operatorAccounts = data ?? [];
       }
 
+      // Only id + gate, and only active bays - enough to work out per-gate
+      // capacity for the "this gate is full, try a different time" hint
+      // below. Loaded once; bay counts don't change while this page is open.
+      async function loadActiveBays() {
+        const { data } = await supabase
+          .from("bays")
+          .select("id, gate")
+          .eq("is_active", true);
+        activeBays = data ?? [];
+      }
+
+      function gateBayIds(gate) {
+        return activeBays.filter((b) => b.gate === gate).map((b) => b.id);
+      }
+
+      // Advisory only - staff can still assign a bay from another gate (see
+      // staff.html), so this never blocks submitting. It just saves the
+      // operator a round trip: if their route's gate has no bay left at the
+      // chosen time, suggest nearby times that still have room in it.
+      async function checkGateFullness() {
+        const hintEl = document.getElementById("gate-full-hint");
+        const route = document.getElementById("route").value;
+        const bookingDate = document.getElementById("booking_date").value;
+        const slotRaw = document.getElementById("slot").value;
+        const gate = route ? gateForRoute(route) : null;
+
+        if (!gate || !bookingDate || slotRaw === "") {
+          hintEl.className = "hint hidden";
+          return;
+        }
+
+        const gateIds = gateBayIds(gate);
+        if (gateIds.length === 0) {
+          hintEl.className = "hint hidden";
+          return;
+        }
+
+        const { data } = await supabase
+          .from("bookings")
+          .select("slot, assigned_bay_id")
+          .eq("booking_date", bookingDate)
+          .eq("status", "approved");
+
+        const takenPerSlot = new Map();
+        for (const row of data ?? []) {
+          if (row.assigned_bay_id && gateIds.includes(row.assigned_bay_id)) {
+            takenPerSlot.set(row.slot, (takenPerSlot.get(row.slot) ?? 0) + 1);
+          }
+        }
+        const isFull = (s) => (takenPerSlot.get(s) ?? 0) >= gateIds.length;
+
+        const slot = Number(slotRaw);
+        if (!isFull(slot)) {
+          hintEl.className = "hint hidden";
+          return;
+        }
+
+        // Nearest open slots for this gate first, so the suggestion is the
+        // smallest possible change to the operator's original request.
+        const candidates = SLOTS.filter((s) => s !== slot)
+          .filter(
+            (s) => slotStartMillis(bookingDate, s) - Date.now() >= BOOKING_LEAD_TIME_MS
+          )
+          .filter((s) => !isFull(s))
+          .sort((a, b) => Math.abs(a - slot) - Math.abs(b - slot))
+          .slice(0, 3);
+
+        hintEl.innerHTML =
+          `${escapeHtml(gate)} has no open bays at ${escapeHtml(
+            formatSlot(slot)
+          )} on this date - you can still submit and staff may assign a ` +
+          `different gate, but you'll have better luck at: ` +
+          (candidates.length
+            ? candidates
+                .map(
+                  (s) =>
+                    `<button type="button" class="btn-link" data-suggest-slot="${s}">${escapeHtml(
+                      formatSlot(s)
+                    )}</button>`
+                )
+                .join(", ")
+            : "no other time today - try a different date.");
+        hintEl.className = "hint";
+
+        hintEl.querySelectorAll("[data-suggest-slot]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            document.getElementById("slot").value = btn.dataset.suggestSlot;
+            checkGateFullness();
+          });
+        });
+      }
+
       function plateOptionsHtml(selected) {
         if (approvedVehicles.length === 0) {
           return `<option value="" disabled selected>No approved vehicles</option>`;
@@ -399,6 +494,7 @@
 
       function initForm() {
         document.getElementById("route").innerHTML = routeOptionsHtml(null);
+        document.getElementById("route").addEventListener("change", checkGateFullness);
 
         const dateInput = document.getElementById("booking_date");
         dateInput.min = todayISO();
@@ -407,7 +503,12 @@
         populateSlotOptions();
         // The set of slots still >= 4 hours out depends on which date is
         // picked, so refresh the list whenever the date changes.
-        dateInput.addEventListener("change", populateSlotOptions);
+        dateInput.addEventListener("change", () => {
+          populateSlotOptions();
+          checkGateFullness();
+        });
+
+        document.getElementById("slot").addEventListener("change", checkGateFullness);
 
         const plateSelect = document.getElementById("plate_no");
         plateSelect.innerHTML = plateOptionsHtml(null);
@@ -529,6 +630,7 @@
         document.getElementById("route").value = "";
         document.getElementById("plate_no").value = "";
         document.getElementById("slot").value = "";
+        document.getElementById("gate-full-hint").className = "hint hidden";
         await loadRequests();
       }
 

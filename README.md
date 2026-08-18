@@ -545,6 +545,19 @@ Adding these gates' bays (21-23, 33-36 didn't exist before) raised active
 bay count from 20 to 27, which directly raises the per-slot approval cap
 described above.
 
+On the operator's own booking form ([`docs/dashboard.html`](docs/dashboard.html)),
+if the chosen route/date/time combination's gate has no bay left (every
+bay in that gate is already assigned to an *approved* booking for that
+slot), an amber hint appears under the time slot field naming the
+nearest open times that still have room in that gate, each a clickable
+button that swaps the slot in place. This is advisory only, not a hard
+block - submitting anyway still works, since staff can fall back to a
+bay in another gate exactly as described above; the hint just saves the
+operator a round trip through a request that would otherwise get bumped
+to an unrelated gate. It only fires when the route maps to a real gate
+and both a date and slot are already picked; picking a suggested slot
+re-runs the check immediately, in case that slot fills up too.
+
 ### Reassigning an approved booking's bay (staff)
 
 Staff can move an already-approved booking to a different bay from

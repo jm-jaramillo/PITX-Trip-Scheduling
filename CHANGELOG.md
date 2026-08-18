@@ -1034,6 +1034,36 @@ afterward.
 
 ---
 
+### 41. Suggest a different time slot when the route's gate is full (18 Aug)
+
+Found while stress-testing #40: filling every bay in a route's gate for
+a given slot doesn't block the operator from requesting it - staff just
+fall back to an unrelated gate at approval time (by design, #38). That's
+fine as a safety net, but an operator has no way to know their preferred
+gate is already full until after they've submitted and waited on staff.
+
+Added a live check on the booking form
+([`docs/dashboard.html`](docs/dashboard.html)): once route, date, and
+slot are all picked, if every active bay in that route's gate is
+already assigned to an *approved* booking for that slot, an amber hint
+appears under the time slot field naming up to 3 nearby times (nearest
+first) that still have room in the same gate, each a clickable button
+that swaps the slot and re-runs the check. Advisory only - the Request
+button stays enabled, since submitting anyway is still perfectly valid
+(staff can assign a different gate). New `.hint` style in
+`styles.css` (amber, not `.warn`'s red - this never blocks anything).
+
+Verified live: created a throwaway operator with an approved vehicle,
+inserted 4 synthetic approved bookings occupying all of Gate 5's bays
+(33-36) for one date/slot, then loaded the booking form as that
+operator and picked a Gate 5 route for that same date/slot - the hint
+appeared naming the correct nearest open times. Clicking a suggested
+time swapped the slot and the hint correctly disappeared (that time had
+room). Submitted the booking on the suggested slot and confirmed it
+saved as `pending` normally. Test data cleaned up afterward.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
