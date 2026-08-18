@@ -305,6 +305,7 @@
         ltfrbBadge,
         expiryCell,
         vehicleDetailsHtml,
+        applyVehicleHighlightFromQuery,
         escapeHtml,
       } from "./assets/app.js";
       import { extractOrCr } from "./assets/orcr-parser.js";
@@ -326,6 +327,7 @@
       initEditDialog();
       initDetailsDialog();
       await loadVehicles();
+      applyVehicleHighlightFromQuery(openDetails);
 
       // Uploads a file into this operator's own vehicle-docs folder and
       // returns its storage path - shared by both the OR/CR photo and the

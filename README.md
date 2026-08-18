@@ -583,6 +583,15 @@ nothing extra needed per-page. Clicking it opens a dropdown of up to the
 30 most recent notifications; clicking one marks it read and navigates to
 the relevant page.
 
+For a notification about a specific vehicle (CPC/OR-CR expiring, a
+vehicle approved/declined), the link carries `?vehicle=<id>`
+(`app.js`'s click handler adds it whenever `related_table = 'vehicles'`).
+**My vehicles** and **Vehicles** (staff) both read that query param on
+load (`applyVehicleHighlightFromQuery()` in `app.js`), scroll straight to
+that row, highlight it amber, and open its details card automatically -
+so clicking a "CPC expiring soon" notification lands you looking at the
+exact vehicle, not just the right page.
+
 **Staff** get notified of:
 - a new booking request (**Pending requests**)
 - a new vehicle registration (**Vehicle approvals**)

@@ -679,6 +679,20 @@ tr.row-clickable:hover td {
   background: var(--ground-alt);
 }
 
+/* Landed on from a notification (e.g. a CPC/OR-CR expiry alert) -
+   ?vehicle=<id> in the URL scrolls to and highlights this row, and pops
+   its details card. Stays highlighted (not a fade-out) so it's still
+   findable after the card is closed and the reader looks back at the
+   table. */
+tr.row-highlighted td {
+  background: var(--amber-wash);
+}
+
+tr.row-highlighted:hover td {
+  background: var(--amber-wash);
+  filter: brightness(0.97);
+}
+
 td strong,
 .cell-strong {
   font-weight: 700;

@@ -1275,6 +1275,33 @@ Updates README per project convention.
 
 ---
 
+### 47. Clicking a vehicle notification highlights that row and opens its card (18 Aug)
+
+A CPC/OR-CR expiry notification (or a vehicle approved/declined one)
+previously just navigated to My vehicles or the staff fleet page -
+correct page, but the reader still had to find the right row themselves
+in a table that can run over a thousand rows. Now it takes them straight
+to it.
+
+The notification click handler (`app.js`) appends `?vehicle=<id>` to the
+link whenever the notification's `related_table` is `vehicles`. Both
+`vehicles.html` and `vehicles-database.html` call a new shared function,
+`applyVehicleHighlightFromQuery()`, right after their first render: it
+reads that query param, scrolls the matching row into view, adds a
+`.row-highlighted` amber background, and opens that row's details card
+(#46) automatically.
+
+Verified live: seeded a vehicle with a CPC expiring within 30 days,
+confirmed both its operator-side and staff-side expiry notifications
+carry the correct `related_table`/`related_id`, and clicking either one
+landed on the right page with the URL carrying `?vehicle=<id>`, the
+correct row highlighted, and its details card already open showing the
+right plate number. Test accounts and data cleaned up after.
+
+Updates README per project convention.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

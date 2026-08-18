@@ -439,7 +439,7 @@ async function initNotifications(profile) {
 
   let query = supabase
     .from("notifications")
-    .select("id, type, title, body, link, is_read, created_at")
+    .select("id, type, title, body, link, related_table, related_id, is_read, created_at")
     .order("created_at", { ascending: false })
     .limit(NOTIF_LIMIT);
   query =
@@ -476,7 +476,7 @@ async function initNotifications(profile) {
             ${items
               .map(
                 (n) => `
-                  <button type="button" class="notif-item${n.is_read ? "" : " is-unread"}" data-notif="${escapeHtml(n.id)}" data-link="${escapeHtml(n.link ?? "")}">
+                  <button type="button" class="notif-item${n.is_read ? "" : " is-unread"}" data-notif="${escapeHtml(n.id)}" data-link="${escapeHtml(n.link ?? "")}" data-related-table="${escapeHtml(n.related_table ?? "")}" data-related-id="${escapeHtml(n.related_id ?? "")}">
                     <span class="notif-title">${escapeHtml(n.title)}</span>
                     ${n.body ? `<span class="notif-body">${escapeHtml(n.body)}</span>` : ""}
                     <span class="notif-time">${relativeTime(n.created_at)}</span>
@@ -499,8 +499,20 @@ async function initNotifications(profile) {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.notif;
         const link = btn.dataset.link;
+        const relatedTable = btn.dataset.relatedTable;
+        const relatedId = btn.dataset.relatedId;
         await supabase.from("notifications").update({ is_read: true }).eq("id", id);
-        if (link) location.href = link;
+        if (!link) return;
+        // vehicles.html / vehicles-database.html both know to read this
+        // param on load: scroll that row into view, highlight it, and
+        // open its details card - so a CPC/OR-CR expiry notification (or
+        // any other vehicle notification) lands you on the exact vehicle
+        // rather than just the page.
+        const url =
+          relatedTable === "vehicles" && relatedId
+            ? `${link}?vehicle=${encodeURIComponent(relatedId)}`
+            : link;
+        location.href = url;
       });
     });
   }
@@ -597,6 +609,27 @@ export function vehicleDetailsHtml(v, operatorLabel) {
       </div>
     </div>
   `;
+}
+
+// Shared by vehicles.html and vehicles-database.html - a notification
+// (e.g. a CPC/OR-CR expiry alert) links here with ?vehicle=<id>
+// (app.js's own notification click handler adds it). Call this after
+// each render(), since the row it's looking for only exists once the
+// table has actually painted. `openDetails` is page-specific (the
+// operator and staff pages each have their own), so it's passed in
+// rather than owned here.
+export function applyVehicleHighlightFromQuery(openDetails) {
+  const vehicleId = new URLSearchParams(location.search).get("vehicle");
+  if (!vehicleId) return;
+  const row = document.querySelector(`tr[data-vehicle-id="${CSS.escape(vehicleId)}"]`);
+  if (!row) return;
+
+  document
+    .querySelectorAll("tr.row-highlighted")
+    .forEach((r) => r.classList.remove("row-highlighted"));
+  row.classList.add("row-highlighted");
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  openDetails(vehicleId);
 }
 
 export function showMessage(id, text, kind = "error") {

@@ -63,6 +63,7 @@
         ltfrbBadge,
         expiryCell,
         vehicleDetailsHtml,
+        applyVehicleHighlightFromQuery,
         escapeHtml,
       } from "./assets/app.js";
 
@@ -85,6 +86,7 @@
       initDetailsDialog();
       document.getElementById("search").addEventListener("input", render);
       await load();
+      applyVehicleHighlightFromQuery(openDetails);
 
       function initStatusFilter() {
         document.querySelectorAll("#status-filter [data-filter]").forEach((btn) => {
