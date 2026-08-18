@@ -205,6 +205,13 @@
         "Gate 4": "Bicol / Visayas / Mindanao (Gate 4)",
       };
 
+      // Used by vehicleMatchesRoute()/routeTokens() below - must be up
+      // here with the rest of the early state, since initForm() (called
+      // a few lines down) now calls routesWithRegisteredVehicle() at
+      // module top-level, which needs this already initialized rather
+      // than still in its temporal dead zone.
+      const ROUTE_STOPWORDS = new Set(["CITY", "VIA", "THE", "AND", "OF", "TUNNEL"]);
+
       const profile = await guardPage("operator");
       if (profile) {
         renderNav(profile);
@@ -355,8 +362,8 @@
       // a canonical booking route ("Tabaco City, Albay") as a plain
       // substring, so compare on significant word overlap instead.
       // "CITY" alone is filtered out as too generic to mean anything.
-      const ROUTE_STOPWORDS = new Set(["CITY", "VIA", "THE", "AND", "OF", "TUNNEL"]);
-
+      // (ROUTE_STOPWORDS itself lives with the early module-level state
+      // above - see the comment there.)
       function routeTokens(s) {
         return (s || "")
           .toUpperCase()
@@ -365,10 +372,44 @@
           .filter((w) => w.length >= 3 && !ROUTE_STOPWORDS.has(w));
       }
 
+      // Matching only the *town* segment (text before the first comma),
+      // never the full string - two different towns in the same
+      // province ("Balanga, Bataan" vs "Mariveles, Bataan") would
+      // otherwise match each other purely on the shared province word
+      // "Bataan", exactly the province-level-instead-of-city-level
+      // linking mistake already fixed once in the masterlist data itself
+      // (see the CHANGELOG). A route with no comma (a raw fallback
+      // string with no confident canonical link) just compares its
+      // whole text as the "town" part, same as before.
+      function routeTownPart(route) {
+        const idx = (route || "").indexOf(",");
+        return idx === -1 ? route || "" : route.slice(0, idx);
+      }
+
       function vehicleMatchesRoute(vehicle, bookingRoute) {
         if (!vehicle.route || !bookingRoute) return false;
-        const vehicleTokens = new Set(routeTokens(vehicle.route));
-        return routeTokens(bookingRoute).some((t) => vehicleTokens.has(t));
+        const vehicleTownTokens = new Set(routeTokens(routeTownPart(vehicle.route)));
+        return routeTokens(routeTownPart(bookingRoute)).some((t) => vehicleTownTokens.has(t));
+      }
+
+      // The Route dropdown itself is narrowed to routes at least one of
+      // the operator's own vehicles is registered for (e.g. Genesis
+      // Transport only sees Balanga, Clark, Mariveles) - never a route
+      // they have no way to actually fulfill anyway, since #51 already
+      // requires a matching vehicle to submit. Never locks an operator
+      // out entirely, though: with no vehicles yet, or with vehicles
+      // whose route text doesn't match any canonical route at all, this
+      // falls back to the full list rather than showing nothing - the
+      // no-vehicles messaging elsewhere on this form already covers the
+      // first case, and the second is rare enough (bad/unlinked vehicle
+      // route data) that hiding every route would be worse than showing
+      // routes #51 will still reject at submit time.
+      function routesWithRegisteredVehicle() {
+        if (approvedVehicles.length === 0) return ROUTES;
+        const matching = ROUTES.filter((r) =>
+          approvedVehicles.some((v) => vehicleMatchesRoute(v, r))
+        );
+        return matching.length > 0 ? matching : ROUTES;
       }
 
       // The transfer dialog's "Receiving operator" dropdown - other
@@ -526,13 +567,13 @@
           (Boolean(route) && pool.length === 0);
       }
 
-      // Grouped by gate (matching how staff assign bays) rather than one
-      // flat list of 80+ routes - unlike plate/edit_route, this dropdown
-      // never needs to preserve a legacy value that isn't in the list,
-      // since new bookings always pick from ROUTES.
-      function routeOptionsHtml(selected) {
+      // Grouped by gate (matching how staff assign bays). `routes`
+      // defaults to the full canonical list, but both callers narrow it
+      // to routesWithRegisteredVehicle() - the operator's own routes are
+      // the only ones they can actually book anyway (#51).
+      function routeOptionsHtml(selected, routes = ROUTES) {
         const byGate = new Map();
-        for (const r of ROUTES) {
+        for (const r of routes) {
           const gate = ROUTE_GATES[r] ?? "Other";
           if (!byGate.has(gate)) byGate.set(gate, []);
           byGate.get(gate).push(r);
@@ -561,7 +602,10 @@
       }
 
       function initForm() {
-        document.getElementById("route").innerHTML = routeOptionsHtml(null);
+        document.getElementById("route").innerHTML = routeOptionsHtml(
+          null,
+          routesWithRegisteredVehicle()
+        );
         document.getElementById("route").addEventListener("change", () => {
           updatePlateOptions();
           checkGateFullness();
@@ -1004,12 +1048,15 @@
         editingId = bookingId;
 
         // Include the booking's current route even if it predates the
-        // fixed route list (e.g. old free-text test data), same reasoning
-        // as the plate fallback right below - never silently lose it.
+        // fixed route list, or isn't one of the operator's own routes
+        // (e.g. a vehicle registration changed since this was booked) -
+        // same reasoning as the plate fallback right below - never
+        // silently lose it.
         const routeSelect = document.getElementById("edit_route");
-        const routeIsListed = ROUTES.includes(booking.route);
+        const editableRoutes = routesWithRegisteredVehicle();
+        const routeIsListed = editableRoutes.includes(booking.route);
         routeSelect.innerHTML =
-          routeOptionsHtml(booking.route) +
+          routeOptionsHtml(booking.route, editableRoutes) +
           (routeIsListed
             ? ""
             : `<option value="${escapeHtml(booking.route)}" selected>${escapeHtml(

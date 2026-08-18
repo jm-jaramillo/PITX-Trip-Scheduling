@@ -1468,6 +1468,57 @@ Updates README per project convention.
 
 ---
 
+### 52. Route dropdown narrowed to the operator's own registered routes (18 Aug)
+
+The Route field on the booking form now only lists routes at least one
+of the operator's own vehicles is registered for - e.g. Genesis
+Transport (vehicles registered only for Balanga, Clark, and Mariveles,
+confirmed against the live data before building this) only ever sees
+those three, not the other 80. Falls back to the full list rather than
+showing nothing if the operator has vehicles but none match any
+canonical route at all, so this can never lock someone out entirely.
+Same narrowing in the **Change** dialog, still preserving a booking's
+current route as an option even if it's since fallen outside the
+matched set. (`routesWithRegisteredVehicle()` in `docs/dashboard.html`.)
+
+**Found and fixed two real bugs while verifying this live:**
+
+- **A temporal-dead-zone bug**, the same class this codebase has hit
+  before (#37/#39/#46): `initForm()` (called at module top-level) now
+  calls the new function, which needs `ROUTE_STOPWORDS` - but that
+  `const` was declared later in the file than where the call actually
+  executes. Symptom: the Route dropdown rendered completely empty, with
+  a `ReferenceError: Cannot access 'ROUTE_STOPWORDS' before
+  initialization` in the console. Fixed by moving the declaration up
+  into the file's existing early-module-state block, same fix pattern
+  as every prior occurrence of this bug.
+- **A real province-vs-city matching bug**, on both sides: comparing
+  *full* route token sets let two different towns in the same province
+  match each other purely on the shared province word - "Mariveles,
+  Bataan" was incorrectly offered as a valid vehicle for a "Balanga,
+  Bataan" booking, both client-side (the plate dropdown) and
+  server-side (`bookings_insert_own`, `request_booking_change()`),
+  since neither had been updated when the *data* got the equivalent fix
+  in #50. Fixed both: `routeTownPart()`/`vehicleMatchesRoute()` in
+  `docs/dashboard.html`, and `route_town_part()`/`vehicle_matches_route()`
+  in migration `0028` - matching now compares only the town segment
+  (before the first comma) of each route, never the full string.
+
+Verified live with a test operator seeded with vehicles for Balanga,
+Clark, and Mariveles (mirroring Genesis Transport's real registrations,
+confirmed directly against the database first): the Route dropdown
+showed exactly those three; after the TDZ fix, no console errors;
+before the town-vs-province fix, the Mariveles vehicle wrongly appeared
+as an option for a Balanga booking and a direct bypass insert with that
+mismatch silently succeeded - after the fix, the dropdown correctly
+excluded it and the same bypass insert correctly got a `42501` RLS
+violation, while a legitimate matching insert still succeeded. Test
+data cleaned up after.
+
+Updates README per project convention.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

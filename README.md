@@ -748,6 +748,35 @@ row explicitly as `bookings.plate_no`/`bookings.route` - the table name
 itself works as the row's own qualifier in a `WITH CHECK` expression
 when no alias was given.
 
+**Matching compares only the *town* segment** (text before the first
+comma) of each route, never the full string - two different towns in
+the same province ("Balanga, Bataan" vs "Mariveles, Bataan") would
+otherwise match each other purely on the shared province word "Bataan",
+the exact province-level-instead-of-city-level mistake already caught
+once in the masterlist data itself (`routeTownPart()` client-side,
+`route_town_part()` in the same migration `0028` server-side - both
+matchers needed the fix, not just one, since the client-side dropdown
+filter and the server-side RLS gate each carry their own copy of this
+logic).
+
+### The Route dropdown only shows routes the operator has a vehicle for
+
+The Route field itself is narrowed to routes at least one of the
+operator's own vehicles is registered for - e.g. Genesis Transport (with
+vehicles registered only for Balanga, Clark, and Mariveles) only ever
+sees those three routes, never the other 80. This follows directly from
+the requirement above: there'd be no point offering a route with no way
+to actually fulfill it. Never locks an operator out entirely, though -
+with no vehicles yet, or with vehicles whose route text doesn't match
+any canonical route at all, this falls back to the full list rather
+than showing nothing (`routesWithRegisteredVehicle()` in
+`docs/dashboard.html`). Same narrowing applies to the **Change**
+dialog's route field, while still preserving a booking's current route
+as a selectable option even if it's since fallen outside that operator's
+matched set (e.g. a vehicle's registered route changed after the
+booking was made) - same "never silently lose the current value"
+reasoning as the plate fallback.
+
 ### Reassigning an approved booking's bay (staff)
 
 Staff can move an already-approved booking to a different bay from
