@@ -364,9 +364,25 @@
       // "CITY" alone is filtered out as too generic to mean anything.
       // (ROUTE_STOPWORDS itself lives with the early module-level state
       // above - see the comment there.)
+      //
+      // Diacritics (e.g. the "ñ" in "Biñan") are stripped to their base
+      // letter *before* the non-alphanumeric strip below, not by it -
+      // stripping "ñ" outright (as a bare [^A-Z0-9 ] replace would) turns
+      // "BIÑAN" into "BI AN", two 2-letter fragments that the length>=3
+      // filter then discards entirely, leaving zero tokens - a route
+      // whose town name has zero tokens can never match itself. Found
+      // via a real "Biñan, Laguna" vehicle that a matching booking
+      // rejected outright (#56).
       function routeTokens(s) {
         return (s || "")
           .toUpperCase()
+          .replace(/Á/g, "A")
+          .replace(/É/g, "E")
+          .replace(/Í/g, "I")
+          .replace(/Ó/g, "O")
+          .replace(/Ú/g, "U")
+          .replace(/Ñ/g, "N")
+          .replace(/Ü/g, "U")
           .replace(/[^A-Z0-9 ]/g, " ")
           .split(/\s+/)
           .filter((w) => w.length >= 3 && !ROUTE_STOPWORDS.has(w));

@@ -1696,6 +1696,48 @@ functions (`vehicle_matches_route()`, `route_town_part()` from migration
 
 ---
 
+### 56. Fix a live bug: accented town names could never match themselves (18 Aug)
+
+User report: "Why is there no Biñan Laguna in Jam Liner". Jam Liner's
+vehicles *were* correctly linked to `"Biñan, Laguna"` in the database
+(#54/#55) - the bug was in the matching logic itself, both client-side
+and, more seriously, in the RLS check that actually enforces #51's "must
+have a matching vehicle" rule.
+
+`routeTokens()` (`dashboard.html`) and its SQL port `route_tokens()`
+(migration `0026`) strip every character outside `[A-Za-z0-9 ]` in one
+blanket pass - including accented letters. `"BIÑAN"` has its `"Ñ"`
+replaced with a bare space, becoming `"BI AN"`: two 2-letter fragments
+that the `length >= 3` significant-word filter then throws away
+entirely. `route_tokens('Biñan, Laguna')` returned zero tokens for the
+town part, so `vehicle_matches_route('Biñan, Laguna', 'Biñan, Laguna')`
+returned **false** - confirmed directly against the database. Any route
+whose town name contains an accented letter can never match itself this
+way; Biñan is the only one currently on the list, but the bug is generic
+(not name-specific).
+
+This isn't just a dropdown cosmetic gap - `vehicle_matches_route()` is
+what `bookings_insert_own`'s RLS `WITH CHECK` and `request_booking_change()`
+actually enforce (#51). A Jam Liner vehicle correctly registered for
+Biñan, Laguna would be **rejected outright** trying to book that exact
+route, with no way around it from the UI.
+
+Fixed both sides the same way: map each accented letter to its base
+letter (`Ñ`&#8594;`N`, `Á`&#8594;`A`, etc.) *before* the non-alphanumeric strip,
+instead of letting that strip erase it as if it carried no letter at
+all. JS fix in `routeTokens()`; SQL fix via `CREATE OR REPLACE` in new
+migration `0029_route_tokens_diacritics.sql` (same signature, no `DROP`
+needed).
+
+Verified directly against the database post-migration:
+`route_tokens('Biñan, Laguna')` now returns `{BINAN, LAGUNA}`;
+`vehicle_matches_route('Biñan, Laguna', 'Biñan, Laguna')` now returns
+`true`; all 7 of Jam Liner's Biñan vehicles now match; re-checked
+`vehicle_matches_route('Mariveles, Bataan', 'Balanga, Bataan')` still
+returns `false` - no regression on the town-vs-province fix from #51.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
