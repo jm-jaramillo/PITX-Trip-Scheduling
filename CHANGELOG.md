@@ -1010,6 +1010,30 @@ suggested first.
 
 ---
 
+### 40. Auto-assign a bay on approval (18 Aug)
+
+Staff previously had to manually pick a bay from the dropdown before
+every approval, even though the gate-based suggestion (#38) already
+narrowed it down to a good default. Now the bay `<select>` on Pending
+requests comes **pre-selected** on load: the lowest-numbered available
+bay in the route's suggested gate, or the lowest-numbered available bay
+overall if the route has no gate or that gate is full. Staff can still
+change the dropdown before clicking Approve; the pick is a default, not
+forced. No schema or RLS change was needed - `approve()` already had
+full staff UPDATE rights via the existing `bookings_staff_update`
+policy, so this is a client-side selection-logic change only.
+
+Verified live: inserted a real pending test booking for "Davao City,
+Davao del Sur" (maps to Gate 4, bays 18-23), reloaded Pending requests,
+and confirmed via the page's own DOM that the bay `<select>` was
+pre-selected to "Bay 18" (the lowest bay in that gate) without any
+manual interaction. Clicked Approve without touching the dropdown, then
+queried the database directly and confirmed `status` became `approved`
+with `assigned_bay_id` resolving to Bay 18. Test data cleaned up
+afterward.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

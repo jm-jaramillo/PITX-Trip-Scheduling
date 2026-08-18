@@ -535,6 +535,12 @@ since staff may need to override it (the suggested gate is full, or the
 route has no gate mapped). Bays outside a named gate (1-7, 12-17, 24-32)
 are general-purpose and always appear under "Other bays".
 
+On **Pending requests**, the bay dropdown comes **pre-selected** with the
+lowest-numbered bay in the suggested gate (or the lowest-numbered
+available bay if the route has no gate) - approving is a single click,
+no bay has to be picked by hand. Staff can still change the dropdown
+first to assign a different bay; the pick is a default, not forced.
+
 Adding these gates' bays (21-23, 33-36 didn't exist before) raised active
 bay count from 20 to 27, which directly raises the per-slot approval cap
 described above.

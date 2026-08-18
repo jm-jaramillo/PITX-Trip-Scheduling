@@ -21,8 +21,10 @@
           <p class="eyebrow">Transport Operations &middot; Slot Approvals</p>
           <h1>Pending requests</h1>
           <p class="subtle">
-            Approve a request by assigning it a bay, or reject it with an
-            optional note back to the operator.
+            Approve a request and the system assigns the next available bay
+            automatically (the route's gate first, if it has one) - change
+            the dropdown first if you'd rather use a different bay. Reject
+            with an optional note back to the operator.
           </p>
         </div>
         <p class="subtle" id="queue-count"></p>
@@ -108,11 +110,19 @@
             const suggested = gate ? available.filter((bay) => bay.gate === gate) : [];
             const other = gate ? available.filter((bay) => bay.gate !== gate) : available;
 
+            // Auto-assign: the lowest-numbered bay at the suggested gate,
+            // or the lowest-numbered available bay if there's no gate
+            // match - staff just click Approve; the dropdown is there to
+            // override, not something they have to fill in themselves.
+            const autoPick = suggested[0] ?? other[0] ?? null;
+
             const optionsHtml = (list) =>
               list
                 .map(
                   (bay) =>
-                    `<option value="${bay.id}">${escapeHtml(bay.name)}</option>`
+                    `<option value="${bay.id}"${
+                      bay.id === autoPick?.id ? " selected" : ""
+                    }>${escapeHtml(bay.name)}</option>`
                 )
                 .join("");
 
@@ -142,9 +152,11 @@
                 <div class="request-actions">
                   <form data-approve="${escapeHtml(b.id)}">
                     <select required ${none ? "disabled" : ""}>
-                      <option value="" disabled selected>${
-                        none ? "No bays available" : "Assign bay…"
-                      }</option>
+                      ${
+                        none
+                          ? `<option value="" disabled selected>No bays available</option>`
+                          : ""
+                      }
                       ${
                         suggested.length
                           ? `<optgroup label="Suggested (${escapeHtml(gate)})">${optionsHtml(
