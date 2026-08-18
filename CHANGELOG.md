@@ -1646,6 +1646,56 @@ was left untouched throughout, as always.
 
 ---
 
+### 55. Merge the Nasugbu routes, add the 18 missing destinations (18 Aug)
+
+User: "Merge all Nasugbu, Batangas as one Nasugbu Batangas and add the
+152 vehicles with real destination then update the canonical routes" -
+direct follow-up to #54's two open items.
+
+**`ROUTES` in `docs/assets/app.js` (and its `ROUTE_GATES` map) updated,
+83 &#8594; 100 entries:**
+
+- `"Nasugbu Via Aguinaldo, Batangas"` and `"Nasugbu Via Kaybiang Tunnel,
+  Batangas"` merged into one `"Nasugbu, Batangas"` - the cleaned
+  masterlist (and the operators' own route text) can't say which via a
+  vehicle actually runs, so keeping two entries was manufacturing a
+  distinction the data can't support.
+- 18 new canonical routes added for the real destinations #54 found with
+  registered vehicles but no matching canonical route: Mabalacat City
+  (Pampanga, Gate 5), San Pedro, Biñan, Santa Rosa (Laguna, Gate 2),
+  Maragondon (Cavite, Gate 2), Bauan (Batangas, Gate 2), Boac
+  (Marinduque, Gate 2), Caramoan, Pasacao, Presentacion, Garchitorena
+  (Camarines Sur, Gate 4), Donsol, Prieto Diaz (Sorsogon, Gate 4),
+  Placer, Mandaon (Masbate, Gate 4), Cebu City (Cebu, Gate 4), Guiuan
+  (Eastern Samar, Gate 4), and Muntinlupa City (Metro Manila).
+- **Muntinlupa City, Metro Manila is flagged, not just added quietly**:
+  every other route in this list is provincial (matching the app's whole
+  premise of provincial operators booking a bay at PITX); Muntinlupa is
+  in NCR, same as PITX itself, and only 1 of 1,832 vehicles maps there.
+  It doesn't fit the Gate 2/4/5 scheme at all, so it's deliberately left
+  out of `ROUTE_GATES` (falls back to "show every bay" per
+  `gateForRoute()`'s existing null-handling) rather than assigning it a
+  made-up gate. Worth a staff double-check on whether this one vehicle's
+  data is real or a masterlist error - not corrected unilaterally, same
+  standard applied to the Naga/Camarines Norte case in #49/#54.
+
+**Data re-linked against the DB** using the same cleaned-masterlist
+lookup as #54, re-run against the expanded 100-route list: 239 vehicles
+updated (87 Nasugbu vehicles merged onto the single new entry, 152 onto
+the 18 new routes), 1,530 already correct, 63 still without clean
+City/Municipality/Province data left untouched. Zero ambiguous or
+unmatched rows remained after the expansion - verified directly against
+the database (`route ILIKE '%via aguinaldo%' or '%via kaybiang%'` now
+returns 0 rows; each of the 18 new routes' vehicle counts confirmed
+against the per-plate cleaned-data lookup).
+
+No RLS/migration changes needed - `ROUTES` is a UI-only picklist (nothing
+in the database enforces it against a fixed enum), so the live matching
+functions (`vehicle_matches_route()`, `route_town_part()` from migration
+`0028`) work unchanged against the new route strings.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

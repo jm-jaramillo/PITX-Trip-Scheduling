@@ -23,15 +23,22 @@ export function usernameToEmail(username) {
 
 // The fixed set of PITX-served provincial routes - a booking's route is
 // picked from this list rather than typed freehand, so it can't drift
-// into near-duplicate variants of the same route. Sourced from the
-// operator database spreadsheet's "Sheet5" (destination/province/region,
-// filtered to "Operational" status), which supersedes the original
-// 8-route "Routes" sheet - those 8 were already a subset of this list,
-// just with slightly different phrasing (e.g. "Tuguegarao City, Cagayan"
-// here is "Tuguegarao, Cagayan"). Existing bookings using the old
+// into near-duplicate variants of the same route. Originally sourced from
+// the operator database spreadsheet's "Sheet5" (destination/province/
+// region, filtered to "Operational" status), which superseded the
+// original 8-route "Routes" sheet. Existing bookings using an old
 // phrasing aren't renamed; the Change dialog's "not in the current list"
 // fallback (see dashboard.html) already handles a stored route that
 // doesn't match an entry here.
+//
+// Updated (#55) against the cleaned vehicle masterlist's City/Municipality
+// + Province columns: the two Nasugbu variants ("Via Aguinaldo" / "Via
+// Kaybiang Tunnel") were merged into one "Nasugbu, Batangas", since the
+// masterlist data can't reliably tell them apart; and 18 real destinations
+// that had vehicles registered for them but weren't on this list were
+// added (Mabalacat City, San Pedro, Guiuan, Placer, Cebu City, Caramoan,
+// Biñan, Maragondon, Pasacao, Boac, Presentacion, Garchitorena, Donsol,
+// Santa Rosa, Prieto Diaz, Bauan, Muntinlupa City, Mandaon).
 export const ROUTES = [
   "Baguio City, Benguet",
   "Lagangilang, Abra",
@@ -57,10 +64,14 @@ export const ROUTES = [
   "Calatagan, Batangas",
   "Lemery, Batangas",
   "Lipa City, Batangas",
-  "Nasugbu Via Aguinaldo, Batangas",
-  "Nasugbu Via Kaybiang Tunnel, Batangas",
+  "Nasugbu, Batangas",
   "San Juan, Batangas",
+  "Bauan, Batangas",
   "Santa Cruz, Laguna",
+  "San Pedro, Laguna",
+  "Biñan, Laguna",
+  "Santa Rosa, Laguna",
+  "Maragondon, Cavite",
   "Calauag, Quezon",
   "Guinayangan, Quezon",
   "Lucena City, Quezon",
@@ -68,6 +79,7 @@ export const ROUTES = [
   "Tagkawayan, Quezon",
   "San Jose, Occidental Mindoro",
   "Roxas, Oriental Mindoro",
+  "Boac, Marinduque",
   "Legazpi City, Albay",
   "Pio Duran, Albay",
   "Tabaco City, Albay",
@@ -83,6 +95,10 @@ export const ROUTES = [
   "Nabua, Camarines Sur",
   "Naga City, Camarines Sur",
   "San Jose, Camarines Sur",
+  "Caramoan, Camarines Sur",
+  "Pasacao, Camarines Sur",
+  "Presentacion, Camarines Sur",
+  "Garchitorena, Camarines Sur",
   "Bagamanoc, Catanduanes",
   "Baras, Catanduanes",
   "Viga, Catanduanes",
@@ -93,13 +109,19 @@ export const ROUTES = [
   "Matnog, Sorsogon",
   "Pilar, Sorsogon",
   "Sorsogon City, Sorsogon",
+  "Donsol, Sorsogon",
+  "Prieto Diaz, Sorsogon",
   "Masbate City, Masbate",
+  "Placer, Masbate",
+  "Mandaon, Masbate",
   "San Jose, Antique",
   "Iloilo City, Iloilo",
+  "Cebu City, Cebu",
   "Tagbilaran City, Bohol",
   "Naval, Biliran",
   "Borongan City, Eastern Samar",
   "Oras, Eastern Samar",
+  "Guiuan, Eastern Samar",
   "Ormoc City, Leyte",
   "Palompon, Leyte",
   "Tacloban City, Leyte",
@@ -116,6 +138,8 @@ export const ROUTES = [
   "General Santos, South Cotabato",
   "San Jose, Dinagat Islands",
   "Butuan City, Agusan del Norte",
+  "Mabalacat City, Pampanga",
+  "Muntinlupa City, Metro Manila",
 ];
 
 /** Each route's default gate, per PITX's terminal layout:
@@ -149,10 +173,14 @@ export const ROUTE_GATES = {
   "Calatagan, Batangas": "Gate 2",
   "Lemery, Batangas": "Gate 2",
   "Lipa City, Batangas": "Gate 2",
-  "Nasugbu Via Aguinaldo, Batangas": "Gate 2",
-  "Nasugbu Via Kaybiang Tunnel, Batangas": "Gate 2",
+  "Nasugbu, Batangas": "Gate 2",
   "San Juan, Batangas": "Gate 2",
+  "Bauan, Batangas": "Gate 2",
   "Santa Cruz, Laguna": "Gate 2",
+  "San Pedro, Laguna": "Gate 2",
+  "Biñan, Laguna": "Gate 2",
+  "Santa Rosa, Laguna": "Gate 2",
+  "Maragondon, Cavite": "Gate 2",
   "Calauag, Quezon": "Gate 2",
   "Guinayangan, Quezon": "Gate 2",
   "Lucena City, Quezon": "Gate 2",
@@ -160,6 +188,7 @@ export const ROUTE_GATES = {
   "Tagkawayan, Quezon": "Gate 2",
   "San Jose, Occidental Mindoro": "Gate 2",
   "Roxas, Oriental Mindoro": "Gate 2",
+  "Boac, Marinduque": "Gate 2",
   "Legazpi City, Albay": "Gate 4",
   "Pio Duran, Albay": "Gate 4",
   "Tabaco City, Albay": "Gate 4",
@@ -175,6 +204,10 @@ export const ROUTE_GATES = {
   "Nabua, Camarines Sur": "Gate 4",
   "Naga City, Camarines Sur": "Gate 4",
   "San Jose, Camarines Sur": "Gate 4",
+  "Caramoan, Camarines Sur": "Gate 4",
+  "Pasacao, Camarines Sur": "Gate 4",
+  "Presentacion, Camarines Sur": "Gate 4",
+  "Garchitorena, Camarines Sur": "Gate 4",
   "Bagamanoc, Catanduanes": "Gate 4",
   "Baras, Catanduanes": "Gate 4",
   "Viga, Catanduanes": "Gate 4",
@@ -185,13 +218,19 @@ export const ROUTE_GATES = {
   "Matnog, Sorsogon": "Gate 4",
   "Pilar, Sorsogon": "Gate 4",
   "Sorsogon City, Sorsogon": "Gate 4",
+  "Donsol, Sorsogon": "Gate 4",
+  "Prieto Diaz, Sorsogon": "Gate 4",
   "Masbate City, Masbate": "Gate 4",
+  "Placer, Masbate": "Gate 4",
+  "Mandaon, Masbate": "Gate 4",
   "San Jose, Antique": "Gate 4",
   "Iloilo City, Iloilo": "Gate 4",
+  "Cebu City, Cebu": "Gate 4",
   "Tagbilaran City, Bohol": "Gate 4",
   "Naval, Biliran": "Gate 4",
   "Borongan City, Eastern Samar": "Gate 4",
   "Oras, Eastern Samar": "Gate 4",
+  "Guiuan, Eastern Samar": "Gate 4",
   "Ormoc City, Leyte": "Gate 4",
   "Palompon, Leyte": "Gate 4",
   "Tacloban City, Leyte": "Gate 4",
@@ -208,6 +247,12 @@ export const ROUTE_GATES = {
   "General Santos, South Cotabato": "Gate 4",
   "San Jose, Dinagat Islands": "Gate 4",
   "Butuan City, Agusan del Norte": "Gate 4",
+  "Mabalacat City, Pampanga": "Gate 5",
+  // "Muntinlupa City, Metro Manila" intentionally has no gate here - it's
+  // in NCR, unlike every other route (all provincial), so it doesn't fit
+  // the Gate 2/4/5 provincial grouping below. Falls back to showing every
+  // bay via gateForRoute()'s `?? null`; flagged for staff to confirm this
+  // single-vehicle destination is real and assign it a gate manually.
 };
 
 /** The gate a booking's route should be assigned into, or null if the
