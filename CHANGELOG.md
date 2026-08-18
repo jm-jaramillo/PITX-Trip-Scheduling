@@ -1519,6 +1519,74 @@ Updates README per project convention.
 
 ---
 
+### 53. Re-check every operator for missed route links (18 Aug)
+
+User report: Jam Liner was missing routes it should have had (some of
+its Lucena City vehicles weren't showing up under that route). Audited
+every operator's vehicles for the same class of problem - vehicles
+whose `route` never got linked to a canonical route during #49/#50/#52,
+even though a link should have been possible - and fixed four real gaps
+in the matching logic that were causing correctable cases to be missed
+across many operators, not just Jam Liner:
+
+- **Multiple parenthetical asides confused the town/province split**:
+  "TABACO (ALBAY) - CUBAO (QUEZON CITY)" has two `(...)` groups: the
+  old code anchored to the *last* one (`QUEZON CITY`, unrelated) instead
+  of the first (`ALBAY`, the actual province), so the province check
+  always failed. Now takes the first parenthetical group.
+- **The risky-place "needs CITY" check didn't require adjacency**:
+  "LIPA CITY BATANGAS" contains the word "CITY" *somewhere*, which was
+  enough to let Batangas City wrongly tie with Lipa City for the match,
+  making the whole row ambiguous and unmatched. Now requires "CITY"
+  immediately next to the specific risky place name ("BATANGAS CITY",
+  not just "CITY" anywhere in the string).
+- **Bare province mentions couldn't disambiguate multi-way ties**: "SAN
+  JOSE, MINDORO" (no Occidental/Oriental qualifier) was rejected because
+  the distinctive-province-token check was computed against *all 83
+  routes*, where "MINDORO" isn't unique enough - even though, among just
+  the 5 "San Jose" candidates specifically, only one is in Mindoro at
+  all. Now computes distinctiveness within the tied candidate set, not
+  globally.
+- **A new explicit-conflict rule replaces the old blanket province
+  check**: directional/type qualifiers (NORTE/SUR, OCCIDENTAL/ORIENTAL,
+  NORTHERN/EASTERN/SOUTHERN/WESTERN) now only reject a candidate when
+  they *actively contradict* it (still correctly rejects "NAGA,
+  CAMARINES NORTE" against the real Naga City, Camarines *Sur* -
+  verified no regression), rather than requiring an exact word match
+  that abbreviations or bare mentions couldn't satisfy.
+- **One manual sub-locality alias**: "COTTA" is a district within Lucena
+  City (confirmed by manual review, not an algorithmic guess) with no
+  shared words with "Lucena" at all - added as an explicit alias so
+  "COTTA( LUCENA QUEZON)" links to Lucena City, Quezon.
+
+Re-ran the linking pass across every operator's masterlist vehicles
+(only re-attempting rows not already linked - nothing already-canonical
+was touched). Verified directly against the database: Lipa City
+Batangas, San Jose Occidental Mindoro, Maasin City Southern Leyte,
+Catarman Northern Samar, Tabaco City Albay, and Gubat Sorsogon cases
+across several different operators are now all correctly linked; the
+Naga/Camarines Norte rows are confirmed still correctly unlinked (no
+regression on the fix from #49). Jam Liner specifically: its Lucena
+City, Quezon vehicle count went from 29 to 36 once its Cotta-district
+vehicles linked correctly.
+
+**Separate finding, not fixed here**: Jam Liner (and several other
+operators) also has vehicles for Bauan (Batangas), Biñan (Laguna), Boac
+(Marinduque), Pacita Complex (Laguna), and Santa Rosa (Laguna) - real
+destinations that simply aren't among PITX's 83 canonical routes at
+all. No amount of matching-logic improvement links these, since there's
+nothing to link to; adding a new canonical route is a bigger decision
+(new gate assignment, etc.) than a data-linking fix, so these are left
+as-is pending that decision rather than invented unilaterally.
+
+No app code changed for this pass - only the one-off data-linking
+script's matching logic, since the live runtime matcher (`dashboard.html`,
+migration `0028`) already works correctly once `vehicles.route` holds an
+exact canonical string; the improvements only mattered for this one-time
+re-linking pass itself.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
