@@ -38,6 +38,31 @@ export const ROUTES = [
   "Mariveles, Bataan",
 ];
 
+/** Each route's default gate, per PITX's terminal layout:
+ *    Gate 2 (Bays 8-11)  - Laguna, Batangas, Quezon, Mindoro routes
+ *    Gate 4 (Bays 18-23) - Bicol, Visayas, Mindanao routes
+ *    Gate 5 (Bays 33-36) - North routes
+ * Every current route is a Northern Luzon destination, so all map to
+ * Gate 5 today - add an entry here (mapped to "Gate 2" or "Gate 4") when
+ * a Laguna/Batangas/Quezon/Mindoro/Bicol/Visayas/Mindanao route is added
+ * to ROUTES above. */
+export const ROUTE_GATES = {
+  "Tuguegarao City, Cagayan": "Gate 5",
+  "San Carlos City, Pangasinan": "Gate 5",
+  "Dagupan City, Pangasinan": "Gate 5",
+  "Olongapo City, Zambales": "Gate 5",
+  "Baguio via Inner Cities": "Gate 5",
+  "Banaue, Ifugao": "Gate 5",
+  "Sta. Ana, Cagayan": "Gate 5",
+  "Mariveles, Bataan": "Gate 5",
+};
+
+/** The gate a booking's route should be assigned into, or null if the
+ * route has no configured gate (falls back to showing every bay). */
+export function gateForRoute(route) {
+  return ROUTE_GATES[route] ?? null;
+}
+
 /* ------------------------------------------------------------------ time */
 
 // 48 half-hour slots per day. Slot N covers [N*30, N*30+30) minutes past

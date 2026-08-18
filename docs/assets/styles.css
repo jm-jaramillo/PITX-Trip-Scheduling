@@ -835,6 +835,25 @@ td strong,
   border-radius: 6px;
 }
 
+/* The Schedule page's inline "reassign this approved booking's bay"
+   control - a compact select + Save button standing in for the plain
+   .bay-tag on rows staff can edit. */
+.bay-reassign {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bay-reassign select {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue-ink);
+  background: var(--blue-wash);
+  border: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
 .muted {
   color: var(--faint);
 }

@@ -39,6 +39,7 @@
         renderNav,
         formatSlot,
         compareBayNames,
+        gateForRoute,
         showMessage,
         escapeHtml,
       } from "./assets/app.js";
@@ -61,7 +62,7 @@
             .order("slot", { ascending: true }),
           supabase
             .from("bays")
-            .select("id, name")
+            .select("id, name, gate")
             .eq("is_active", true),
           supabase
             .from("bookings")
@@ -100,6 +101,21 @@
             const available = bays.filter((bay) => !takenIds.has(bay.id));
             const none = available.length === 0;
 
+            // Bays at the gate this route is meant to use come first, as
+            // a separate optgroup - staff can still pick from "Other
+            // bays" if that gate is full or the route has no gate rule.
+            const gate = gateForRoute(b.route);
+            const suggested = gate ? available.filter((bay) => bay.gate === gate) : [];
+            const other = gate ? available.filter((bay) => bay.gate !== gate) : available;
+
+            const optionsHtml = (list) =>
+              list
+                .map(
+                  (bay) =>
+                    `<option value="${bay.id}">${escapeHtml(bay.name)}</option>`
+                )
+                .join("");
+
             return `
               <div class="request-card">
                 <div class="request-head">
@@ -115,7 +131,9 @@
                           ? `<span class="revised">changed &times;${b.revision_count}</span>`
                           : ""
                     }</p>
-                    <p class="subtle">${escapeHtml(b.route)}</p>
+                    <p class="subtle">${escapeHtml(b.route)}${
+                      gate ? ` &middot; ${escapeHtml(gate)}` : ""
+                    }</p>
                   </div>
                   <p class="request-when">${escapeHtml(
                     b.booking_date
@@ -127,14 +145,20 @@
                       <option value="" disabled selected>${
                         none ? "No bays available" : "Assign bay…"
                       }</option>
-                      ${available
-                        .map(
-                          (bay) =>
-                            `<option value="${bay.id}">${escapeHtml(
-                              bay.name
-                            )}</option>`
-                        )
-                        .join("")}
+                      ${
+                        suggested.length
+                          ? `<optgroup label="Suggested (${escapeHtml(gate)})">${optionsHtml(
+                              suggested
+                            )}</optgroup>`
+                          : ""
+                      }
+                      ${
+                        other.length
+                          ? `<optgroup label="${suggested.length ? "Other bays" : "Bays"}">${optionsHtml(
+                              other
+                            )}</optgroup>`
+                          : ""
+                      }
                     </select>
                     <button type="submit" class="btn-approve" ${
                       none ? "disabled" : ""

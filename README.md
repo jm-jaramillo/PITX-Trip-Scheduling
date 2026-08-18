@@ -98,7 +98,10 @@ Open the project's **SQL Editor** and run, in order:
    adds `supporting_doc_path`/`supporting_doc_name` to `vehicles`.
 19. [`supabase/migrations/0019_vehicle_change_supporting_document.sql`](supabase/migrations/0019_vehicle_change_supporting_document.sql) -
    lets `request_vehicle_change()` update the supporting document too.
-20. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+20. [`supabase/migrations/0020_bay_gates.sql`](supabase/migrations/0020_bay_gates.sql) -
+   adds `bays.gate`, tags Gates 2/4's existing bays, and adds the bays
+   (21-23, 33-36) the gate guide references that didn't exist yet.
+21. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
@@ -500,6 +503,46 @@ slot. A unique index enforces this in the database, so two staff approving
 at once can't double-book a bay. The **Bays** page controls the active
 count; the **Schedule** page shows approved-vs-capacity per slot for any
 day (48 slots).
+
+### Gates and route-based bay suggestions
+
+Bays are grouped into gates, matching the terminal's actual layout
+(migration `0020_bay_gates.sql`):
+
+| Gate | Bays | Routes |
+|---|---|---|
+| Gate 2 | 8-11 | Laguna, Batangas, Quezon, Mindoro |
+| Gate 4 | 18-23 | Bicol, Visayas, Mindanao |
+| Gate 5 | 33-36 | North |
+
+`ROUTE_GATES` in [`docs/assets/app.js`](docs/assets/app.js) maps each
+entry in `ROUTES` to its gate (every current route is a Northern Luzon
+destination, so all map to Gate 5 today - add an entry there when a
+Laguna/Batangas/Quezon/Mindoro/Bicol/Visayas/Mindanao route is added).
+Both **Pending requests**' approval dropdown and **Schedule**'s bay
+reassignment control group bay options into a **Suggested (Gate N)**
+group first, then **Other bays** - a suggestion, not a hard restriction,
+since staff may need to override it (the suggested gate is full, or the
+route has no gate mapped). Bays outside a named gate (1-7, 12-17, 24-32)
+are general-purpose and always appear under "Other bays".
+
+Adding these gates' bays (21-23, 33-36 didn't exist before) raised active
+bay count from 20 to 27, which directly raises the per-slot approval cap
+described above.
+
+### Reassigning an approved booking's bay (staff)
+
+Staff can move an already-approved booking to a different bay from
+**Schedule** - e.g. correcting a mistaken assignment, or freeing a bay up
+for an operational reason. Each approved booking's bay tag is replaced
+with a small select (grouped the same Suggested/Other way as approval)
+plus a **Save** button; picking a bay already taken by another approved
+booking in that same slot is impossible from the dropdown itself (it's
+excluded from the options), and the same unique-index constraint that
+protects approval also protects this as a defense-in-depth backstop.
+This is a direct table update (`bookings.assigned_bay_id`), not a new
+RPC - staff already have unrestricted UPDATE rights on `bookings`
+(migration `0001`).
 
 ## Project structure
 

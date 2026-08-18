@@ -31,6 +31,7 @@
 
       <div class="kpis" id="kpis"></div>
 
+      <div class="hidden" id="message"></div>
       <div id="grid"></div>
     </main>
 
@@ -44,6 +45,8 @@
         todayISO,
         addDays,
         statusBadge,
+        gateForRoute,
+        showMessage,
         escapeHtml,
       } from "./assets/app.js";
 
@@ -80,7 +83,7 @@
 
       async function load() {
         const [baysRes, bookingsRes] = await Promise.all([
-          supabase.from("bays").select("id").eq("is_active", true),
+          supabase.from("bays").select("id, name, gate").eq("is_active", true),
           supabase
             .from("bookings")
             .select(
@@ -91,7 +94,8 @@
             .order("slot", { ascending: true }),
         ]);
 
-        const totalBays = (baysRes.data ?? []).length;
+        const activeBays = baysRes.data ?? [];
+        const totalBays = activeBays.length;
         const bookings = bookingsRes.data ?? [];
 
         document.getElementById("capacity-note").textContent =
@@ -171,11 +175,13 @@
                                   )} &middot; ${escapeHtml(
                                     b.plate_no
                                   )} &middot; ${escapeHtml(b.route)}</span>${
-                                    b.bays?.name
-                                      ? `<span class="bay-tag">${escapeHtml(
-                                          b.bays.name
-                                        )}</span>`
-                                      : ""
+                                    b.status === "approved"
+                                      ? bayReassignHtml(b, activeBays, bookings)
+                                      : b.bays?.name
+                                        ? `<span class="bay-tag">${escapeHtml(
+                                            b.bays.name
+                                          )}</span>`
+                                        : ""
                                   }</li>`
                               )
                               .join("")}</ul>`
@@ -187,6 +193,99 @@
             </table>
           </div>
         `;
+
+        document.querySelectorAll("[data-reassign-bay]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            reassignBay(
+              form.dataset.reassignBay,
+              form.querySelector("select").value
+            );
+          });
+        });
+      }
+
+      // Staff can move an already-approved booking to a different bay -
+      // e.g. correcting a mistaken assignment, or freeing up a bay for an
+      // operational reason. Options are grouped: bays at the gate this
+      // route is meant to use first, then every other bay not already
+      // taken for this slot (the current bay is always included, even if
+      // it's outside the suggested gate, so re-opening this never loses
+      // the existing value).
+      function bayReassignHtml(booking, activeBays, allBookingsThisDay) {
+        const takenIds = new Set(
+          allBookingsThisDay
+            .filter(
+              (other) =>
+                other.slot === booking.slot &&
+                other.status === "approved" &&
+                other.id !== booking.id &&
+                other.bays?.id
+            )
+            .map((other) => other.bays.id)
+        );
+        const available = activeBays.filter(
+          (bay) => bay.id === booking.bays?.id || !takenIds.has(bay.id)
+        );
+
+        const gate = gateForRoute(booking.route);
+        const suggested = gate ? available.filter((bay) => bay.gate === gate) : [];
+        const other = gate ? available.filter((bay) => bay.gate !== gate) : available;
+
+        const optionsHtml = (list) =>
+          list
+            .map(
+              (bay) =>
+                `<option value="${bay.id}"${
+                  bay.id === booking.bays?.id ? " selected" : ""
+                }>${escapeHtml(bay.name)}</option>`
+            )
+            .join("");
+
+        return `
+          <form class="bay-reassign" data-reassign-bay="${escapeHtml(booking.id)}">
+            <select>
+              ${
+                suggested.length
+                  ? `<optgroup label="Suggested (${escapeHtml(gate)})">${optionsHtml(
+                      suggested
+                    )}</optgroup>`
+                  : ""
+              }
+              ${
+                other.length
+                  ? `<optgroup label="${suggested.length ? "Other bays" : "Bays"}">${optionsHtml(
+                      other
+                    )}</optgroup>`
+                  : ""
+              }
+            </select>
+            <button type="submit" class="btn-link">Save</button>
+          </form>
+        `;
+      }
+
+      async function reassignBay(bookingId, bayIdRaw) {
+        showMessage("message", "");
+        if (!bayIdRaw) return;
+
+        const { error } = await supabase
+          .from("bookings")
+          .update({ assigned_bay_id: Number(bayIdRaw) })
+          .eq("id", bookingId)
+          .eq("status", "approved");
+
+        if (error) {
+          // 23505 = unique violation on the approved bay/slot index.
+          showMessage(
+            "message",
+            error.code === "23505"
+              ? "That bay is already taken for this slot. Pick a different one."
+              : error.message
+          );
+          return;
+        }
+        await load();
       }
     </script>
   </body>
