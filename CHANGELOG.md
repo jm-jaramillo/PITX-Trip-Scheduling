@@ -1383,6 +1383,48 @@ franchise description intact.
 
 ---
 
+### 50. Only link routes at city/municipality level, and stop falling back to the franchise sentence (18 Aug)
+
+Two corrections to #49, both from user review:
+
+**Never link on a bare province/island-level mention.** A canonical
+place name that reduces to a single word which *also* happens to be a
+province name (Batangas City → "BATANGAS", also the province in every
+other Batangas-area entry; likewise Sorsogon City, Masbate City, Iloilo
+City, Davao City) let a bare province mention alone ("MASBATE",
+"BATANGAS", no city qualifier) satisfy that lone place-token and count
+as a specific city match - which is exactly the province-level linking
+the user asked not to do. Fixed by requiring the literal word "CITY" in
+the operating route text for these five specific canonical routes
+before accepting a match; a bare province/island name with no "CITY"
+now falls through instead.
+
+**Stop falling back to the franchise sentence.** When no confident
+city-level match exists, `route` was reverting to `franchise` - the
+full descriptive sentence ("SORSOGON CITY-PASAY CITY"). The user
+pointed out the sheet's own "OPERATING ROUTE" column (already read for
+matching, but only ever used to *derive* a canonical match, never
+stored on its own) is the better fallback - shorter, closer to a real
+route name, and it's what the match attempt was already based on
+anyway. Re-ran the whole linking pass for all 1,832 masterlist vehicles
+with both fixes together: `route` is now either the matched canonical
+value, or the raw OPERATING ROUTE text - never the franchise sentence.
+
+Result: 1,409 rows matched at confirmed city/municipality level (down
+from 1,443 - the difference is exactly the bare province/island
+mentions the stricter rule now correctly declines to guess at); 473
+fell back to their own OPERATING ROUTE text instead of franchise.
+
+Verified directly against the database: a bare "MASBATE" operating
+route no longer links to Masbate City (none remain); "SORSOGON CITY-
+PASAY CITY" franchise rows whose OPERATING ROUTE cell is itself just
+bare "SORSOGON" (no "CITY") correctly stayed unlinked, with `route` now
+showing that short text instead of the long franchise sentence; the
+Naga/Camarines Norte rows from #49 still correctly show their own
+operating-route text, not franchise, and remain unlinked.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
