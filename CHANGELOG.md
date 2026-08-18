@@ -1140,6 +1140,32 @@ dropdown listed exactly 41 options (its active count) rather than all
 
 ---
 
+### 43. Merge two duplicate operator accounts from the masterlist import (18 Aug)
+
+Flagged after #42 as worth a manual look, then confirmed by the user:
+two of the 12 new accounts the import created were actually the same
+real operator as an existing account, just spelled differently in the
+source sheet.
+
+- **Alan R. Arandia** (`alanarandia.ops`, 18 vehicles) merged into the
+  existing **A. Arandia Line** (`arandialine.ops`, which had 0 vehicles
+  of its own) - all 18 vehicles reassigned, no plate collisions.
+- **JVH Tranpost Ltd Co.** (`jvhtranpost.ops`, 1 vehicle) merged into the
+  existing **JVH Transport / R. Volante Line** (`jvhtransport.ops`, 36
+  vehicles) - its one vehicle collided on plate + case number with a
+  vehicle already in the target account (confirmed genuinely the same
+  unit), so rather than move it, backfilled the one field it had that
+  the kept row didn't (`bus_number`) onto the existing row and dropped
+  the duplicate.
+
+Both now-empty duplicate accounts (profile row + auth user) were
+deleted. Verified live: `arandialine.ops` and `jvhtransport.ops` show the
+correct combined vehicle counts (18 and 36), `alanarandia.ops` and
+`jvhtranpost.ops` no longer exist, and total vehicle count dropped by
+exactly 1 (the dropped JVH duplicate) to 1,835.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
