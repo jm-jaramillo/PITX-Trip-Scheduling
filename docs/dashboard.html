@@ -210,7 +210,17 @@
       // a few lines down) now calls routesWithRegisteredVehicle() at
       // module top-level, which needs this already initialized rather
       // than still in its temporal dead zone.
-      const ROUTE_STOPWORDS = new Set(["CITY", "VIA", "THE", "AND", "OF", "TUNNEL"]);
+      //
+      // "SAN"/"SANTA"/"SANTO" are generic Spanish-place-name honorifics
+      // shared by many otherwise-unrelated towns ("Santa Cruz, Laguna"
+      // vs "Santa Rosa, Laguna", "San Juan, Batangas" vs "San Jose,
+      // Camarines Sur") - without filtering them, a vehicle registered
+      // for one "Santa X" town matched the Route dropdown into showing
+      // every other "Santa Y" route too, purely on the shared "SANTA"
+      // token (#59).
+      const ROUTE_STOPWORDS = new Set([
+        "CITY", "VIA", "THE", "AND", "OF", "TUNNEL", "SAN", "SANTA", "SANTO",
+      ]);
 
       const profile = await guardPage("operator");
       if (profile) {

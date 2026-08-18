@@ -1810,6 +1810,47 @@ picklist.
 
 ---
 
+### 59. Fix "Santa X" routes bleeding into each other via the shared honorific (18 Aug)
+
+User report (screenshots): an operator whose vehicles are all "Santa
+Cruz, Laguna" saw "Santa Rosa, Laguna" offered in the Route dropdown too,
+despite having no vehicle registered for it - same bug class as #56,
+same root cause: `routeTokens()`'s significant-word matching treats
+`"SANTA"` as just another word, not a filler. `"Santa Cruz"` and `"Santa
+Rosa"` tokenize to `{SANTA, CRUZ}` and `{SANTA, ROSA}`, which overlap on
+`"SANTA"` - `vehicle_matches_route('Santa Cruz, Laguna', 'Santa Rosa,
+Laguna')` returned **true**. Confirmed directly against the database.
+This hit the RLS enforcement (#51), not just the dropdown - the actual
+booking-time check would let a Santa Cruz vehicle through for a Santa
+Rosa slot.
+
+Fixed by adding `"SAN"`, `"SANTA"`, `"SANTO"` to the stopword list
+already used to drop generic filler like `"CITY"`/`"VIA"` - the same
+place other filler words are filtered, not a special case. Checked all
+91 routes in the current list first: every "San "/"Santa "/"Santo "
+route has a second, distinguishing word (Cruz, Rosa, Jose, Juan, Andres,
+Pedro, Elena, Ana, Carlos...), so none collapse to zero tokens once the
+honorific itself is dropped - same safety check done for the diacritics
+fix in #56. JS fix in `routeTokens()`; SQL fix via migration
+`0030_route_tokens_san_santa_stopwords.sql` (`CREATE OR REPLACE`, same
+signature as before).
+
+Verified directly against the database post-migration:
+`vehicle_matches_route('Santa Cruz, Laguna', 'Santa Rosa, Laguna')` now
+`false`; `vehicle_matches_route('Santa Rosa, Laguna', 'Santa Rosa,
+Laguna')` still `true`; re-checked #56's Biñan fix and #51's Balanga/
+Mariveles town-vs-province fix both still hold, no regressions.
+
+**Noted but not fixed here** (pre-existing, unrelated to this bug): four
+different routes are literally named "San Jose" in different provinces
+(Nueva Ecija, Occidental Mindoro, Camarines Sur, Dinagat Islands) and
+always collided with each other via the shared "JOSE" town-part token,
+both before and after this fix - town-only matching can't distinguish
+same-named towns in different provinces. Not introduced or resolved by
+this change.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
