@@ -44,6 +44,11 @@
               <a href="vehicles.html">Register one</a> - PITX staff need to
               approve it before it appears here.
             </p>
+            <p class="fineprint hidden" id="no-route-vehicle-hint">
+              None of your approved vehicles are registered for this route -
+              <a href="vehicles.html">check or update a vehicle's route</a>,
+              or pick a different route.
+            </p>
           </div>
 
           <div class="field">
@@ -467,14 +472,25 @@
         });
       }
 
-      // Grouped by whether the vehicle's own route matches the booking's
-      // route, once one is picked - a suggestion, not a hard filter, same
-      // reasoning as the gate/bay suggestions elsewhere: a vehicle whose
-      // registered route just doesn't say so in a way the word-overlap
-      // check can catch should never become unselectable because of it.
+      // Hard filter, not a suggestion - a booking can only use a vehicle
+      // registered for that route (enforced server-side too, in
+      // bookings_insert_own and request_booking_change() - migration
+      // 0026 - since this client-side filter is only ever UX, never the
+      // actual protection). Once a route is picked, only vehicles whose
+      // own route matches it are even offered; with none, the dropdown
+      // disables with an explanatory placeholder instead of falling back
+      // to the full list.
       function plateOptionsHtml(selected, vehicles = approvedVehicles, bookingRoute = null) {
-        if (vehicles.length === 0) {
-          return `<option value="" disabled selected>No approved vehicles</option>`;
+        const pool = bookingRoute
+          ? vehicles.filter((v) => vehicleMatchesRoute(v, bookingRoute))
+          : vehicles;
+
+        if (pool.length === 0) {
+          return `<option value="" disabled selected>${
+            bookingRoute
+              ? "No vehicle registered for this route"
+              : "No approved vehicles"
+          }</option>`;
         }
 
         const optionHtml = (v) =>
@@ -488,31 +504,26 @@
           selected ? "" : " selected"
         }>Select a vehicle</option>`;
 
-        if (!bookingRoute) {
-          return placeholder + vehicles.map(optionHtml).join("");
-        }
-
-        const matched = vehicles.filter((v) => vehicleMatchesRoute(v, bookingRoute));
-        if (matched.length === 0) {
-          // Nothing to usefully group by - same flat list as no route picked.
-          return placeholder + vehicles.map(optionHtml).join("");
-        }
-
-        const others = vehicles.filter((v) => !matched.includes(v));
-        return (
-          placeholder +
-          `<optgroup label="Registered for this route">${matched.map(optionHtml).join("")}</optgroup>` +
-          (others.length
-            ? `<optgroup label="Other vehicles">${others.map(optionHtml).join("")}</optgroup>`
-            : "")
-        );
+        return placeholder + pool.map(optionHtml).join("");
       }
 
       function updatePlateOptions() {
         const plateSelect = document.getElementById("plate_no");
         const currentValue = plateSelect.value;
         const route = document.getElementById("route").value || null;
+        const pool = route
+          ? approvedVehicles.filter((v) => vehicleMatchesRoute(v, route))
+          : approvedVehicles;
         plateSelect.innerHTML = plateOptionsHtml(currentValue || null, approvedVehicles, route);
+        plateSelect.disabled = pool.length === 0;
+
+        const hintEl = document.getElementById("no-route-vehicle-hint");
+        if (hintEl) {
+          hintEl.classList.toggle("hidden", !(route && pool.length === 0));
+        }
+        document.getElementById("submit").disabled =
+          !(approvedVehicles.length > 0 && Boolean(profile.operator_name)) ||
+          (Boolean(route) && pool.length === 0);
       }
 
       // Grouped by gate (matching how staff assign bays) rather than one
@@ -659,6 +670,16 @@
             "Bookings must be made at least 4 hours before the scheduled time. Please choose a later slot."
           );
         }
+        // Mirrors the DB-enforced rule (migration 0026) so operators get an
+        // immediate answer instead of a raw RLS-violation error - the
+        // database check (bookings_insert_own) is still what actually
+        // protects this.
+        const vehicle = approvedVehicles.find((v) => v.plate_no === plateNo);
+        if (!vehicle || !vehicleMatchesRoute(vehicle, route)) {
+          return fail(
+            `${plateNo} isn't registered for ${route}. Choose a vehicle registered for this route, or pick a different route.`
+          );
+        }
 
         submitBtn.disabled = true;
         submitBtn.textContent = "Submitting…";
@@ -677,9 +698,13 @@
         submitBtn.textContent = "Request slot";
 
         if (error) {
+          // Both client-side checks above should catch these first - this
+          // only fires on a race (e.g. the vehicle's approval/route
+          // changed, or the clock crossed 4 hours, between page load and
+          // submit), so it covers both rules rather than naming just one.
           return fail(
             error.code === "42501" || /row-level security/i.test(error.message)
-              ? "Bookings must be made at least 4 hours before the scheduled time."
+              ? "Couldn't submit - either the slot is now within 4 hours, or that vehicle is no longer registered for this route. Please recheck and try again."
               : error.message
           );
         }

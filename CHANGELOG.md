@@ -1425,6 +1425,49 @@ operating-route text, not franchise, and remain unlinked.
 
 ---
 
+### 51. A vehicle must actually be registered for the route it books (18 Aug)
+
+#48's route-based vehicle grouping was a suggestion, not a requirement -
+an operator could still pick any of their vehicles for any route. Now
+it's a hard requirement: the Plate No. dropdown only offers vehicles
+whose own route matches the one picked (same word-overlap matching as
+#48); with none, the dropdown and Request button both disable with an
+explanatory note. Same rule in the Change dialog.
+
+**Enforced server-side, not just in the dropdown** (migration
+`0026_vehicle_route_required.sql`): ported the client-side matching
+function to SQL (`vehicle_matches_route()`/`route_tokens()`, kept in
+lockstep with the JS version) and added it to `bookings_insert_own`'s
+RLS check and to `request_booking_change()` - the dropdown filter is UX
+only, same as everywhere else in this app; RLS is the real gate.
+
+**Found a real bug in the first version while verifying live**: inside
+the RLS policy's correlated `EXISTS` subquery, the bare `plate_no`/
+`route` references (meant to mean the row being inserted) got shadowed
+by the subquery's own `vehicles.plate_no`/`vehicles.route` columns of
+the same name - Postgres resolved them to the innermost scope, silently
+turning the check into "does this vehicle's plate/route equal itself,"
+which is always true. Caught by deliberately bypassing the UI and
+inserting a mismatched booking directly through the Supabase client -
+it went through with no error. Fixed in migration `0027` by qualifying
+the outer row explicitly as `bookings.plate_no`/`bookings.route` (the
+table name itself works as the row's own qualifier in a `WITH CHECK`
+expression when no alias was given).
+
+Verified live end-to-end: the Plate No. dropdown correctly showed only
+the one matching vehicle out of two, and correctly disabled with the
+explanatory note (and a disabled Request button) when neither vehicle
+matched the picked route. Then, bypassing the UI entirely: the same
+mismatched insert that had silently succeeded under the buggy `0026`
+policy came back with a `42501` RLS violation after `0027`'s fix, while
+a matching insert still succeeded normally; `request_booking_change()`
+correctly rejected a mismatched edit with a friendly error message.
+Test data cleaned up after.
+
+Updates README per project convention.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

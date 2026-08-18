@@ -710,23 +710,43 @@ to an unrelated gate. It only fires when the route maps to a real gate
 and both a date and slot are already picked; picking a suggested slot
 re-runs the check immediately, in case that slot fills up too.
 
-### Vehicle suggestions by route
+### A vehicle must be registered for the route it books
 
-Once a route is picked, the Plate No. dropdown groups the operator's
-vehicles into **Registered for this route** and **Other vehicles** -
-a suggestion, not a hard filter, so a vehicle never becomes unselectable
-because of it. Matching compares significant word overlap between the
-canonical booking route ("Tabaco City, Albay") and the vehicle's own
-free-text `route` field (a franchise description like "TABACO, ALBAY-
-PASAY CITY" for a masterlist-imported vehicle, or whatever an operator
-typed by hand) - `"CITY"` and a few other generic words are ignored as
-too common to mean anything (`routeTokens()`/`vehicleMatchesRoute()` in
-`docs/dashboard.html`). If nothing matches (a real possibility given how
-differently a franchise description and a canonical route name can be
-worded, e.g. "Ilo-Ilo" vs "Iloilo"), the dropdown just falls back to one
-flat list, same as if no route were picked yet - no vehicle is ever
-hidden outright. The same grouping applies to the **Change** dialog,
-re-grouping live if the route is changed there too.
+Once a route is picked, the Plate No. dropdown **only** offers vehicles
+whose own `route` matches it - not a suggestion, a hard requirement.
+With none, the dropdown disables with an explanatory note and the
+Request button disables too. Matching compares significant word overlap
+between the canonical booking route ("Tabaco City, Albay") and the
+vehicle's own free-text `route` field (a franchise description like
+"TABACO, ALBAY-PASAY CITY" for a masterlist-imported vehicle, or
+whatever an operator typed by hand) - `"CITY"` and a few other generic
+words are ignored as too common to mean anything
+(`routeTokens()`/`vehicleMatchesRoute()` in `docs/dashboard.html`). The
+same rule applies to the **Change** dialog, re-filtering live if the
+route is changed there too.
+
+**This is enforced server-side, not just in the UI** (migration
+`0026_vehicle_route_required.sql`, `0027` fixing a real bug in it - see
+below): `bookings_insert_own`'s RLS policy and `request_booking_change()`
+both require an `exists` match against the operator's own approved,
+LTFRB-eligible vehicles via a SQL port of the same matching function
+(`vehicle_matches_route()`/`route_tokens()`), kept in lockstep with the
+client-side version. The dropdown filter is UX only, same as everywhere
+else in this app - RLS is the real gate, confirmed by bypassing the UI
+entirely and inserting a mismatched booking directly.
+
+`0026`'s first version of the RLS check had a real bug: inside the
+correlated `EXISTS` subquery, the bare `plate_no`/`route` references
+(meant to mean the row being inserted) got shadowed by the subquery's
+own `vehicles.plate_no`/`vehicles.route` columns of the same name -
+Postgres resolved them to the innermost scope, so the check silently
+became "does this vehicle's plate/route equal itself," which is always
+true. A live bypass test (inserting a deliberately mismatched booking
+directly, skipping the dropdown entirely) went through with no error,
+which is how this was caught. Fixed in `0027` by qualifying the outer
+row explicitly as `bookings.plate_no`/`bookings.route` - the table name
+itself works as the row's own qualifier in a `WITH CHECK` expression
+when no alias was given.
 
 ### Reassigning an approved booking's bay (staff)
 
