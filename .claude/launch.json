@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pitx-docs",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve-docs.mjs", "3100"],
+      "port": 3100
+    }
+  ]
+}

@@ -31,7 +31,7 @@
       <div class="toolbar" style="justify-content: space-between; margin-bottom: 20px">
         <div class="field" style="max-width: 360px; margin-bottom: 0">
           <label for="search">Search</label>
-          <input id="search" placeholder="Plate no., operator, or bus no.…" />
+          <input id="search" placeholder="Plate no., operator, bus no., or route…" />
         </div>
         <div class="mode-switch" role="tablist" id="status-filter">
           <button type="button" class="mode-tab is-active" data-filter="all">All</button>
@@ -215,7 +215,7 @@
 
         if (query) {
           rows = rows.filter((v) =>
-            [v.plate_no, v.bus_number, v.profiles?.operator_name, v.profiles?.username]
+            [v.plate_no, v.bus_number, v.profiles?.operator_name, v.profiles?.username, v.route]
               .filter(Boolean)
               .some((s) => s.toLowerCase().includes(query))
           );

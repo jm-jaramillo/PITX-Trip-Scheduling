@@ -1738,6 +1738,19 @@ returns `false` - no regression on the town-vs-province fix from #51.
 
 ---
 
+### 57. Search the fleet database by route (18 Aug)
+
+User: "Allow searching of routes in the searchbar of the vehicle
+database page of Staff" - `vehicles-database.html`'s search box already
+matched plate no., bus no., operator name, and username, but not a
+vehicle's `route`, even though Route is one of the visible table
+columns. Added `v.route` to the filtered fields and updated the search
+box's placeholder text ("Plate no., operator, bus no., or route…") to
+match. No new UI, no schema change - `route` was already selected by the
+page's existing query.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
