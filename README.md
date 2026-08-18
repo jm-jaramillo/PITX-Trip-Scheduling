@@ -348,15 +348,24 @@ for one.
 ### Route dropdown
 
 A booking's **Route** is picked from `ROUTES` in
-[`docs/assets/app.js`](docs/assets/app.js) - the fixed list of PITX-served
-provincial routes, sourced from the operator database's "Routes" sheet -
-rather than typed freehand, so it can't drift into near-duplicate
-variants of the same route (`"PITX - Batangas"` vs `"Batangas"` vs
-`"pitx batangas"`). The **Change** dialog preserves a booking's existing
-route even if it predates the fixed list (tagged "(not in the current
-list)"), same reasoning as the plate dropdown's "no longer approved"
-fallback - re-opening the dialog never silently loses a value it can't
-otherwise represent.
+[`docs/assets/app.js`](docs/assets/app.js) rather than typed freehand, so
+it can't drift into near-duplicate variants of the same route
+(`"PITX - Batangas"` vs `"Batangas"` vs `"pitx batangas"`). Sourced from
+the operator database spreadsheet's "Sheet5" (destination/province/region,
+filtered to "Operational" status) - **83 routes** covering every region
+PITX serves, not just the original 8 Northern Luzon ones. The dropdown
+groups them into three `<optgroup>`s matching the gate groups below
+("North (Gate 5)", "Cavite/Batangas/Laguna/Quezon/Mindoro (Gate 2)",
+"Bicol/Visayas/Mindanao (Gate 4)") rather than one 83-item flat list.
+
+The **Change** dialog preserves a booking's existing route even if it
+predates the current list (tagged "(not in the current list)"), same
+reasoning as the plate dropdown's "no longer approved" fallback -
+re-opening the dialog never silently loses a value it can't otherwise
+represent. This also covers the original 8 routes' slightly different
+phrasing (e.g. "Tuguegarao City, Cagayan" is now "Tuguegarao, Cagayan") -
+existing bookings using the old phrasing aren't renamed, they just show
+under that fallback if edited.
 
 ### Real operator data import (17 Aug)
 
@@ -511,15 +520,15 @@ Bays are grouped into gates, matching the terminal's actual layout
 
 | Gate | Bays | Routes |
 |---|---|---|
-| Gate 2 | 8-11 | Laguna, Batangas, Quezon, Mindoro |
-| Gate 4 | 18-23 | Bicol, Visayas, Mindanao |
-| Gate 5 | 33-36 | North |
+| Gate 2 | 8-11 | Cavite, Batangas, Laguna, Quezon, Mindoro (Regions IV-A/IV-B) |
+| Gate 4 | 18-23 | Bicol, Visayas, Mindanao (Regions V-XIII) |
+| Gate 5 | 33-36 | North (CAR, Regions I-III) |
 
-`ROUTE_GATES` in [`docs/assets/app.js`](docs/assets/app.js) maps each
-entry in `ROUTES` to its gate (every current route is a Northern Luzon
-destination, so all map to Gate 5 today - add an entry there when a
-Laguna/Batangas/Quezon/Mindoro/Bicol/Visayas/Mindanao route is added).
-Both **Pending requests**' approval dropdown and **Schedule**'s bay
+`ROUTE_GATES` in [`docs/assets/app.js`](docs/assets/app.js) maps each of
+the 83 entries in `ROUTES` to its gate, derived from Sheet5's REGION
+column rather than hand-picked per destination - add a route to `ROUTES`
+and this map together to keep them in sync. Both **Pending requests**'
+approval dropdown and **Schedule**'s bay
 reassignment control group bay options into a **Suggested (Gate N)**
 group first, then **Other bays** - a suggestion, not a hard restriction,
 since staff may need to override it (the suggested gate is full, or the

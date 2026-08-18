@@ -166,6 +166,7 @@
         renderNav,
         SLOTS,
         ROUTES,
+        ROUTE_GATES,
         formatSlot,
         todayISO,
         statusBadge,
@@ -187,6 +188,14 @@
       let approvedVehicles = [];
       let pendingTransferBookingIds = new Set();
       let operatorAccounts = [];
+
+      // Route dropdown groups: matches how staff assign bays, and keeps
+      // 80+ routes from being one unmanageable flat list.
+      const GATE_GROUP_LABELS = {
+        "Gate 5": "North (Gate 5)",
+        "Gate 2": "Cavite / Batangas / Laguna / Quezon / Mindoro (Gate 2)",
+        "Gate 4": "Bicol / Visayas / Mindanao (Gate 4)",
+      };
 
       const profile = await guardPage("operator");
       if (profile) {
@@ -354,18 +363,37 @@
         );
       }
 
-      // A plain list of the fixed PITX routes - unlike plate/edit_route,
-      // this dropdown never needs to preserve a legacy value that isn't in
-      // the list, since new bookings always pick from ROUTES.
+      // Grouped by gate (matching how staff assign bays) rather than one
+      // flat list of 80+ routes - unlike plate/edit_route, this dropdown
+      // never needs to preserve a legacy value that isn't in the list,
+      // since new bookings always pick from ROUTES.
       function routeOptionsHtml(selected) {
+        const byGate = new Map();
+        for (const r of ROUTES) {
+          const gate = ROUTE_GATES[r] ?? "Other";
+          if (!byGate.has(gate)) byGate.set(gate, []);
+          byGate.get(gate).push(r);
+        }
+
+        const groupsHtml = [...byGate.entries()]
+          .map(
+            ([gate, routes]) => `
+              <optgroup label="${escapeHtml(GATE_GROUP_LABELS[gate] ?? gate)}">
+                ${routes
+                  .map(
+                    (r) =>
+                      `<option value="${escapeHtml(r)}"${
+                        r === selected ? " selected" : ""
+                      }>${escapeHtml(r)}</option>`
+                  )
+                  .join("")}
+              </optgroup>`
+          )
+          .join("");
+
         return (
           `<option value="" disabled${selected ? "" : " selected"}>Select a route</option>` +
-          ROUTES.map(
-            (r) =>
-              `<option value="${escapeHtml(r)}"${
-                r === selected ? " selected" : ""
-              }>${escapeHtml(r)}</option>`
-          ).join("")
+          groupsHtml
         );
       }
 
