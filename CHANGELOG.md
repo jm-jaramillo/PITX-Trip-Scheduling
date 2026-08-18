@@ -1751,6 +1751,65 @@ page's existing query.
 
 ---
 
+### 58. Rebuild the canonical route list from the masterlist, not Sheet5 (18 Aug)
+
+User: "For the request bus bay slots, forget the initial canonical
+routes delete that and don't recall that anymore. Use the Column J,K for
+the routes for example 'Santa Rosa, Laguna'. Also update the vehicle
+database operating route with 'Santa Rosa, Laguna' to avoid confusion" -
+a deliberate pivot, not another patch: stop treating the operator
+database's "Sheet5" as the source of truth for what routes exist at all,
+and derive `ROUTES` purely from the cleaned vehicle masterlist's own
+City/Municipality (column J) and Province (column K) columns instead.
+
+**`ROUTES` and `ROUTE_GATES` in `docs/assets/app.js` fully replaced**,
+83/100 entries &#8594; **91 entries** - every one of them exactly the
+masterlist's own spelling, with only "Sta./Sto." abbreviations expanded
+to "Santa/Santo" (matching the user's own example: the masterlist has
+"Sta. Rosa, Laguna", expanded here to "Santa Rosa, Laguna"). Notable
+consequences of switching sources entirely:
+
+- **Some Sheet5 routes are gone** because zero vehicles in the
+  masterlist are actually registered for them - there was nothing to
+  link and no reason to keep offering them: "Tagaytay City, Cavite",
+  "Amadeo, Cavite", "Naval, Biliran", "Pintuyan, Southern Leyte", "San
+  Jose, Antique", "Clark, Pampanga", "Junction Luna (Abulug), Cagayan",
+  "Roxas, Oriental Mindoro", "Nabua, Camarines Sur".
+- **Several routes changed spelling** to match the masterlist exactly
+  instead of Sheet5's phrasing: "Balanga, Bataan" &#8594; "Balanga City,
+  Bataan", "Tuguegarao, Cagayan" &#8594; "Tuguegarao City, Cagayan", "San
+  Jose, Nueva Ecija" &#8594; "San Jose City, Nueva Ecija", "San Carlos,
+  Pangasinan" &#8594; "San Carlos City, Pangasinan", "Dagupan, Pangasinan"
+  &#8594; "Dagupan City, Pangasinan", "Laoag, Ilocos Norte" &#8594; "Laoag City,
+  Ilocos Norte", "General Santos, South Cotabato" &#8594; "General Santos
+  City, South Cotabato", "Mendez (Mendez-Nuñez), Cavite" &#8594; "Mendez,
+  Cavite", "Sta.Ana, Cagayan" &#8594; "Santa Ana, Cagayan".
+- Gates re-derived from each route's own province using the same
+  Gate 2/4/5 grouping as before (Cavite/Batangas/Laguna/Quezon/Mindoro,
+  Bicol/Visayas/Mindanao, CAR/Regions I-III) - not carried over from the
+  old map, since several routes' spelling changed.
+
+**Vehicle data re-linked to match** ("update the vehicle database
+operating route... to avoid confusion"): re-ran the plate-number lookup
+against the masterlist one more time, this time writing the *exact*
+`{City/Municipality}, {Province}` text (after the same Sta./Sto.
+expansion) with no other normalization - 122 vehicles updated (mostly
+the spelling changes above), 1,656 already matching, 54 still without
+clean masterlist data left untouched as before. Verified directly:
+`vehicles.route = 'Santa Rosa, Laguna'` now returns the 2 vehicles the
+user's example was about; zero leftover "Sta. Rosa"-style abbreviations
+remain in the vehicles table; confirmed only 4 pre-existing vehicles
+still carry non-canonical raw text (`SAN JOSE`, `NEGROS OCCI.`,
+`PALAWAN`, `GUIMARAS ISLAND` - real gaps in the masterlist's own data,
+not something this pass can fix) and 13 pre-existing bookings use
+free-text or now-dropped route names, both already covered by the
+Change dialog's existing "not in the current list" fallback.
+
+No RLS/migration changes needed, same as #55 - `ROUTES` is a UI-only
+picklist.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

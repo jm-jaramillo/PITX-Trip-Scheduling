@@ -374,25 +374,29 @@ for one.
 A booking's **Route** is picked from `ROUTES` in
 [`docs/assets/app.js`](docs/assets/app.js) rather than typed freehand, so
 it can't drift into near-duplicate variants of the same route
-(`"PITX - Batangas"` vs `"Batangas"` vs `"pitx batangas"`). Sourced from
-the operator database spreadsheet's "Sheet5" (destination/province/region,
-filtered to "Operational" status), originally **83 routes** covering every
-region PITX serves, not just the original 8 Northern Luzon ones -
-expanded to **100 routes** (#55) once the cleaned vehicle masterlist
-surfaced real destinations with registered vehicles that weren't on the
-list yet. The dropdown groups them into three `<optgroup>`s matching the
-gate groups below ("North (Gate 5)", "Cavite/Batangas/Laguna/Quezon/
-Mindoro (Gate 2)", "Bicol/Visayas/Mindanao (Gate 4)") rather than one
-flat list.
+(`"PITX - Batangas"` vs `"Batangas"` vs `"pitx batangas"`). This list went
+through three sources over time: originally the operator database
+spreadsheet's "Sheet5" (83 hand-picked routes), expanded to 100 once the
+cleaned vehicle masterlist surfaced real destinations that weren't on it
+yet (#55) - then **rebuilt entirely (#58)** directly from the cleaned
+masterlist's City/Municipality + Province columns, dropping Sheet5 as a
+source altogether: **91 routes**, each one exactly the masterlist's own
+spelling (only "Sta./Sto." abbreviations are expanded to "Santa/Santo"),
+since that's what `vehicles.route` is actually linked against. Some
+Sheet5-only destinations with zero vehicles ever registered for them
+(e.g. "Tagaytay City, Cavite", "Naval, Biliran") are gone as a result -
+if it's not in the masterlist, it's not a route here. The dropdown
+groups entries into three `<optgroup>`s matching the gate groups below
+("North (Gate 5)", "Cavite/Batangas/Laguna/Quezon/Mindoro (Gate 2)",
+"Bicol/Visayas/Mindanao (Gate 4)") rather than one flat list.
 
 The **Change** dialog preserves a booking's existing route even if it
 predates the current list (tagged "(not in the current list)"), same
 reasoning as the plate dropdown's "no longer approved" fallback -
 re-opening the dialog never silently loses a value it can't otherwise
-represent. This also covers the original 8 routes' slightly different
-phrasing (e.g. "Tuguegarao City, Cagayan" is now "Tuguegarao, Cagayan") -
-existing bookings using the old phrasing aren't renamed, they just show
-under that fallback if edited.
+represent. This covers both stale free-text bookings and routes dropped
+in the #58 rebuild - existing bookings using an old route name aren't
+renamed, they just show under that fallback if edited.
 
 ### Real operator data import (17 Aug)
 
@@ -680,11 +684,11 @@ Bays are grouped into gates, matching the terminal's actual layout
 | Gate 5 | 33-36 | North (CAR, Regions I-III) |
 
 `ROUTE_GATES` in [`docs/assets/app.js`](docs/assets/app.js) maps each of
-the 100 entries in `ROUTES` to its gate, derived from Sheet5's REGION
-column rather than hand-picked per destination (one exception: "Muntinlupa
-City, Metro Manila" has no gate entry, since it's NCR rather than
-provincial and doesn't fit this scheme - `gateForRoute()` falls back to
-showing every bay for it) - add a route to `ROUTES`
+the 91 entries in `ROUTES` to its gate, derived from each route's own
+province rather than hand-picked per destination (one exception:
+"Muntinlupa City, Metro Manila" has no gate entry, since it's NCR rather
+than provincial and doesn't fit this scheme - `gateForRoute()` falls back
+to showing every bay for it) - add a route to `ROUTES`
 and this map together to keep them in sync. Both **Pending requests**'
 approval dropdown and **Schedule**'s bay
 reassignment control group bay options into a **Suggested (Gate N)**

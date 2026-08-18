@@ -23,42 +23,44 @@ export function usernameToEmail(username) {
 
 // The fixed set of PITX-served provincial routes - a booking's route is
 // picked from this list rather than typed freehand, so it can't drift
-// into near-duplicate variants of the same route. Originally sourced from
-// the operator database spreadsheet's "Sheet5" (destination/province/
-// region, filtered to "Operational" status), which superseded the
-// original 8-route "Routes" sheet. Existing bookings using an old
-// phrasing aren't renamed; the Change dialog's "not in the current list"
-// fallback (see dashboard.html) already handles a stored route that
-// doesn't match an entry here.
+// into near-duplicate variants of the same route. Existing bookings
+// using an old phrasing aren't renamed; the Change dialog's "not in the
+// current list" fallback (see dashboard.html) already handles a stored
+// route that doesn't match an entry here.
 //
-// Updated (#55) against the cleaned vehicle masterlist's City/Municipality
-// + Province columns: the two Nasugbu variants ("Via Aguinaldo" / "Via
-// Kaybiang Tunnel") were merged into one "Nasugbu, Batangas", since the
-// masterlist data can't reliably tell them apart; and 18 real destinations
-// that had vehicles registered for them but weren't on this list were
-// added (Mabalacat City, San Pedro, Guiuan, Placer, Cebu City, Caramoan,
-// Biñan, Maragondon, Pasacao, Boac, Presentacion, Garchitorena, Donsol,
-// Santa Rosa, Prieto Diaz, Bauan, Muntinlupa City, Mandaon).
+// Rebuilt (#58) directly from the cleaned vehicle masterlist's
+// City/Municipality + Province columns (the actual source of truth for
+// what an operator's vehicle is registered for), replacing the earlier
+// hand-curated list sourced from the operator database's "Sheet5" -
+// that list included destinations with zero vehicles ever registered for
+// them, and used different spellings than the masterlist for others
+// (e.g. "Balanga, Bataan" vs the masterlist's "Balanga City, Bataan").
+// The only normalization applied to the masterlist's raw text is
+// expanding "Sta./Sto." abbreviations to "Santa/Santo" - every other
+// entry here is exactly what's in the masterlist's own columns, so
+// `vehicles.route` (see the data-relinking passes in CHANGELOG.md) can
+// match it verbatim with no further translation needed. Do not add a
+// route back in from memory of the old list - if it's not in the
+// masterlist, it doesn't belong here; re-derive from the masterlist
+// again instead.
 export const ROUTES = [
   "Baguio City, Benguet",
   "Lagangilang, Abra",
   "Banaue, Ifugao",
-  "San Carlos, Pangasinan",
-  "Dagupan, Pangasinan",
-  "Laoag, Ilocos Norte",
-  "Tuguegarao, Cagayan",
-  "Sta.Ana, Cagayan",
-  "Junction Luna (Abulug), Cagayan",
+  "San Carlos City, Pangasinan",
+  "Dagupan City, Pangasinan",
+  "Laoag City, Ilocos Norte",
+  "Tuguegarao City, Cagayan",
+  "Santa Ana, Cagayan",
   "Olongapo City, Zambales",
-  "San Jose, Nueva Ecija",
-  "Balanga, Bataan",
-  "Clark, Pampanga",
+  "Balanga City, Bataan",
   "Mariveles, Bataan",
+  "Mabalacat City, Pampanga",
+  "San Jose City, Nueva Ecija",
   "Alfonso, Cavite",
-  "Amadeo, Cavite",
-  "Mendez (Mendez-Nuñez), Cavite",
-  "Tagaytay City, Cavite",
   "Ternate, Cavite",
+  "Mendez, Cavite",
+  "Maragondon, Cavite",
   "Balayan, Batangas",
   "Batangas City, Batangas",
   "Calatagan, Batangas",
@@ -71,14 +73,12 @@ export const ROUTES = [
   "San Pedro, Laguna",
   "Biñan, Laguna",
   "Santa Rosa, Laguna",
-  "Maragondon, Cavite",
   "Calauag, Quezon",
   "Guinayangan, Quezon",
   "Lucena City, Quezon",
   "San Andres, Quezon",
   "Tagkawayan, Quezon",
   "San Jose, Occidental Mindoro",
-  "Roxas, Oriental Mindoro",
   "Boac, Marinduque",
   "Legazpi City, Albay",
   "Pio Duran, Albay",
@@ -92,7 +92,6 @@ export const ROUTES = [
   "Buhi, Camarines Sur",
   "Iriga City, Camarines Sur",
   "Lagonoy, Camarines Sur",
-  "Nabua, Camarines Sur",
   "Naga City, Camarines Sur",
   "San Jose, Camarines Sur",
   "Caramoan, Camarines Sur",
@@ -114,11 +113,9 @@ export const ROUTES = [
   "Masbate City, Masbate",
   "Placer, Masbate",
   "Mandaon, Masbate",
-  "San Jose, Antique",
   "Iloilo City, Iloilo",
   "Cebu City, Cebu",
   "Tagbilaran City, Bohol",
-  "Naval, Biliran",
   "Borongan City, Eastern Samar",
   "Oras, Eastern Samar",
   "Guiuan, Eastern Samar",
@@ -130,15 +127,13 @@ export const ROUTES = [
   "Calbayog City, Samar",
   "Liloan, Southern Leyte",
   "Maasin City, Southern Leyte",
-  "Pintuyan, Southern Leyte",
   "Silago, Southern Leyte",
   "Cagayan de Oro City, Misamis Oriental",
   "Davao City, Davao del Sur",
   "Tagum City, Davao del Norte",
-  "General Santos, South Cotabato",
+  "General Santos City, South Cotabato",
   "San Jose, Dinagat Islands",
   "Butuan City, Agusan del Norte",
-  "Mabalacat City, Pampanga",
   "Muntinlupa City, Metro Manila",
 ];
 
@@ -146,28 +141,26 @@ export const ROUTES = [
  *    Gate 2 (Bays 8-11)  - Cavite, Batangas, Laguna, Quezon, Mindoro (IV-A/IV-B)
  *    Gate 4 (Bays 18-23) - Bicol, Visayas, Mindanao (Regions V-XIII)
  *    Gate 5 (Bays 33-36) - North (CAR, Regions I-III)
- * Derived from Sheet5's REGION column, not hand-picked per destination -
+ * Derived from each route's province, not hand-picked per destination -
  * add a route to ROUTES and this map together to keep them in sync. */
 export const ROUTE_GATES = {
   "Baguio City, Benguet": "Gate 5",
   "Lagangilang, Abra": "Gate 5",
   "Banaue, Ifugao": "Gate 5",
-  "San Carlos, Pangasinan": "Gate 5",
-  "Dagupan, Pangasinan": "Gate 5",
-  "Laoag, Ilocos Norte": "Gate 5",
-  "Tuguegarao, Cagayan": "Gate 5",
-  "Sta.Ana, Cagayan": "Gate 5",
-  "Junction Luna (Abulug), Cagayan": "Gate 5",
+  "San Carlos City, Pangasinan": "Gate 5",
+  "Dagupan City, Pangasinan": "Gate 5",
+  "Laoag City, Ilocos Norte": "Gate 5",
+  "Tuguegarao City, Cagayan": "Gate 5",
+  "Santa Ana, Cagayan": "Gate 5",
   "Olongapo City, Zambales": "Gate 5",
-  "San Jose, Nueva Ecija": "Gate 5",
-  "Balanga, Bataan": "Gate 5",
-  "Clark, Pampanga": "Gate 5",
+  "Balanga City, Bataan": "Gate 5",
   "Mariveles, Bataan": "Gate 5",
+  "Mabalacat City, Pampanga": "Gate 5",
+  "San Jose City, Nueva Ecija": "Gate 5",
   "Alfonso, Cavite": "Gate 2",
-  "Amadeo, Cavite": "Gate 2",
-  "Mendez (Mendez-Nuñez), Cavite": "Gate 2",
-  "Tagaytay City, Cavite": "Gate 2",
   "Ternate, Cavite": "Gate 2",
+  "Mendez, Cavite": "Gate 2",
+  "Maragondon, Cavite": "Gate 2",
   "Balayan, Batangas": "Gate 2",
   "Batangas City, Batangas": "Gate 2",
   "Calatagan, Batangas": "Gate 2",
@@ -180,14 +173,12 @@ export const ROUTE_GATES = {
   "San Pedro, Laguna": "Gate 2",
   "Biñan, Laguna": "Gate 2",
   "Santa Rosa, Laguna": "Gate 2",
-  "Maragondon, Cavite": "Gate 2",
   "Calauag, Quezon": "Gate 2",
   "Guinayangan, Quezon": "Gate 2",
   "Lucena City, Quezon": "Gate 2",
   "San Andres, Quezon": "Gate 2",
   "Tagkawayan, Quezon": "Gate 2",
   "San Jose, Occidental Mindoro": "Gate 2",
-  "Roxas, Oriental Mindoro": "Gate 2",
   "Boac, Marinduque": "Gate 2",
   "Legazpi City, Albay": "Gate 4",
   "Pio Duran, Albay": "Gate 4",
@@ -201,7 +192,6 @@ export const ROUTE_GATES = {
   "Buhi, Camarines Sur": "Gate 4",
   "Iriga City, Camarines Sur": "Gate 4",
   "Lagonoy, Camarines Sur": "Gate 4",
-  "Nabua, Camarines Sur": "Gate 4",
   "Naga City, Camarines Sur": "Gate 4",
   "San Jose, Camarines Sur": "Gate 4",
   "Caramoan, Camarines Sur": "Gate 4",
@@ -223,11 +213,9 @@ export const ROUTE_GATES = {
   "Masbate City, Masbate": "Gate 4",
   "Placer, Masbate": "Gate 4",
   "Mandaon, Masbate": "Gate 4",
-  "San Jose, Antique": "Gate 4",
   "Iloilo City, Iloilo": "Gate 4",
   "Cebu City, Cebu": "Gate 4",
   "Tagbilaran City, Bohol": "Gate 4",
-  "Naval, Biliran": "Gate 4",
   "Borongan City, Eastern Samar": "Gate 4",
   "Oras, Eastern Samar": "Gate 4",
   "Guiuan, Eastern Samar": "Gate 4",
@@ -239,18 +227,16 @@ export const ROUTE_GATES = {
   "Calbayog City, Samar": "Gate 4",
   "Liloan, Southern Leyte": "Gate 4",
   "Maasin City, Southern Leyte": "Gate 4",
-  "Pintuyan, Southern Leyte": "Gate 4",
   "Silago, Southern Leyte": "Gate 4",
   "Cagayan de Oro City, Misamis Oriental": "Gate 4",
   "Davao City, Davao del Sur": "Gate 4",
   "Tagum City, Davao del Norte": "Gate 4",
-  "General Santos, South Cotabato": "Gate 4",
+  "General Santos City, South Cotabato": "Gate 4",
   "San Jose, Dinagat Islands": "Gate 4",
   "Butuan City, Agusan del Norte": "Gate 4",
-  "Mabalacat City, Pampanga": "Gate 5",
   // "Muntinlupa City, Metro Manila" intentionally has no gate here - it's
   // in NCR, unlike every other route (all provincial), so it doesn't fit
-  // the Gate 2/4/5 provincial grouping below. Falls back to showing every
+  // the Gate 2/4/5 provincial grouping above. Falls back to showing every
   // bay via gateForRoute()'s `?? null`; flagged for staff to confirm this
   // single-vehicle destination is real and assign it a gate manually.
 };
