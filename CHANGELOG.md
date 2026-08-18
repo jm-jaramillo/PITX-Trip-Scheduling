@@ -1302,6 +1302,34 @@ Updates README per project convention.
 
 ---
 
+### 48. Group the booking form's vehicle list by route (18 Aug)
+
+Once a route is picked, the Plate No. dropdown on the booking form (and
+the Change dialog) now groups the operator's vehicles into **Registered
+for this route** and **Other vehicles** - a suggestion, not a hard
+filter, matching the same non-blocking philosophy as the gate/bay
+suggestions elsewhere in the app (#38, #40). Matching compares
+significant word overlap between the canonical booking route ("Tabaco
+City, Albay") and the vehicle's own free-text `route` field, ignoring
+generic filler words ("CITY", "VIA", etc.) that don't mean anything on
+their own. If nothing matches, the dropdown falls back to one flat list
+- exactly as if no route were picked - since a franchise description
+and a canonical route name can be worded differently enough that no
+overlap exists (e.g. "Ilo-Ilo" vs "Iloilo"), and a vehicle should never
+become unselectable because of that.
+
+Verified live with a throwaway operator and 3 vehicles (one with a
+route matching the picked booking route, one with an unrelated route,
+one with no route set): picking a matching route correctly grouped the
+matching vehicle alone under "Registered for this route"; picking a
+route nothing matched correctly fell back to the flat list; the Change
+dialog grouped and re-grouped live the same way, preserving the already-
+selected plate through the switch. Test data cleaned up after.
+
+Updates README per project convention.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

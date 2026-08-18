@@ -710,6 +710,24 @@ to an unrelated gate. It only fires when the route maps to a real gate
 and both a date and slot are already picked; picking a suggested slot
 re-runs the check immediately, in case that slot fills up too.
 
+### Vehicle suggestions by route
+
+Once a route is picked, the Plate No. dropdown groups the operator's
+vehicles into **Registered for this route** and **Other vehicles** -
+a suggestion, not a hard filter, so a vehicle never becomes unselectable
+because of it. Matching compares significant word overlap between the
+canonical booking route ("Tabaco City, Albay") and the vehicle's own
+free-text `route` field (a franchise description like "TABACO, ALBAY-
+PASAY CITY" for a masterlist-imported vehicle, or whatever an operator
+typed by hand) - `"CITY"` and a few other generic words are ignored as
+too common to mean anything (`routeTokens()`/`vehicleMatchesRoute()` in
+`docs/dashboard.html`). If nothing matches (a real possibility given how
+differently a franchise description and a canonical route name can be
+worded, e.g. "Ilo-Ilo" vs "Iloilo"), the dropdown just falls back to one
+flat list, same as if no route were picked yet - no vehicle is ever
+hidden outright. The same grouping applies to the **Change** dialog,
+re-grouping live if the route is changed there too.
+
 ### Reassigning an approved booking's bay (staff)
 
 Staff can move an already-approved booking to a different bay from

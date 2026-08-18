@@ -336,12 +336,34 @@
       async function loadApprovedVehicles() {
         const { data } = await supabase
           .from("vehicles")
-          .select("plate_no, bus_number")
+          .select("plate_no, bus_number, route")
           .eq("operator_id", profile.id)
           .eq("status", "approved")
           .or("ltfrb_status.is.null,ltfrb_status.in.(active,ltfrb_verified)")
           .order("plate_no");
         approvedVehicles = data ?? [];
+      }
+
+      // A vehicle's own `route` is free text (a franchise description
+      // like "TABACO, ALBAY- PASAY CITY" for a masterlist-imported
+      // vehicle, or whatever an operator typed by hand) - it won't match
+      // a canonical booking route ("Tabaco City, Albay") as a plain
+      // substring, so compare on significant word overlap instead.
+      // "CITY" alone is filtered out as too generic to mean anything.
+      const ROUTE_STOPWORDS = new Set(["CITY", "VIA", "THE", "AND", "OF", "TUNNEL"]);
+
+      function routeTokens(s) {
+        return (s || "")
+          .toUpperCase()
+          .replace(/[^A-Z0-9 ]/g, " ")
+          .split(/\s+/)
+          .filter((w) => w.length >= 3 && !ROUTE_STOPWORDS.has(w));
+      }
+
+      function vehicleMatchesRoute(vehicle, bookingRoute) {
+        if (!vehicle.route || !bookingRoute) return false;
+        const vehicleTokens = new Set(routeTokens(vehicle.route));
+        return routeTokens(bookingRoute).some((t) => vehicleTokens.has(t));
       }
 
       // The transfer dialog's "Receiving operator" dropdown - other
@@ -445,23 +467,52 @@
         });
       }
 
-      function plateOptionsHtml(selected) {
-        if (approvedVehicles.length === 0) {
+      // Grouped by whether the vehicle's own route matches the booking's
+      // route, once one is picked - a suggestion, not a hard filter, same
+      // reasoning as the gate/bay suggestions elsewhere: a vehicle whose
+      // registered route just doesn't say so in a way the word-overlap
+      // check can catch should never become unselectable because of it.
+      function plateOptionsHtml(selected, vehicles = approvedVehicles, bookingRoute = null) {
+        if (vehicles.length === 0) {
           return `<option value="" disabled selected>No approved vehicles</option>`;
         }
+
+        const optionHtml = (v) =>
+          `<option value="${escapeHtml(v.plate_no)}"${
+            v.plate_no === selected ? " selected" : ""
+          }>${escapeHtml(v.plate_no)}${
+            v.bus_number ? ` — Bus No. ${escapeHtml(v.bus_number)}` : ""
+          }</option>`;
+
+        const placeholder = `<option value="" disabled${
+          selected ? "" : " selected"
+        }>Select a vehicle</option>`;
+
+        if (!bookingRoute) {
+          return placeholder + vehicles.map(optionHtml).join("");
+        }
+
+        const matched = vehicles.filter((v) => vehicleMatchesRoute(v, bookingRoute));
+        if (matched.length === 0) {
+          // Nothing to usefully group by - same flat list as no route picked.
+          return placeholder + vehicles.map(optionHtml).join("");
+        }
+
+        const others = vehicles.filter((v) => !matched.includes(v));
         return (
-          `<option value="" disabled${selected ? "" : " selected"}>Select a vehicle</option>` +
-          approvedVehicles
-            .map(
-              (v) =>
-                `<option value="${escapeHtml(v.plate_no)}"${
-                  v.plate_no === selected ? " selected" : ""
-                }>${escapeHtml(v.plate_no)}${
-                  v.bus_number ? ` — Bus No. ${escapeHtml(v.bus_number)}` : ""
-                }</option>`
-            )
-            .join("")
+          placeholder +
+          `<optgroup label="Registered for this route">${matched.map(optionHtml).join("")}</optgroup>` +
+          (others.length
+            ? `<optgroup label="Other vehicles">${others.map(optionHtml).join("")}</optgroup>`
+            : "")
         );
+      }
+
+      function updatePlateOptions() {
+        const plateSelect = document.getElementById("plate_no");
+        const currentValue = plateSelect.value;
+        const route = document.getElementById("route").value || null;
+        plateSelect.innerHTML = plateOptionsHtml(currentValue || null, approvedVehicles, route);
       }
 
       // Grouped by gate (matching how staff assign bays) rather than one
@@ -500,7 +551,10 @@
 
       function initForm() {
         document.getElementById("route").innerHTML = routeOptionsHtml(null);
-        document.getElementById("route").addEventListener("change", checkGateFullness);
+        document.getElementById("route").addEventListener("change", () => {
+          updatePlateOptions();
+          checkGateFullness();
+        });
 
         const dateInput = document.getElementById("booking_date");
         dateInput.min = todayISO();
@@ -636,6 +690,7 @@
         document.getElementById("route").value = "";
         document.getElementById("plate_no").value = "";
         document.getElementById("slot").value = "";
+        updatePlateOptions();
         document.getElementById("gate-full-hint").className = "hint hidden";
         await loadRequests();
       }
@@ -905,6 +960,17 @@
         document
           .getElementById("edit-form")
           .addEventListener("submit", saveEdit);
+        // Re-group the plate dropdown live if the operator changes the
+        // route while editing - same behavior as the main booking form.
+        document.getElementById("edit_route").addEventListener("change", () => {
+          const plateSelect = document.getElementById("edit_plate_no");
+          const currentValue = plateSelect.value;
+          plateSelect.innerHTML = plateOptionsHtml(
+            currentValue || null,
+            approvedVehicles,
+            document.getElementById("edit_route").value || null
+          );
+        });
       }
 
       function openEdit(bookingId) {
@@ -933,7 +999,7 @@
           (v) => v.plate_no === booking.plate_no
         );
         plateSelect.innerHTML =
-          plateOptionsHtml(booking.plate_no) +
+          plateOptionsHtml(booking.plate_no, approvedVehicles, booking.route) +
           (stillApproved
             ? ""
             : `<option value="${escapeHtml(booking.plate_no)}" selected>${escapeHtml(
