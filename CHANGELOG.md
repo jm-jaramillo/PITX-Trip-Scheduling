@@ -929,6 +929,46 @@ correctly in the table's action column, then removed it; operator
 profiles table correctly shows all 68 rows with contacts and the "no
 profile yet" badge inline.
 
+### 38. `a382cd9` — Staff can reassign an approved booking's bay; gate-based bay suggestions (17 Aug)
+
+Two related changes, from the terminal's actual gate layout the user
+provided:
+
+```
+Gate 2 (Bays 8-11)  - Laguna, Batangas, Quezon, Mindoro routes
+Gate 4 (Bays 18-23) - Bicol, Visayas, Mindanao routes
+Gate 5 (Bays 33-36) - North routes
+```
+
+- Migration `0020`: `bays.gate`, tagging Gate 2/4's existing bays and
+  adding the bays that didn't exist yet (21-23, 33-36) - **raises
+  active bay count from 20 to 27**, which directly raises the per-slot
+  approval capacity ("How capacity works" in the README).
+- `ROUTE_GATES` + `gateForRoute()` in `app.js` maps each `ROUTES` entry
+  to its gate - every current route is a Northern Luzon destination,
+  so all map to Gate 5 today; documented how to extend the map when a
+  Laguna/Batangas/Quezon/Mindoro/Bicol/Visayas/Mindanao route is added.
+- `staff.html`'s approval bay dropdown now groups options into
+  **"Suggested (Gate N)"** first, then **"Other bays"** - a suggestion,
+  not a hard restriction, since staff may need to override it (gate
+  full, or route has no gate mapped).
+- `schedule.html`: staff can now reassign an already-approved booking's
+  bay directly - the bay tag on each approved row becomes a select
+  (same Suggested/Other grouping) + **Save** button. Options exclude
+  bays already taken by another approved booking in that slot, so a
+  conflict can't even be picked; the existing unique index (migration
+  `0001`) is still the real backstop. Plain table update on
+  `bookings.assigned_bay_id` - staff already have unrestricted UPDATE
+  rights there, no new RPC needed.
+
+Verified live end-to-end: approved a test booking and confirmed the
+dropdown listed Gate 5 bays (33-36) first; reassigned it from Bay 33
+to Bay 35 on Schedule and confirmed via the database; inserted a
+second approved booking in the same slot at Bay 34 and confirmed the
+first booking's dropdown correctly excluded Bay 34 (and vice versa);
+confirmed the unique constraint still rejects a double-assignment
+attempted directly via SQL, bypassing the UI entirely.
+
 ---
 
 ## What the app does now
