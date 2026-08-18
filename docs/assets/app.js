@@ -403,6 +403,24 @@ export function statusBadge(status) {
   )}</span>`;
 }
 
+const LTFRB_STATUS_LABELS = {
+  active: "Active",
+  inactive: "Inactive",
+  no_record: "No Record",
+  ltfrb_verified: "LTFRB Verified",
+};
+
+// Only set on vehicles that came from the masterlist import (migration
+// 0021) - null for anything an operator registered directly, which this
+// returns as "—" rather than a badge, since it's simply not applicable.
+export function ltfrbBadge(ltfrbStatus) {
+  if (!ltfrbStatus) return "—";
+  const label = LTFRB_STATUS_LABELS[ltfrbStatus] ?? ltfrbStatus;
+  return `<span class="badge badge-${escapeHtml(ltfrbStatus)}">${escapeHtml(
+    label
+  )}</span>`;
+}
+
 export function showMessage(id, text, kind = "error") {
   const el = document.getElementById(id);
   if (!el) return;

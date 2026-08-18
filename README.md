@@ -487,6 +487,56 @@ direct UPDATE policy entirely). Staff see a **"View supporting document
 (`<filename>`)"** link on **Vehicle approvals** alongside the existing
 OR/CR photo link, when one was uploaded.
 
+### LTFRB masterlist import
+
+Vehicles can also arrive in bulk from PITX's own official masterlist
+rather than being registered one at a time by an operator - `vehicles`
+gained an `ltfrb_status` column for this (migration
+`0021_vehicle_ltfrb_status.sql`): `active`, `inactive`, `no_record`, or
+`ltfrb_verified`, plus a `source = 'masterlist_import'` value alongside
+the existing `manual`/`scanned` ones. It's **null** for every vehicle an
+operator registers themselves through **My vehicles** - that column only
+applies to the bulk import, and a null value is always treated as
+eligible.
+
+Imported vehicles insert straight in as `status = 'approved'` (skipping
+the normal Vehicle approvals queue, since this masterlist *is* PITX's own
+vetting), but only `active`/`ltfrb_verified` ones are eligible for the
+booking form's plate dropdown - `inactive`/`no_record` units are excluded
+even though `status` says approved. This is enforced in two places that
+both need it (migration `0022_ltfrb_status_transfer_eligibility.sql`):
+`dashboard.html`'s own vehicle query, and `list_operator_vehicles()` (the
+function the transfer dialog's plate dropdown and
+`request_booking_transfer()`'s server-side validation both call) - an
+inactive/no_record vehicle can't be booked *or* accepted into via a
+transfer. **My vehicles** shows each vehicle's LTFRB status as a badge and
+a banner explaining why an approved-but-inactive vehicle isn't in the
+booking form, so it doesn't look like it silently vanished; **Vehicles**
+(the staff fleet database, `vehicles-database.html`) shows the same badge
+across every operator.
+
+An import run matches each masterlist row's operator name against
+existing operator accounts (normalizing punctuation/case and stripping
+common suffixes like "Inc."/"Transport"/"Corp.", plus a short manual
+alias list for abbreviations and misspellings a plain string match can't
+bridge), creates a new operator account for any real company with no
+existing match, and skips rows with no identifiable operator at all. Bulk
+inserts use `on conflict (operator_id, <normalized plate>) do nothing`
+against the existing per-operator plate unique index, so re-running an
+import (or a batch that partially failed) is safe - already-imported
+rows are silently skipped rather than duplicated or erroring the whole
+batch.
+
+**Fleet database pagination:** `vehicles-database.html`'s query has no
+`.range()`, and Supabase/PostgREST caps a single request at 1000 rows by
+default - past that, the query silently truncates rather than erroring.
+The masterlist import pushed the table past 1000 rows for the first
+time, surfacing this; the page now pages through with `.range()` until a
+page comes back short, so the count keeps growing correctly. No other
+page in the app queries an unbounded table like this (bookings/vehicles
+elsewhere are always filtered by date, operator, or pending-status, which
+stay well under 1000).
+
 ## My schedule (operators)
 
 A read-only **timeline** of the operator's own **approved** bookings -

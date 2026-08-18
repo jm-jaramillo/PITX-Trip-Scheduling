@@ -328,12 +328,18 @@
 
       // Only approved vehicles show up here - a vehicle stops appearing the
       // moment it's edited (back to pending) until PITX staff re-approve it.
+      // Vehicles from the LTFRB masterlist import (migration 0021) also
+      // need an eligible ltfrb_status - inactive/no_record units are kept
+      // out of the plate list even if `status` is approved. Vehicles an
+      // operator registered directly have ltfrb_status = null, which is
+      // always eligible (that column only applies to the import).
       async function loadApprovedVehicles() {
         const { data } = await supabase
           .from("vehicles")
           .select("plate_no, bus_number")
           .eq("operator_id", profile.id)
           .eq("status", "approved")
+          .or("ltfrb_status.is.null,ltfrb_status.in.(active,ltfrb_verified)")
           .order("plate_no");
         approvedVehicles = data ?? [];
       }

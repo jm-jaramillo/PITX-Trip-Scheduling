@@ -253,6 +253,7 @@
         guardPage,
         renderNav,
         showMessage,
+        ltfrbBadge,
         escapeHtml,
       } from "./assets/app.js";
       import { extractOrCr } from "./assets/orcr-parser.js";
@@ -295,7 +296,7 @@
         const { data, error } = await supabase
           .from("vehicles")
           .select(
-            "id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, supporting_doc_path, supporting_doc_name, status, rejection_reason, revision_count"
+            "id, plate_no, case_number, mv_file_number, or_number, cr_number, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, supporting_doc_path, supporting_doc_name, status, ltfrb_status, rejection_reason, revision_count"
           )
           .eq("operator_id", profile.id)
           .order("created_at", { ascending: false });
@@ -327,7 +328,25 @@
           )
         );
 
+        // Approved vehicles from the LTFRB masterlist import can still be
+        // excluded from the booking form if their LTFRB status is inactive
+        // or no_record (see dashboard.html's loadApprovedVehicles) - flag
+        // that here so it doesn't look like an approved vehicle vanished.
+        const hasExcluded = data.some(
+          (v) =>
+            v.status === "approved" &&
+            (v.ltfrb_status === "inactive" || v.ltfrb_status === "no_record")
+        );
+
         host.innerHTML = `
+          ${
+            hasExcluded
+              ? `<p class="hint">One or more approved vehicles below are marked
+                  <strong>Inactive</strong> or <strong>No Record</strong> at LTFRB and
+                  won't appear in the booking form's plate list until that's
+                  resolved - contact PITX staff if this looks wrong.</p>`
+              : ""
+          }
           <div class="table-wrap">
             <table>
               <thead>
@@ -336,7 +355,7 @@
                   <th>OR No.</th><th>CR No.</th>
                   <th>Route</th><th>Bus No.</th><th>Seating capacity</th>
                   <th>Seat</th><th>Aircon</th><th>Date granted</th>
-                  <th>Date expiry</th><th>Status</th>
+                  <th>Date expiry</th><th>Status</th><th>LTFRB</th>
                   <th>Document</th><th>Note</th><th></th>
                 </tr>
               </thead>
@@ -364,6 +383,7 @@
                     <td data-label="Status"><span class="badge badge-${escapeHtml(
                       v.status
                     )}">${escapeHtml(v.status)}</span></td>
+                    <td data-label="LTFRB">${ltfrbBadge(v.ltfrb_status)}</td>
                     <td data-label="Document">${
                       docUrls[i]
                         ? `<a href="${docUrls[i]}" target="_blank" rel="noopener">${escapeHtml(

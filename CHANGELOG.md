@@ -1064,6 +1064,82 @@ saved as `pending` normally. Test data cleaned up afterward.
 
 ---
 
+### 42. Import the LTFRB masterlist's PROVL sheet into vehicles (18 Aug)
+
+Imported PITX's official "PROVL" (provincial) vehicle masterlist -
+1,910 rows - into `vehicles`, after confirming scope with the user given
+the size and irreversibility of the write:
+
+- **Operator matching**: normalized each row's OPERATOR string (strip
+  punctuation/case, common suffixes like "Inc."/"Transport"/"Corp.") and
+  matched against the 68 existing operator accounts - 1,693 rows matched
+  cleanly (plus a handful of hand-verified aliases for abbreviations/
+  misspellings a plain match couldn't bridge, e.g. "DMS" -> Davao Metro
+  Shuttle, "UNAH KLARRIZE" -> the existing Unahklarizze account).
+- **New accounts**: the remaining 217 rows belonged to 12 real companies
+  with no existing account (Penafrancia Tours & Travel, Metro Manila Bus
+  Co., Bicol Magayon, Legaspi St. Jude, Saulog Transit, and 7 others) -
+  created a new operator account for each (`TestPass123`, same convention
+  as every other account) rather than dropping their vehicles; 2 rows
+  with a blank operator field were skipped as unidentifiable.
+- **LTFRB status handling**: added `ltfrb_status` to `vehicles` (migration
+  `0021_vehicle_ltfrb_status.sql`) - `active`/`inactive`/`no_record`/
+  `ltfrb_verified`, plus a new `masterlist_import` value for `source`.
+  Every row imports as `status = 'approved'` regardless of LTFRB status
+  (this masterlist *is* PITX's own vetting), but only `active`/
+  `ltfrb_verified` vehicles are eligible for the booking form's plate
+  list and the transfer dialog's plate list - `list_operator_vehicles()`
+  got the same eligibility check (migration
+  `0022_ltfrb_status_transfer_eligibility.sql`) so an inactive vehicle
+  can't be transferred into either. **My vehicles** and **Vehicles**
+  (staff) both show the new LTFRB badge; **My vehicles** adds a banner
+  when an approved vehicle is excluded from booking, so it doesn't look
+  like it silently vanished.
+- **Field mapping**: plate_no, case_number, bus_number, and `route`
+  (from the sheet's fuller "FRANCHISE" column, not the shorter "OPERATING
+  ROUTE" one) map directly; `date_expiry` comes from "DATE OF VALIDITY
+  CPC" (an Excel date serial, converted via `xlsx.SSF.parse_date_code`).
+  Chassis no., sticker no., document type, and date-tagged have no
+  corresponding column in `vehicles` and weren't imported - out of scope
+  for now, not a data-loss bug.
+- **Duplicate rows**: bulk inserts used
+  `on conflict (operator_id, <normalized plate>) do nothing` against the
+  existing per-operator plate unique index, both for resumability after a
+  bad-date-value crash mid-import (see below) and because the sheet
+  itself has 75 genuine duplicate (operator, plate) rows (re-tagging
+  entries for the same unit) - confirmed by recomputing the expected
+  unique count independently and matching it exactly against what
+  actually inserted (1,833 of 1,908 resolved rows).
+
+Found and fixed two bugs while running this:
+
+- A handful of "DATE OF VALIDITY CPC" cells held invalid serials (e.g.
+  one that decoded to "1900-01-00"), which crashed the whole batch
+  insert containing them. Fixed the date converter to return null for
+  anything that doesn't decode to a real date, and made batch failures
+  fall back to inserting that batch's rows one at a time so a single bad
+  row can't take out 199 good ones with it.
+- **`vehicles-database.html` (staff fleet page) has no `.range()` on its
+  query**, and Supabase/PostgREST caps a single request at 1000 rows by
+  default - this import pushed the table past 1000 for the first time
+  (1,836 total after import, previously 3), silently truncating the page
+  to exactly 1000 rows with no error. Fixed by paging through with
+  `.range()` until a page comes back short. Hit the same
+  temporal-dead-zone bug as #37/#39 while fixing it - `PAGE_SIZE` was
+  declared right above the function that uses it, but that function is
+  *called* earlier in the module than that declaration executes; moved
+  it up with the other early module-level state.
+
+Verified live: reloaded **Vehicles** (staff) after the fix and confirmed
+`summary-count` and the actual row count both read 1,836, not 1,000.
+Logged in as a newly-created operator (`penafranciatours.ops`, which has
+both active and inactive vehicles) and confirmed the booking form's plate
+dropdown listed exactly 41 options (its active count) rather than all
+63, and that **My vehicles** showed the exclusion banner plus an
+`Inactive` badge on the right rows.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

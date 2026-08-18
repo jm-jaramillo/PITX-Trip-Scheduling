@@ -645,6 +645,19 @@ td strong,
   color: var(--label);
 }
 
+/* LTFRB status from the masterlist import (docs/vehicles-database.html,
+   docs/vehicles.html) - active/inactive reuse the badges above, these two
+   cover the masterlist's other statuses. */
+.badge-no_record {
+  background: var(--amber-wash);
+  color: var(--amber-ink);
+}
+
+.badge-ltfrb_verified {
+  background: var(--blue-wash);
+  color: var(--blue-ink);
+}
+
 /* flags a booking edited since it was first requested */
 .revised {
   display: inline-block;
