@@ -1983,6 +1983,43 @@ clicked, with matching figures.
 
 ---
 
+### 63. Week view restructured as a date-columns/time-slot-rows grid (19 Aug)
+
+User: "For the week view I want the Date to be the column headers and
+time slot to be row headers" - #62's staff Week view was one row per
+day with summary counts; restructured into a proper grid instead, with
+dates across the top and all 48 time slots down the side.
+
+**Staff**: each cell shows that day/slot's approved count over total
+capacity, colored red at capacity same as Day view, plus a small amber
+"+N" badge if bookings are still awaiting review in that cell. The old
+per-row "View day" button moved to the date column headers themselves,
+which are now clickable links into Day view for that date - still one
+click away, just relocated to match the new axis.
+
+Asked whether the operator's Week view (`my-schedule.html`, a per-day
+timeline list) should get the same grid treatment even though an
+operator's bookings are sparse compared to 27 bays' worth of capacity
+data - confirmed yes, for consistency. Same grid shape (dates as
+columns, all 48 slots as rows), each cell showing bay/route/plate for
+an approved booking or a dash - most cells are empty, which is expected
+for a typical operator's booking volume.
+
+Added `.week-grid`/`.pending-dot` styles (`docs/assets/styles.css`,
+reusing the existing `--amber-ink`/`--amber-wash` tokens rather than
+introducing new colors).
+
+Verified with a full authenticated visual walkthrough (throwaway staff +
+operator test accounts, cleaned up after): seeded approved and pending
+bookings across specific date/slot combinations for both roles,
+confirmed the grid correctly places each booking in its date column and
+slot row, the pending badge appears only where expected, today's column
+is highlighted, staff's date-header "View day" link jumps to the exact
+date clicked with matching data, and Day view is unchanged for both
+roles.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

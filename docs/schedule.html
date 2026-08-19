@@ -275,18 +275,23 @@
         }
 
         const today = todayISO();
+        // Per (date, slot) approved/pending counts - the grid's cells -
+        // plus the per-day totals the KPI strip above still needs.
+        const cellsByDate = new Map();
         const weekSummaries = days.map((date) => {
           const rows = byDate.get(date) ?? [];
           const approved = rows.filter((b) => b.status === "approved").length;
           const pending = rows.length - approved;
-          const bySlot = new Map();
+          const approvedBySlot = new Map();
+          const pendingBySlot = new Map();
           for (const b of rows) {
-            if (b.status !== "approved") continue;
-            bySlot.set(b.slot, (bySlot.get(b.slot) ?? 0) + 1);
+            const bucket = b.status === "approved" ? approvedBySlot : pendingBySlot;
+            bucket.set(b.slot, (bucket.get(b.slot) ?? 0) + 1);
           }
+          cellsByDate.set(date, { approvedBySlot, pendingBySlot });
           const fullSlots =
             totalBays > 0
-              ? SLOTS.filter((s) => (bySlot.get(s) ?? 0) >= totalBays).length
+              ? SLOTS.filter((s) => (approvedBySlot.get(s) ?? 0) >= totalBays).length
               : 0;
           return { date, approved, pending, fullSlots };
         });
@@ -323,37 +328,55 @@
           )
           .join("");
 
+        // Dates across the top, time slots down the side - a booking's
+        // date and time are the two axes staff actually scan by, so the
+        // grid is oriented to match rather than one row per day. Each
+        // date header doubles as a "View day" link into the full Day
+        // grid for that date, since this view only has room for counts.
         document.getElementById("grid").innerHTML = `
           <div class="table-wrap">
-            <table>
+            <table class="week-grid">
               <thead>
                 <tr>
-                  <th>Date</th><th>Approved</th><th>Awaiting review</th>
-                  <th>Slots at capacity</th><th></th>
+                  <th>Time slot</th>
+                  ${weekSummaries
+                    .map(
+                      (w) => `
+                    <th${w.date === today ? ' class="week-today"' : ""}>
+                      <button type="button" class="btn-link" data-view-day="${escapeHtml(
+                        w.date
+                      )}">${escapeHtml(formatDayHeading(w.date))}</button>
+                      ${w.date === today ? '<span class="tl-today-tag">Today</span>' : ""}
+                    </th>`
+                    )
+                    .join("")}
                 </tr>
               </thead>
               <tbody>
-                ${weekSummaries
-                  .map((w) => {
-                    const atCapacity = totalBays > 0 && w.fullSlots > 0;
-                    return `
-                    <tr${w.date === today ? ' class="week-today"' : ""}>
-                      <td data-label="Date">${escapeHtml(formatDayHeading(w.date))}${
-                        w.date === today
-                          ? ' <span class="tl-today-tag">Today</span>'
-                          : ""
-                      }</td>
-                      <td class="capacity" data-label="Approved">${w.approved}</td>
-                      <td data-label="Awaiting review">${w.pending}</td>
-                      <td class="capacity${
-                        atCapacity ? " capacity-full" : ""
-                      }" data-label="Slots at capacity">${w.fullSlots} / ${SLOTS.length}</td>
-                      <td><button type="button" class="btn-link" data-view-day="${escapeHtml(
-                        w.date
-                      )}">View day</button></td>
+                ${SLOTS.map((slot) => {
+                  return `
+                    <tr>
+                      <td class="hour-cell" data-label="Time slot">${escapeHtml(formatSlot(slot))}</td>
+                      ${days
+                        .map((date) => {
+                          const { approvedBySlot, pendingBySlot } = cellsByDate.get(date);
+                          const approved = approvedBySlot.get(slot) ?? 0;
+                          const pending = pendingBySlot.get(slot) ?? 0;
+                          const atCapacity = totalBays > 0 && approved >= totalBays;
+                          return `
+                        <td class="capacity${atCapacity ? " capacity-full" : ""}${
+                            date === today ? " week-today" : ""
+                          }" data-label="${escapeHtml(formatDayHeading(date))}">
+                          ${approved} / ${totalBays}${
+                            pending > 0
+                              ? `<span class="pending-dot" title="${pending} awaiting review">+${pending}</span>`
+                              : ""
+                          }
+                        </td>`;
+                        })
+                        .join("")}
                     </tr>`;
-                  })
-                  .join("")}
+                }).join("")}
               </tbody>
             </table>
           </div>

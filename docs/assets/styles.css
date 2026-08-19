@@ -1093,9 +1093,30 @@ tr.muted td {
   background: var(--ground-alt);
 }
 
-/* Today's row in the staff schedule's Week view. */
+/* Today's row/column in the staff schedule's Week view. */
 .week-today {
   background: var(--blue-wash);
+}
+
+/* Week view grid: dates across the top, time slots down the side. */
+.week-grid th {
+  text-align: center;
+  white-space: nowrap;
+}
+.week-grid td.capacity {
+  text-align: center;
+}
+
+.pending-dot {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--amber-ink);
+  background: var(--amber-wash);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
 }
 
 .timeline {

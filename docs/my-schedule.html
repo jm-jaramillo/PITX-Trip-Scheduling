@@ -45,6 +45,7 @@
         supabase,
         guardPage,
         renderNav,
+        SLOTS,
         formatSlot,
         todayISO,
         addDays,
@@ -127,7 +128,11 @@
           return;
         }
 
-        render(days, data ?? []);
+        if (viewMode === "week") {
+          renderWeekGrid(days, data ?? []);
+        } else {
+          render(days, data ?? []);
+        }
       }
 
       function formatDateHeading(iso) {
@@ -140,6 +145,80 @@
           day: "numeric",
           year: "numeric",
         });
+      }
+
+      function formatDayHeading(iso) {
+        const [y, m, d] = iso.split("-").map(Number);
+        const date = new Date(y, m - 1, d, 12);
+        return date.toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+      }
+
+      // Week view as a grid - dates across the top, time slots down the
+      // side, matching the staff schedule's Week grid (docs/schedule.html)
+      // so the same date/time axes read the same way for both roles.
+      // Most cells are empty (an operator typically has only a handful
+      // of approved bookings across a whole week's 336 slots) - each
+      // populated cell shows the bay, route, and plate for that slot.
+      function renderWeekGrid(days, bookings) {
+        const today = todayISO();
+        const host = document.getElementById("schedule");
+
+        const byDateSlot = new Map(days.map((d) => [d, new Map()]));
+        for (const b of bookings) {
+          byDateSlot.get(b.booking_date)?.set(b.slot, b);
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table class="week-grid">
+              <thead>
+                <tr>
+                  <th>Time slot</th>
+                  ${days
+                    .map(
+                      (date) => `
+                    <th${date === today ? ' class="week-today"' : ""}>
+                      ${escapeHtml(formatDayHeading(date))}
+                      ${date === today ? '<span class="tl-today-tag">Today</span>' : ""}
+                    </th>`
+                    )
+                    .join("")}
+                </tr>
+              </thead>
+              <tbody>
+                ${SLOTS.map((slot) => {
+                  return `
+                    <tr>
+                      <td class="hour-cell" data-label="Time slot">${escapeHtml(formatSlot(slot))}</td>
+                      ${days
+                        .map((date) => {
+                          const b = byDateSlot.get(date).get(slot);
+                          return `
+                        <td class="${date === today ? "week-today" : ""}" data-label="${escapeHtml(
+                            formatDayHeading(date)
+                          )}">
+                          ${
+                            b
+                              ? `<span class="bay-tag">${escapeHtml(
+                                  b.bays?.name ?? "No bay"
+                                )}</span> <span class="timeline-route">${escapeHtml(
+                                  b.route
+                                )}</span> <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>`
+                              : '<span class="muted">—</span>'
+                          }
+                        </td>`;
+                        })
+                        .join("")}
+                    </tr>`;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
       }
 
       // `days` is every date the current view should show (a single date

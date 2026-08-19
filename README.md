@@ -811,17 +811,20 @@ agree on where a week starts (Monday) without each re-deriving it.
 - **Day** is unchanged from before: staff get the full per-slot capacity
   grid with every booking listed and the bay-reassignment control;
   operators get that single date's approved bookings as a timeline.
-- **Week** shows the 7 days of the week containing the selected date,
-  *including empty days* - the shape of the week stays visible rather
-  than collapsing quiet days out of the list. For staff, this is a
-  summary table (one row per day: approved, awaiting review, slots at
-  capacity) rather than the full per-slot detail Day view has - a
-  48-row-by-7-column grid would be unusable, so Week trades detail for
-  an at-a-glance view and a **View day** link on each row jumps into Day
-  view already on that date. For operators, Week is the same timeline
-  layout as Day, just repeated once per day of the week (this replaces
-  the old "Upcoming / All" filter, which Week's date navigation now
-  supersedes).
+- **Week** shows the 7 days of the week containing the selected date as
+  a grid - **dates across the top as column headers, time slots down the
+  side as row headers** - so the layout matches how staff and operators
+  actually scan a week: by date, then by time. For staff, each cell
+  shows that day/slot's approved count over total capacity (with a small
+  badge for any bookings still awaiting review), colored the same
+  "at capacity" red as Day view; each date header doubles as a **View
+  day** link into the full Day grid for that date, since the week grid
+  only has room for counts, not full booking detail. For operators, each
+  cell shows the bay/route/plate of an approved booking on that date and
+  slot, or a dash - most cells are empty (a handful of bookings across a
+  week's 336 slots is typical), which is expected, not a rendering
+  issue. This replaces the old "Upcoming / All" filter, which Week's own
+  date navigation now supersedes.
 
 ### Reassigning an approved booking's bay (staff)
 
