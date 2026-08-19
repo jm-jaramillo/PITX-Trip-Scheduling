@@ -1944,6 +1944,45 @@ operator's approved vehicles registered for this booking's route."
 
 ---
 
+### 62. Day and Week views for both schedule pages (19 Aug)
+
+User: "For the schedule, I want to have a weekly view and a daily view.
+Do this for all accounts." Added a **Day / Week** toggle to both
+schedule pages - `schedule.html` (staff) and `my-schedule.html`
+(operators) - so "all accounts" means both roles, not just one.
+
+Added `startOfWeek()`/`weekDates()` to `docs/assets/app.js` (Monday-start
+weeks) so both pages derive week boundaries the same way instead of each
+re-implementing it.
+
+**Staff (`schedule.html`)**: Day view is unchanged - the full per-slot
+capacity grid for one date, with every booking listed and the
+bay-reassignment control. Week view is a new 7-row summary table (one
+row per day of the week containing the selected date: approved,
+awaiting review, slots at capacity), not the full per-slot detail -
+a 48-row-by-7-column grid would be unusably dense, so Week trades detail
+for an at-a-glance view of the whole week, with a **View day** link on
+each row that jumps straight into Day view already on that date. Prev/
+Next step by a day or a week depending on which mode is active.
+
+**Operators (`my-schedule.html`)**: replaced the old "Upcoming / All"
+filter with the same Day/Week toggle - Week (the new default) shows all
+7 days of the week, *including empty ones* (each showing "No approved
+slots" so the week's shape stays visible, same reasoning as the old
+"show every day" behavior just scoped to a week instead of everything at
+once), Day shows a single date. Both reuse the existing per-booking
+timeline card layout, just repeated once per date shown.
+
+Verified with a full authenticated visual walkthrough (throwaway staff +
+operator test accounts, cleaned up after): seeded bookings across
+several days of one week, confirmed both pages' Week view correctly
+showed empty days, today highlighted, and per-day figures matching the
+seeded data; confirmed Day view unchanged for both roles; confirmed
+staff's "View day" link switches into Day view on the exact date
+clicked, with matching figures.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

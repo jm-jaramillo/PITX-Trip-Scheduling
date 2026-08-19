@@ -1093,6 +1093,11 @@ tr.muted td {
   background: var(--ground-alt);
 }
 
+/* Today's row in the staff schedule's Week view. */
+.week-today {
+  background: var(--blue-wash);
+}
+
 .timeline {
   display: flex;
   flex-direction: column;

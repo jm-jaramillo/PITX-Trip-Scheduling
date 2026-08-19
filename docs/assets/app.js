@@ -317,6 +317,25 @@ export function addDays(iso, days) {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
+// Monday of the week containing `iso` - shared by the staff and operator
+// schedule pages' week view, so both agree on where a week starts/ends
+// without each re-deriving it. `getUTCDay()` is 0 (Sun) - 6 (Sat); this
+// rolls Sunday back 6 days and every other day back (day - 1), landing on
+// the preceding (or same) Monday.
+export function startOfWeek(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const day = date.getUTCDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  return addDays(iso, diffToMonday);
+}
+
+// The 7 ISO dates (Mon-Sun) of the week containing `iso`.
+export function weekDates(iso) {
+  const start = startOfWeek(iso);
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
 /**
  * Sorts bay names numerically ascending (Bay 1, Bay 2, ... Bay 20) rather
  * than alphabetically (Bay 1, Bay 10, ... Bay 2, Bay 20).

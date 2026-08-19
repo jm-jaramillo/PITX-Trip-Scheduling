@@ -26,9 +26,14 @@
             <a href="dashboard.html">My requests</a> for those.
           </p>
         </div>
-        <div class="mode-switch" role="tablist" id="range-filter">
-          <button type="button" class="mode-tab is-active" data-range="upcoming">Upcoming</button>
-          <button type="button" class="mode-tab" data-range="all">All</button>
+        <div class="toolbar">
+          <div class="mode-switch" role="tablist" id="view-mode">
+            <button type="button" class="mode-tab" data-view="day">Day</button>
+            <button type="button" class="mode-tab is-active" data-view="week">Week</button>
+          </div>
+          <button type="button" class="btn-outline" id="prev">&larr; Prev</button>
+          <input type="date" id="date" />
+          <button type="button" class="btn-outline" id="next">Next &rarr;</button>
         </div>
       </div>
 
@@ -42,6 +47,8 @@
         renderNav,
         formatSlot,
         todayISO,
+        addDays,
+        weekDates,
         escapeHtml,
       } from "./assets/app.js";
 
@@ -49,25 +56,56 @@
       if (!profile) throw new Error("unauthorised");
       renderNav(profile);
 
-      let allApproved = [];
-      let range = "upcoming";
+      const dateInput = document.getElementById("date");
+      const fromQuery = new URLSearchParams(location.search).get("date");
+      let currentDate = /^\d{4}-\d{2}-\d{2}$/.test(fromQuery ?? "")
+        ? fromQuery
+        : todayISO();
+      dateInput.value = currentDate;
 
-      initRangeFilter();
+      // Week is the default - closest to the old "Upcoming" view, showing
+      // a whole week (including empty days) rather than one date at a
+      // time. Day zooms into a single date; both share the same
+      // prev/next navigation, just at different step sizes.
+      let viewMode = "week";
+      document.querySelectorAll("#view-mode [data-view]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          viewMode = btn.dataset.view;
+          document
+            .querySelectorAll("#view-mode [data-view]")
+            .forEach((b) => b.classList.toggle("is-active", b === btn));
+          document.getElementById("prev").textContent =
+            viewMode === "week" ? "← Prev week" : "← Prev day";
+          document.getElementById("next").textContent =
+            viewMode === "week" ? "Next week →" : "Next day →";
+          load();
+        });
+      });
+      document.getElementById("prev").textContent = "← Prev week";
+      document.getElementById("next").textContent = "Next week →";
+
+      dateInput.addEventListener("change", () => {
+        if (dateInput.value) {
+          currentDate = dateInput.value;
+          load();
+        }
+      });
+      document.getElementById("prev").addEventListener("click", () => {
+        currentDate = addDays(currentDate, viewMode === "week" ? -7 : -1);
+        dateInput.value = currentDate;
+        load();
+      });
+      document.getElementById("next").addEventListener("click", () => {
+        currentDate = addDays(currentDate, viewMode === "week" ? 7 : 1);
+        dateInput.value = currentDate;
+        load();
+      });
+
       await load();
 
-      function initRangeFilter() {
-        document.querySelectorAll("#range-filter [data-range]").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            range = btn.dataset.range;
-            document
-              .querySelectorAll("#range-filter [data-range]")
-              .forEach((b) => b.classList.toggle("is-active", b === btn));
-            render();
-          });
-        });
-      }
-
       async function load() {
+        const days = viewMode === "week" ? weekDates(currentDate) : [currentDate];
+
         // Only approved bookings have a bay assigned - pending/declined
         // ones already show elsewhere (My requests), so this page stays
         // focused on "where do I actually need to show up".
@@ -78,7 +116,9 @@
           )
           .eq("operator_id", profile.id)
           .eq("status", "approved")
-          .order("booking_date", { ascending: false })
+          .gte("booking_date", days[0])
+          .lte("booking_date", days[days.length - 1])
+          .order("booking_date", { ascending: true })
           .order("slot", { ascending: true });
 
         if (error) {
@@ -87,8 +127,7 @@
           return;
         }
 
-        allApproved = data ?? [];
-        render();
+        render(days, data ?? []);
       }
 
       function formatDateHeading(iso) {
@@ -103,35 +142,22 @@
         });
       }
 
-      function render() {
+      // `days` is every date the current view should show (a single date
+      // in Day mode, 7 in Week mode) - always rendered, even with zero
+      // bookings, so the shape of the range is visible rather than
+      // silently collapsing empty days out of the list.
+      function render(days, bookings) {
         const today = todayISO();
-        const rows =
-          range === "upcoming"
-            ? allApproved.filter((b) => b.booking_date >= today)
-            : allApproved;
-
         const host = document.getElementById("schedule");
 
-        if (rows.length === 0) {
-          host.innerHTML = `<p class="empty">${
-            range === "upcoming"
-              ? "No upcoming approved slots."
-              : "No approved slots yet."
-          }</p>`;
-          return;
+        const byDate = new Map(days.map((d) => [d, []]));
+        for (const b of bookings) {
+          byDate.get(b.booking_date)?.push(b);
         }
 
-        // One group per calendar date, each rendered as its own vertical
-        // timeline - a booking list reads better chronologically grouped
-        // by day than as one flat table.
-        const byDate = new Map();
-        for (const b of rows) {
-          if (!byDate.has(b.booking_date)) byDate.set(b.booking_date, []);
-          byDate.get(b.booking_date).push(b);
-        }
-
-        host.innerHTML = [...byDate.entries()]
-          .map(([date, bookings]) => {
+        host.innerHTML = days
+          .map((date) => {
+            const rows = byDate.get(date) ?? [];
             const isPast = date < today;
             return `
               <section class="tl-day${isPast ? " tl-day-past" : ""}">
@@ -139,36 +165,40 @@
                   ${escapeHtml(formatDateHeading(date))}
                   ${date === today ? '<span class="tl-today-tag">Today</span>' : ""}
                 </h2>
-                <div class="timeline">
-                  ${bookings
-                    .map(
-                      (b) => `
-                    <div class="timeline-item">
-                      <div class="timeline-rail">
-                        <span class="timeline-dot"></span>
-                        <span class="timeline-line"></span>
-                      </div>
-                      <div class="timeline-card">
-                        <div class="timeline-time">${escapeHtml(formatSlot(b.slot))}</div>
-                        <div class="timeline-main">
-                          <span class="bay-tag">${escapeHtml(b.bays?.name ?? "No bay")}</span>
-                          <span class="timeline-route">${escapeHtml(b.route)}</span>
-                          <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>
-                        </div>
-                        ${
-                          b.previous_operator_name
-                            ? `<div class="subtle">
-                                <s class="transferred-from">${escapeHtml(
-                                  b.previous_operator_name
-                                )}</s> ${escapeHtml(b.operator_name)}
-                              </div>`
-                            : ""
-                        }
-                      </div>
-                    </div>`
-                    )
-                    .join("")}
-                </div>
+                ${
+                  rows.length === 0
+                    ? `<p class="empty">No approved slots.</p>`
+                    : `<div class="timeline">
+                        ${rows
+                          .map(
+                            (b) => `
+                          <div class="timeline-item">
+                            <div class="timeline-rail">
+                              <span class="timeline-dot"></span>
+                              <span class="timeline-line"></span>
+                            </div>
+                            <div class="timeline-card">
+                              <div class="timeline-time">${escapeHtml(formatSlot(b.slot))}</div>
+                              <div class="timeline-main">
+                                <span class="bay-tag">${escapeHtml(b.bays?.name ?? "No bay")}</span>
+                                <span class="timeline-route">${escapeHtml(b.route)}</span>
+                                <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>
+                              </div>
+                              ${
+                                b.previous_operator_name
+                                  ? `<div class="subtle">
+                                      <s class="transferred-from">${escapeHtml(
+                                        b.previous_operator_name
+                                      )}</s> ${escapeHtml(b.operator_name)}
+                                    </div>`
+                                  : ""
+                              }
+                            </div>
+                          </div>`
+                          )
+                          .join("")}
+                      </div>`
+                }
               </section>`;
           })
           .join("");

@@ -23,9 +23,13 @@
           <p class="subtle" id="capacity-note"></p>
         </div>
         <div class="toolbar">
-          <button type="button" class="btn-outline" id="prev">&larr; Prev day</button>
+          <div class="mode-switch" role="tablist" id="view-mode">
+            <button type="button" class="mode-tab is-active" data-view="day">Day</button>
+            <button type="button" class="mode-tab" data-view="week">Week</button>
+          </div>
+          <button type="button" class="btn-outline" id="prev">&larr; Prev</button>
           <input type="date" id="date" />
-          <button type="button" class="btn-outline" id="next">Next day &rarr;</button>
+          <button type="button" class="btn-outline" id="next">Next &rarr;</button>
         </div>
       </div>
 
@@ -44,6 +48,7 @@
         formatSlot,
         todayISO,
         addDays,
+        weekDates,
         statusBadge,
         gateForRoute,
         showMessage,
@@ -62,6 +67,26 @@
         : todayISO();
       dateInput.value = currentDate;
 
+      // "Day" is the original single-date grid; "Week" is a 7-day
+      // summary (see loadWeek()) with a link into Day view per date -
+      // full per-slot detail for 7 days at once would be an unusable
+      // 48-row-by-7-column table, so Week trades detail for an overview
+      // and Day stays the place bookings are actually reviewed.
+      let viewMode = "day";
+      document.querySelectorAll("#view-mode [data-view]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          viewMode = btn.dataset.view;
+          document
+            .querySelectorAll("#view-mode [data-view]")
+            .forEach((b) => b.classList.toggle("is-active", b === btn));
+          document.getElementById("prev").textContent =
+            viewMode === "week" ? "← Prev week" : "← Prev day";
+          document.getElementById("next").textContent =
+            viewMode === "week" ? "Next week →" : "Next day →";
+          load();
+        });
+      });
+
       dateInput.addEventListener("change", () => {
         if (dateInput.value) {
           currentDate = dateInput.value;
@@ -69,12 +94,12 @@
         }
       });
       document.getElementById("prev").addEventListener("click", () => {
-        currentDate = addDays(currentDate, -1);
+        currentDate = addDays(currentDate, viewMode === "week" ? -7 : -1);
         dateInput.value = currentDate;
         load();
       });
       document.getElementById("next").addEventListener("click", () => {
-        currentDate = addDays(currentDate, 1);
+        currentDate = addDays(currentDate, viewMode === "week" ? 7 : 1);
         dateInput.value = currentDate;
         load();
       });
@@ -82,6 +107,10 @@
       await load();
 
       async function load() {
+        return viewMode === "week" ? loadWeek() : loadDay();
+      }
+
+      async function loadDay() {
         const [baysRes, bookingsRes] = await Promise.all([
           supabase.from("bays").select("id, name, gate").eq("is_active", true),
           supabase
@@ -201,6 +230,146 @@
               form.dataset.reassignBay,
               form.querySelector("select").value
             );
+          });
+        });
+      }
+
+      function formatDayHeading(iso) {
+        const [y, m, d] = iso.split("-").map(Number);
+        // Noon avoids any timezone edge landing on the wrong calendar day.
+        const date = new Date(y, m - 1, d, 12);
+        return date.toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+      }
+
+      // A 7-day summary (Mon-Sun of the week containing currentDate) -
+      // one row per day with the same capacity KPIs Day view shows for a
+      // single date, so staff can spot a busy day across the week before
+      // drilling into it. "View day" jumps into Day view already on that
+      // date, rather than duplicating the full per-slot booking list here.
+      async function loadWeek() {
+        const days = weekDates(currentDate);
+        const [baysRes, bookingsRes] = await Promise.all([
+          supabase.from("bays").select("id").eq("is_active", true),
+          supabase
+            .from("bookings")
+            .select("booking_date, slot, status")
+            .gte("booking_date", days[0])
+            .lte("booking_date", days[6])
+            .in("status", ["pending", "approved"]),
+        ]);
+
+        const totalBays = (baysRes.data ?? []).length;
+        const bookings = bookingsRes.data ?? [];
+
+        document.getElementById("capacity-note").textContent =
+          `Week of ${days[0]} – ${days[6]}. Each 30-minute slot holds at ` +
+          `most ${totalBays} approved bus${totalBays === 1 ? "" : "es"}.`;
+
+        const byDate = new Map(days.map((d) => [d, []]));
+        for (const b of bookings) {
+          byDate.get(b.booking_date)?.push(b);
+        }
+
+        const today = todayISO();
+        const weekSummaries = days.map((date) => {
+          const rows = byDate.get(date) ?? [];
+          const approved = rows.filter((b) => b.status === "approved").length;
+          const pending = rows.length - approved;
+          const bySlot = new Map();
+          for (const b of rows) {
+            if (b.status !== "approved") continue;
+            bySlot.set(b.slot, (bySlot.get(b.slot) ?? 0) + 1);
+          }
+          const fullSlots =
+            totalBays > 0
+              ? SLOTS.filter((s) => (bySlot.get(s) ?? 0) >= totalBays).length
+              : 0;
+          return { date, approved, pending, fullSlots };
+        });
+
+        document.getElementById("kpis").innerHTML = [
+          {
+            label: "Approved this week",
+            value: weekSummaries.reduce((sum, w) => sum + w.approved, 0),
+            unit: "buses",
+          },
+          {
+            label: "Awaiting review",
+            value: weekSummaries.reduce((sum, w) => sum + w.pending, 0),
+            unit: "requests",
+          },
+          { label: "Active bays", value: totalBays, unit: "per slot" },
+          {
+            label: "Busiest day",
+            value: weekSummaries.reduce(
+              (max, w) => Math.max(max, w.fullSlots),
+              0
+            ),
+            unit: "slots at capacity",
+          },
+        ]
+          .map(
+            (k) => `
+            <div class="kpi">
+              <div class="kpi-label">${escapeHtml(k.label)}</div>
+              <div class="kpi-value">
+                <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
+              </div>
+            </div>`
+          )
+          .join("");
+
+        document.getElementById("grid").innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th><th>Approved</th><th>Awaiting review</th>
+                  <th>Slots at capacity</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${weekSummaries
+                  .map((w) => {
+                    const atCapacity = totalBays > 0 && w.fullSlots > 0;
+                    return `
+                    <tr${w.date === today ? ' class="week-today"' : ""}>
+                      <td data-label="Date">${escapeHtml(formatDayHeading(w.date))}${
+                        w.date === today
+                          ? ' <span class="tl-today-tag">Today</span>'
+                          : ""
+                      }</td>
+                      <td class="capacity" data-label="Approved">${w.approved}</td>
+                      <td data-label="Awaiting review">${w.pending}</td>
+                      <td class="capacity${
+                        atCapacity ? " capacity-full" : ""
+                      }" data-label="Slots at capacity">${w.fullSlots} / ${SLOTS.length}</td>
+                      <td><button type="button" class="btn-link" data-view-day="${escapeHtml(
+                        w.date
+                      )}">View day</button></td>
+                    </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        document.querySelectorAll("[data-view-day]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            currentDate = btn.dataset.viewDay;
+            dateInput.value = currentDate;
+            viewMode = "day";
+            document
+              .querySelectorAll("#view-mode [data-view]")
+              .forEach((b) => b.classList.toggle("is-active", b.dataset.view === "day"));
+            document.getElementById("prev").textContent = "← Prev day";
+            document.getElementById("next").textContent = "Next day →";
+            load();
           });
         });
       }

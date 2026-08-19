@@ -800,6 +800,29 @@ matched set (e.g. a vehicle's registered route changed after the
 booking was made) - same "never silently lose the current value"
 reasoning as the plate fallback.
 
+### Day and Week schedule views (staff + operators)
+
+Both schedule pages - `schedule.html` (staff) and `my-schedule.html`
+(operators) - have a **Day / Week** toggle plus Prev/Next navigation that
+steps by a day or a week depending on which mode is active. Both share
+`startOfWeek()`/`weekDates()` (`docs/assets/app.js`) so the two pages
+agree on where a week starts (Monday) without each re-deriving it.
+
+- **Day** is unchanged from before: staff get the full per-slot capacity
+  grid with every booking listed and the bay-reassignment control;
+  operators get that single date's approved bookings as a timeline.
+- **Week** shows the 7 days of the week containing the selected date,
+  *including empty days* - the shape of the week stays visible rather
+  than collapsing quiet days out of the list. For staff, this is a
+  summary table (one row per day: approved, awaiting review, slots at
+  capacity) rather than the full per-slot detail Day view has - a
+  48-row-by-7-column grid would be unusable, so Week trades detail for
+  an at-a-glance view and a **View day** link on each row jumps into Day
+  view already on that date. For operators, Week is the same timeline
+  layout as Day, just repeated once per day of the week (this replaces
+  the old "Upcoming / All" filter, which Week's date navigation now
+  supersedes).
+
 ### Reassigning an approved booking's bay (staff)
 
 Staff can move an already-approved booking to a different bay from
@@ -820,14 +843,14 @@ RPC - staff already have unrestricted UPDATE rights on `bookings`
 docs/                        THE SITE ITSELF (served by GitHub Pages)
   index.html                 Sign in
   dashboard.html             Operator: request form + own requests
-  my-schedule.html           Operator: own approved slots + bay assignments
+  my-schedule.html           Operator: own approved slots + bay assignments (Day/Week views)
   vehicles.html              Operator: register/edit vehicles (scan or manual)
   operator-profile.html     Operator: one-time company details (no approval)
   staff.html                 Staff: pending booking queue (approve / reject)
   vehicle-approvals.html     Staff: pending vehicle queue (approve / reject)
   vehicles-database.html     Staff: every registered vehicle, any status, searchable
   transfer-approvals.html    Staff: pending booking-transfer queue (approve / reject)
-  schedule.html              Staff: 30-minute-slot capacity grid for a date
+  schedule.html              Staff: 30-minute-slot capacity grid (Day/Week views)
   bays.html                  Staff: manage the bay list
   operator-profiles.html     Staff: read-only view of every operator's company profile
   accounts.html              Staff: create/delete logins (via Edge Functions)
