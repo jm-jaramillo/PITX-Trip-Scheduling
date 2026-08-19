@@ -69,6 +69,13 @@
       let profileFilter = "all";
       let sortKey = null;
       let sortDir = "asc";
+      // The exact filtered/sorted set currently on screen - shared between
+      // render() and exportCsv() so the CSV always matches what's visible.
+      // Must be declared up here, before the `await load()` a few lines
+      // down - load() -> render() reads this at module top-level, which
+      // would otherwise run while this `let` is still in its temporal
+      // dead zone (same class of bug as #37/#39/#46/#52/#66).
+      let lastVisibleRows = [];
 
       // Operator (display name/username) and Company are sortable - click
       // a header to sort by it, click again to flip direction. Everything
@@ -139,10 +146,6 @@
         );
       }
 
-      // The exact filtered/sorted set currently on screen - shared between
-      // render() and exportCsv() so the CSV always matches what's visible,
-      // not the full unfiltered list.
-      let lastVisibleRows = [];
       function currentRows() {
         return lastVisibleRows;
       }

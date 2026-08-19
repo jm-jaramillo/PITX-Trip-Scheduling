@@ -2371,6 +2371,35 @@ blank while preserving an existing dirty free-text route
 
 ---
 
+### 69. Fix: Operator profiles page showed nothing for staff (19 Aug)
+
+User report: "The operator profiles are not showing in the staff
+account." Reproduced immediately - `operator-profiles.html` loaded to a
+completely blank page for a staff account: no table, no "X of Y
+operators have submitted a profile" summary, not even the empty state.
+
+Another TDZ bug (same recurring class as #37/#39/#46/#52/#66's
+staff.html): `let lastVisibleRows = []` - added when the sortable-
+columns/CSV-export feature shipped on this page - was declared *after*
+the top-level `await load()` a few lines up, which (via `render()` ->
+`currentRows()`) reads it immediately. `ReferenceError: Cannot access
+'lastVisibleRows' before initialization` on every load, silently
+aborting the whole render with nothing shown - RLS and the underlying
+data were both fine the entire time (confirmed directly: 78 operators,
+68 with a submitted profile, all readable via a service-role query and
+via the `operator_profiles_select` policy's `is_staff()` bypass).
+
+Fixed by moving the declaration up to the page's existing early
+module-state block, same fix pattern every prior instance of this bug
+has used.
+
+Verified live with a throwaway staff account: the page now renders the
+full 78-row table, the summary count, and both the "All" and
+"Missing profile" filters correctly (10 accounts with no profile,
+matching 78 - 68).
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
