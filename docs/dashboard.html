@@ -80,6 +80,7 @@
           <button type="button" class="mode-tab" data-filter="pending">Pending</button>
           <button type="button" class="mode-tab" data-filter="rejected">Declined</button>
         </div>
+        <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
       </div>
       <div id="requests"></div>
     </main>
@@ -181,6 +182,7 @@
         slotStartMillis,
         BOOKING_LEAD_TIME_MS,
         showMessage,
+        downloadCsv,
       } from "./assets/app.js";
 
       // Module-level state must be declared before the init calls below run,
@@ -329,6 +331,46 @@
             renderRequestsTable();
           });
         });
+        document
+          .getElementById("export-csv")
+          .addEventListener("click", exportRequestsCsv);
+      }
+
+      const REQUESTS_CSV_HEADERS = [
+        "Date",
+        "Time slot",
+        "Route",
+        "Plate No.",
+        "Status",
+        "Assigned bay",
+        "Trip No.",
+        "Note",
+      ];
+
+      // Exports exactly what's currently on screen under the active status
+      // filter - reuses the already-loaded allBookings array (same one
+      // renderRequestsTable() reads from) rather than refetching from
+      // Supabase just for the export.
+      function exportRequestsCsv() {
+        const bookings =
+          statusFilter === "all"
+            ? allBookings
+            : allBookings.filter((b) => b.status === statusFilter);
+        const rows = bookings.map((b) => [
+          b.booking_date ?? "",
+          formatSlot(b.slot),
+          b.route ?? "",
+          b.plate_no ?? "",
+          b.status ?? "",
+          b.bays?.name ?? "",
+          b.trip_number ?? "",
+          b.rejection_reason ?? "",
+        ]);
+        downloadCsv(
+          `my-requests-${statusFilter}.csv`,
+          REQUESTS_CSV_HEADERS,
+          rows
+        );
       }
 
       // Only approved vehicles show up here - a vehicle stops appearing the

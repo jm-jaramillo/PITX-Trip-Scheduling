@@ -65,6 +65,10 @@
       </form>
 
       <h2>Existing accounts</h2>
+      <div class="field" style="max-width: 360px">
+        <label for="search">Search</label>
+        <input id="search" placeholder="Username or operator name…" />
+      </div>
       <div id="list"></div>
     </main>
 
@@ -82,10 +86,28 @@
       if (!profile) throw new Error("unauthorised");
       renderNav(profile);
 
+      let allProfiles = [];
+
       document
         .getElementById("create-form")
         .addEventListener("submit", createAccount);
+      document.getElementById("search").addEventListener("input", render);
       await load();
+      highlightFromQuery();
+
+      // A password-reset-request notification (see the Edge Function
+      // request-password-reset) links here as accounts.html?user=<id> -
+      // scroll to and highlight that row, same pattern
+      // applyVehicleHighlightFromQuery() uses on the vehicle pages, so
+      // staff land on the exact account rather than just the page.
+      function highlightFromQuery() {
+        const userId = new URLSearchParams(location.search).get("user");
+        if (!userId) return;
+        const row = document.querySelector(`[data-row-id="${CSS.escape(userId)}"]`);
+        if (!row) return;
+        row.classList.add("row-highlighted");
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
 
       async function load() {
         const { data } = await supabase
@@ -93,7 +115,19 @@
           .select("id, username, role, operator_name, created_at")
           .order("created_at", { ascending: false });
 
-        const profiles = data ?? [];
+        allProfiles = data ?? [];
+        render();
+      }
+
+      function render() {
+        const query = document.getElementById("search").value.trim().toLowerCase();
+        const profiles = query
+          ? allProfiles.filter((p) =>
+              [p.username, p.operator_name]
+                .filter(Boolean)
+                .some((v) => v.toLowerCase().includes(query))
+            )
+          : allProfiles;
 
         document.getElementById("list").innerHTML = `
           <div class="table-wrap">
@@ -107,7 +141,7 @@
                 ${profiles
                   .map(
                     (p) => `
-                  <tr>
+                  <tr data-row-id="${escapeHtml(p.id)}">
                     <td data-label="Username">${escapeHtml(p.username)}</td>
                     <td data-label="Role" style="text-transform: capitalize">${escapeHtml(p.role)}</td>
                     <td data-label="Operator name">${escapeHtml(p.operator_name ?? "—")}</td>

@@ -149,7 +149,7 @@ Every operator account has identical functionality - access is granted by
 book, register vehicles, and transfer bookings exactly like any other the
 moment its account exists.
 
-### 5. Deploy the account-creation, account-deletion, and password-reset Edge Functions
+### 5. Deploy the account-creation, account-deletion, password-reset, and reset-request Edge Functions
 
 Staff create accounts from the **Accounts** page, which calls the
 [`create-account`](supabase/functions/create-account/index.ts) Edge
@@ -157,9 +157,14 @@ Function, delete them with the
 [`delete-account`](supabase/functions/delete-account/index.ts) Edge
 Function, and reset a forgotten password with the
 [`reset-password`](supabase/functions/reset-password/index.ts) Edge
-Function. Until each is deployed, that page's create/delete/reset action
-shows "Could not reach the account-creation/deletion/password-reset
-service" and every other feature still works.
+Function. An operator or staff member who forgot their password
+requests that reset themselves from the sign-in page's "Forgot
+password?" link, which calls the unauthenticated
+[`request-password-reset`](supabase/functions/request-password-reset/index.ts)
+Edge Function - the only endpoint in the app meant to be reachable while
+signed out, since that's exactly the situation where nothing else works.
+Until each is deployed, its action shows "Could not reach the ... service"
+and every other feature still works.
 
 ```bash
 npm install -g supabase          # or: npx supabase
@@ -168,6 +173,7 @@ supabase link --project-ref <your-project-ref>
 supabase functions deploy create-account
 supabase functions deploy delete-account
 supabase functions deploy reset-password
+supabase functions deploy request-password-reset
 ```
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are
@@ -871,6 +877,55 @@ Reassigning an already-approved booking's bay (`schedule.html`) doesn't
 touch status, so it leaves an existing trip number untouched - a trip
 number describes the route/time, not the bay.
 
+### Operator-side UX pass: overview page, cosmetic edits, self-service reset, exports
+
+A parallel round of improvements, this time for operators rather than
+staff - same idea as the command-center pass above, applied to the
+other side of the app.
+
+- **`operator-overview.html`** - operators' own shift-start dashboard,
+  now the default landing page after sign-in (`dashboard.html` is
+  unchanged and still reachable as "My requests"). KPI tiles for pending
+  requests, approved-upcoming bookings, registered vehicles, and
+  vehicles expiring within 30 days (same threshold `expiryCell()`/the
+  expiry-notification sync already use), each linking to the relevant
+  page; an "approaching lockout" alert for the operator's own pending
+  requests, same logic and 2-hour urgent window as staff's `overview.html`.
+- **Cosmetic vs. material vehicle edits** (`vehicles.html`,
+  `request_vehicle_change()` - migration `0034`): editing a vehicle used
+  to *always* revert it to pending, even for a typo fix in Sticker No.
+  Now only changing a "material" field - plate, route, or anything on
+  the LTO OR/CR paperwork staff actually verify (case/MV file/OR/CR/
+  chassis numbers, franchise, CPC/OR-CR validity, date granted/expiry) -
+  sends it back for re-approval. Purely descriptive fields (bus number,
+  seating, seat type, aircon, sticker no., the supporting document) can
+  be corrected on an approved vehicle without touching its approval
+  status. The Edit dialog's warning text spells out which is which.
+- **Self-service "Forgot password?"** (`index.html` + new
+  `request-password-reset` Edge Function): these accounts log in with a
+  username, not a real email inbox, so Supabase's built-in email reset
+  can't work here. Instead, requesting a reset raises the same
+  staff-broadcast notification every other "something needs staff's
+  attention" event already uses, deep-linking straight to the requesting
+  account on `accounts.html` (now with its own search box, to actually
+  find that account quickly among 80+ operators) - staff reset the
+  password from there via the existing Reset password action. Returns
+  the same generic message whether or not the username exists, so the
+  endpoint can't be used to probe which usernames are registered.
+- **CSV export** on `dashboard.html` ("My requests," respecting the
+  active status filter) and `my-schedule.html` (Day or Week, whichever
+  is active) - the same `downloadCsv()` helper and pattern staff's pages
+  already use.
+- **Search + column-visibility toggle + CSV export on `vehicles.html`** -
+  direct parity with what staff's equivalent fleet pages already have.
+- **Mobile-friendly agenda view for My Schedule's Week grid** - the
+  48-row x 7-column grid is fine on desktop but unwieldy on a phone;
+  below the app's existing `640px` mobile breakpoint, Week view swaps to
+  a condensed per-day agenda list instead (empty days collapse to one
+  "No approved slots" line rather than 48 empty rows), reusing the exact
+  same already-loaded booking data - both views render from one fetch,
+  CSS just switches which is visible.
+
 ### Reassigning an approved booking's bay (staff)
 
 Staff can move an already-approved booking to a different bay from
@@ -889,10 +944,11 @@ RPC - staff already have unrestricted UPDATE rights on `bookings`
 
 ```
 docs/                        THE SITE ITSELF (served by GitHub Pages)
-  index.html                 Sign in
-  dashboard.html             Operator: request form + own requests
-  my-schedule.html           Operator: own approved slots + bay assignments (Day/Week views)
-  vehicles.html              Operator: register/edit vehicles (scan or manual)
+  index.html                 Sign in (+ "Forgot password?" request-to-staff flow)
+  operator-overview.html     Operator: shift-start dashboard - counts, lockout alerts, quick links
+  dashboard.html             Operator: request form + own requests (CSV export)
+  my-schedule.html           Operator: own approved slots + bay assignments (Day/Week views, CSV export, mobile agenda)
+  vehicles.html              Operator: register/edit vehicles (scan or manual, search, column toggle, CSV export)
   operator-profile.html     Operator: one-time company details (no approval)
   overview.html              Staff: shift-start dashboard - queue counts, lockout alerts, quick links
   staff.html                 Staff: pending booking queue (search, bulk actions, decided log)
@@ -916,6 +972,7 @@ supabase/
   functions/create-account/  Edge Function for privileged account creation
   functions/delete-account/  Edge Function for privileged account deletion
   functions/reset-password/  Edge Function for privileged password reset
+  functions/request-password-reset/  Unauthenticated Edge Function: operator/staff requests a reset
 
 scripts/
   create-staff.mjs           Bootstrap the first staff account

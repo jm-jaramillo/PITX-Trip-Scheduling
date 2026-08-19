@@ -377,7 +377,7 @@ export async function guardPage(requiredRole) {
     return null;
   }
   if (profile.role !== requiredRole) {
-    location.replace(profile.role === "staff" ? "overview.html" : "dashboard.html");
+    location.replace(profile.role === "staff" ? "overview.html" : "operator-overview.html");
     return null;
   }
   return profile;
@@ -391,6 +391,7 @@ export async function signOut() {
 /* -------------------------------------------------------------------- nav */
 
 const OPERATOR_LINKS = [
+  { href: "operator-overview.html", label: "Overview" },
   { href: "dashboard.html", label: "My requests" },
   { href: "my-schedule.html", label: "My schedule" },
   { href: "vehicles.html", label: "My vehicles" },

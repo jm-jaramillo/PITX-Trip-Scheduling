@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Overview · PITX Bus Bay Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+    <style>
+      /* Page-local additions - just this page's quick-link grid and the
+         "approaching lockout" alert list, styled to sit alongside the
+         shared .kpis/.kpi/.hint/.warn classes from styles.css rather than
+         duplicating them. Mirrors overview.html (the staff equivalent). */
+      .kpi-link {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+      }
+      .kpi-link:hover .kpi {
+        border-color: var(--title, #333);
+      }
+
+      .lockout-card {
+        border-radius: var(--r-card-sm, 14px);
+        padding: 14px 18px;
+        margin-bottom: 18px;
+      }
+      .lockout-card.is-urgent {
+        background: var(--amber-wash);
+        color: var(--amber-ink);
+      }
+      .lockout-card.is-calm {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--label);
+      }
+      .lockout-title {
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      .lockout-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .lockout-list li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+        background: rgba(255, 255, 255, 0.35);
+        border-radius: 10px;
+        padding: 8px 12px;
+      }
+      .lockout-list a {
+        color: inherit;
+        font-weight: 700;
+        text-decoration: underline;
+        white-space: nowrap;
+      }
+
+      .quick-links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .quick-link {
+        display: block;
+        text-decoration: none;
+        color: var(--title);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-card-sm, 14px);
+        padding: 16px 18px;
+        font-weight: 700;
+        font-size: 14px;
+        transition: border-color 0.15s ease;
+      }
+      .quick-link:hover {
+        border-color: var(--title);
+      }
+
+      .section-head {
+        margin: 28px 0 10px;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: oklch(52% 0.02 260);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Provincial Slot Booking &middot; Command Center</p>
+          <h1>Overview</h1>
+          <p class="subtle">
+            A quick snapshot of your own requests, fleet, and anything
+            approaching its booking-lockout window - plus quick links to
+            every operator page.
+          </p>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <p class="section-head">Approaching lockout</p>
+      <div id="lockout"></div>
+
+      <p class="section-head">Quick links</p>
+      <div class="quick-links" id="quick-links"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        escapeHtml,
+        todayISO,
+        addDays,
+        slotStartMillis,
+        BOOKING_LEAD_TIME_MS,
+        formatSlot,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("operator");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      // Half the 4-hour lockout window - requests inside this band are
+      // still pending but will lose their lead time soon, so they're
+      // surfaced here rather than only showing up once the operator
+      // happens to check My requests.
+      const URGENT_WINDOW_MS = BOOKING_LEAD_TIME_MS / 2;
+
+      renderQuickLinks();
+      await load();
+
+      async function load() {
+        const today = todayISO();
+        const expirySoon = addDays(today, 30);
+
+        const [
+          pendingBookingsRes,
+          approvedUpcomingRes,
+          vehicleCountRes,
+          expiringVehiclesRes,
+        ] = await Promise.all([
+          supabase
+            .from("bookings")
+            .select("id, operator_name, route, plate_no, booking_date, slot")
+            .eq("operator_id", profile.id)
+            .eq("status", "pending"),
+          supabase
+            .from("bookings")
+            .select("id", { count: "exact", head: true })
+            .eq("operator_id", profile.id)
+            .eq("status", "approved")
+            .gte("booking_date", today),
+          supabase
+            .from("vehicles")
+            .select("id", { count: "exact", head: true })
+            .eq("operator_id", profile.id),
+          // Same 30-day "soon" window expiryCell()/sync_expiry_notifications()
+          // use elsewhere, kept in sync here rather than inventing a
+          // different threshold. Only approved vehicles count - pending/
+          // rejected ones aren't in active service yet.
+          supabase
+            .from("vehicles")
+            .select("id, cpc_validity, orcr_validity")
+            .eq("operator_id", profile.id)
+            .eq("status", "approved")
+            .or(
+              `and(cpc_validity.lte.${expirySoon}),and(orcr_validity.lte.${expirySoon})`
+            ),
+        ]);
+
+        const pendingBookings = pendingBookingsRes.data ?? [];
+
+        // The OR-based filter above (cpc OR orcr <= soon) can include a
+        // vehicle where only the *other* date happens to be null and thus
+        // not <= soon; re-check both fields client-side against the same
+        // window so the count is exact.
+        const expiringVehicles = (expiringVehiclesRes.data ?? []).filter(
+          (v) =>
+            (v.cpc_validity && v.cpc_validity <= expirySoon) ||
+            (v.orcr_validity && v.orcr_validity <= expirySoon)
+        );
+
+        renderKpis({
+          pendingCount: pendingBookings.length,
+          approvedUpcoming: approvedUpcomingRes.count ?? 0,
+          vehicleCount: vehicleCountRes.count ?? 0,
+          expiringCount: expiringVehicles.length,
+        });
+
+        renderLockout(pendingBookings);
+      }
+
+      function renderKpis({
+        pendingCount,
+        approvedUpcoming,
+        vehicleCount,
+        expiringCount,
+      }) {
+        const tiles = [
+          {
+            label: "Pending requests",
+            value: pendingCount,
+            unit: "requests",
+            href: "dashboard.html",
+          },
+          {
+            label: "Approved upcoming",
+            value: approvedUpcoming,
+            unit: "bookings",
+            href: "my-schedule.html",
+          },
+          {
+            label: "Registered vehicles",
+            value: vehicleCount,
+            unit: "vehicles",
+            href: "vehicles.html",
+          },
+          {
+            label: "Vehicles expiring soon",
+            value: expiringCount,
+            unit: "vehicles",
+            href: "vehicles.html",
+          },
+        ];
+
+        document.getElementById("kpis").innerHTML = tiles
+          .map(
+            (k) => `
+            <a class="kpi-link" href="${escapeHtml(k.href)}">
+              <div class="kpi">
+                <div class="kpi-label">${escapeHtml(k.label)}</div>
+                <div class="kpi-value">
+                  <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
+                </div>
+              </div>
+            </a>`
+          )
+          .join("");
+      }
+
+      function renderLockout(pendingBookings) {
+        const now = Date.now();
+        const urgent = pendingBookings
+          .map((b) => {
+            const timeToSlot = slotStartMillis(b.booking_date, b.slot) - now;
+            // Not "time until the slot starts" - time until this request
+            // hits the 4-hour lockout and can no longer be approved at
+            // all. A request 4h50m from its slot is 50m from that
+            // deadline, not "50m away" itself - subtracting the lockout
+            // window is what turns "time to slot" into "time to act".
+            return { ...b, remainingMs: timeToSlot - BOOKING_LEAD_TIME_MS };
+          })
+          // Not yet locked out (still approvable) and inside the urgent
+          // half of the window before it becomes un-approvable.
+          .filter((b) => b.remainingMs >= 0 && b.remainingMs <= URGENT_WINDOW_MS)
+          .sort((a, b) => a.remainingMs - b.remainingMs);
+
+        const host = document.getElementById("lockout");
+
+        if (urgent.length === 0) {
+          host.innerHTML = `
+            <div class="lockout-card is-calm">
+              <p class="lockout-title">Nothing approaching lockout</p>
+              <p class="subtle" style="margin: 0">
+                None of your pending requests are within 2 hours of their
+                4-hour booking-lockout window.
+              </p>
+            </div>
+          `;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="lockout-card is-urgent">
+            <p class="lockout-title">
+              ${urgent.length} pending request${urgent.length === 1 ? "" : "s"}
+              approaching lockout
+            </p>
+            <ul class="lockout-list">
+              ${urgent
+                .map((b) => {
+                  const hoursLeft = (b.remainingMs / 3600000).toFixed(1);
+                  return `
+                    <li>
+                      <span>
+                        ${escapeHtml(b.route)} &middot; ${escapeHtml(
+                          b.plate_no
+                        )}
+                        &middot; ${escapeHtml(b.booking_date)} ${escapeHtml(
+                          formatSlot(b.slot)
+                        )}
+                        &middot; ${hoursLeft}h left
+                      </span>
+                      <a href="dashboard.html">View &rarr;</a>
+                    </li>
+                  `;
+                })
+                .join("")}
+            </ul>
+          </div>
+        `;
+      }
+
+      function renderQuickLinks() {
+        const links = [
+          { href: "dashboard.html", label: "My requests" },
+          { href: "my-schedule.html", label: "My schedule" },
+          { href: "vehicles.html", label: "My vehicles" },
+          { href: "operator-profile.html", label: "Operator profile" },
+        ];
+
+        document.getElementById("quick-links").innerHTML = links
+          .map(
+            (l) =>
+              `<a class="quick-link" href="${escapeHtml(l.href)}">${escapeHtml(
+                l.label
+              )}</a>`
+          )
+          .join("");
+      }
+    </script>
+  </body>
+</html>

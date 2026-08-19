@@ -760,6 +760,27 @@ td strong,
   }
 }
 
+/* my-schedule.html's Week view renders both the 48-row x 7-column grid
+   and a condensed per-date agenda list from the same booking data (see
+   renderWeekGrid) - only one shows at a time, picked by viewport width
+   here rather than in JS, so there's a single render path either way.
+   Same breakpoint as the stacked-table rule above: below it a dense
+   grid needing both vertical and horizontal scroll is worse than a
+   grouped list. */
+#week-agenda-wrap {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  #week-grid-wrap {
+    display: none;
+  }
+
+  #week-agenda-wrap {
+    display: block;
+  }
+}
+
 /* ------------------------------------------------------------ badges */
 .badge {
   display: inline-block;

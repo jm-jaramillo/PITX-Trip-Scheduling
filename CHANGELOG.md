@@ -2211,6 +2211,92 @@ conservatively omitted the name rather than guess wrong).
 
 ---
 
+### 67. Operator-side UX pass: overview page, cosmetic edits, self-service reset, exports (19 Aug)
+
+User asked for the same treatment on the operator side as #66's
+command-center review: an evaluation, then "build your suggestion
+proposals." Six proposals from that evaluation, built the same way as
+#66 - groundwork done directly, independent pieces built in parallel by
+four agents, then verified live before merging.
+
+- **`operator-overview.html`** (new) - operators' shift-start dashboard,
+  now the default landing page after sign-in (`index.html`'s redirect
+  and `guardPage()`'s mismatched-role redirect both updated;
+  `dashboard.html` itself is unchanged, still reachable as "My
+  requests"). KPI tiles (pending requests, approved-upcoming, registered
+  vehicles, vehicles expiring within 30 days) each linking to the
+  relevant page, plus an "approaching lockout" alert mirroring staff's
+  `overview.html` exactly.
+- **Cosmetic vs. material vehicle edits** (`request_vehicle_change()` -
+  migration `0034_vehicle_change_cosmetic_fields.sql`): editing a
+  vehicle - even fixing a typo in Sticker No. - always reverted it to
+  pending before this. Now the function compares old vs. new values
+  itself and only resets status/decided_by/decided_at/rejection_reason
+  when a "material" field actually changed - plate, route, or anything
+  on the LTO OR/CR paperwork staff verify (case/MV file/OR/CR/chassis
+  numbers, franchise, CPC/OR-CR validity, dates granted/expiry). Purely
+  descriptive fields (bus number, seating, seat type, aircon, sticker
+  no., supporting document) leave an approved vehicle approved.
+  `vehicles.html`'s Edit dialog warning text was rewritten to explain
+  the split rather than blanket-warning every edit costs re-approval.
+- **Self-service "Forgot password?"** (`index.html` + new
+  `request-password-reset` Edge Function, unauthenticated by design -
+  the one endpoint in the app meant to be reachable while signed out):
+  these accounts log in with a username, not a real email inbox, so
+  Supabase's built-in email-based reset can't work. Requesting one
+  raises the same staff-broadcast notification every other
+  "something needs staff's attention" event uses, linking straight to
+  the requesting account on `accounts.html` (which also gained a search
+  box and a `?user=<id>` scroll-and-highlight, matching the pattern
+  `vehicles.html`/`vehicles-database.html` already use for notification
+  deep-links) - staff reset the password from there via the existing
+  Reset password action. Returns the same generic response whether or
+  not the username exists, so it can't be used to enumerate accounts.
+- **CSV export** on `dashboard.html` (My requests, respecting the active
+  status filter) and `my-schedule.html` (Day or Week, whichever is
+  active) - same `downloadCsv()` helper and pattern as #66's staff-side
+  exports.
+- **Search + column-visibility toggle + CSV export on `vehicles.html`** -
+  direct parity with staff's equivalent fleet pages.
+- **Mobile-friendly agenda view for My Schedule's Week grid** - below
+  the app's existing 640px mobile breakpoint, the 48-row x 7-column grid
+  swaps to a condensed per-day agenda list (empty days collapse to one
+  line instead of 48), rendered from the exact same already-loaded
+  booking data as the grid - CSS switches which is visible, no separate
+  fetch.
+
+**Caught during verification, not just syntax-checking:**
+
+- The Edit dialog's warning text still unconditionally said every
+  change costs re-approval, which became actively wrong once the
+  material/cosmetic split shipped - would have scared operators away
+  from harmless corrections. Rewritten to name which fields matter.
+- The password-reset notification's `link` was set to a bare
+  `"accounts.html"` - the generic notification click handler
+  (`app.js`) only appends a query param automatically for
+  `relatedTable === "vehicles"`, so the `?user=<id>` `accounts.html`
+  needs to scroll/highlight the row never got attached. Fixed by baking
+  the query param into the Edge Function's `link` value directly rather
+  than changing the shared click handler.
+
+Verified end-to-end with throwaway staff + operator test accounts and
+seeded data (cleaned up after): `operator-overview.html`'s KPI tiles
+matched seeded counts exactly; the cosmetic/material split confirmed
+directly via RPC (a bus-number-only edit left an approved vehicle
+approved; a route edit correctly reverted it to pending) and again
+through the actual Edit-dialog UI in the browser; the forgot-password
+flow's notification-insert logic confirmed correct (the Edge Function
+itself isn't deployed in this environment, same documented caveat as
+the other three account Edge Functions), and clicking the resulting
+notification in the staff bell correctly landed on `accounts.html` with
+the requesting account scrolled-to and highlighted after the link-param
+fix; CSV exports on both operator pages checked for correct content via
+`URL.createObjectURL` interception; the mobile agenda view confirmed at
+a 375px viewport (booking shown correctly, empty days collapsed) with
+the desktop grid confirmed unaffected on reload at full width.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
