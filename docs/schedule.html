@@ -245,18 +245,20 @@
         });
       }
 
-      // A 7-day summary (Mon-Sun of the week containing currentDate) -
-      // one row per day with the same capacity KPIs Day view shows for a
-      // single date, so staff can spot a busy day across the week before
-      // drilling into it. "View day" jumps into Day view already on that
-      // date, rather than duplicating the full per-slot booking list here.
+      // A 7-day grid (Mon-Sun of the week containing currentDate) - the
+      // same KPIs Day view shows for a single date, so staff can spot a
+      // busy day across the week before drilling into it. "View day"
+      // (on each date header) jumps into Day view already on that date,
+      // for the bay-reassignment control this grid doesn't have room for.
       async function loadWeek() {
         const days = weekDates(currentDate);
         const [baysRes, bookingsRes] = await Promise.all([
           supabase.from("bays").select("id").eq("is_active", true),
           supabase
             .from("bookings")
-            .select("booking_date, slot, status")
+            .select(
+              "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, bays ( id, name )"
+            )
             .gte("booking_date", days[0])
             .lte("booking_date", days[6])
             .in("status", ["pending", "approved"]),
@@ -275,23 +277,26 @@
         }
 
         const today = todayISO();
-        // Per (date, slot) approved/pending counts - the grid's cells -
-        // plus the per-day totals the KPI strip above still needs.
+        // Per (date, slot) bookings - the grid's cells actually list them,
+        // not just a count - plus the per-day totals the KPI strip needs.
         const cellsByDate = new Map();
         const weekSummaries = days.map((date) => {
           const rows = byDate.get(date) ?? [];
           const approved = rows.filter((b) => b.status === "approved").length;
           const pending = rows.length - approved;
-          const approvedBySlot = new Map();
-          const pendingBySlot = new Map();
+          const bySlot = new Map();
           for (const b of rows) {
-            const bucket = b.status === "approved" ? approvedBySlot : pendingBySlot;
-            bucket.set(b.slot, (bucket.get(b.slot) ?? 0) + 1);
+            if (!bySlot.has(b.slot)) bySlot.set(b.slot, []);
+            bySlot.get(b.slot).push(b);
           }
-          cellsByDate.set(date, { approvedBySlot, pendingBySlot });
+          cellsByDate.set(date, bySlot);
           const fullSlots =
             totalBays > 0
-              ? SLOTS.filter((s) => (approvedBySlot.get(s) ?? 0) >= totalBays).length
+              ? SLOTS.filter(
+                  (s) =>
+                    (bySlot.get(s) ?? []).filter((b) => b.status === "approved")
+                      .length >= totalBays
+                ).length
               : 0;
           return { date, approved, pending, fullSlots };
         });
@@ -331,8 +336,10 @@
         // Dates across the top, time slots down the side - a booking's
         // date and time are the two axes staff actually scan by, so the
         // grid is oriented to match rather than one row per day. Each
-        // date header doubles as a "View day" link into the full Day
-        // grid for that date, since this view only has room for counts.
+        // cell lists the actual bookings for that date/slot (not just a
+        // count), same booking info Day view shows, minus the
+        // bay-reassignment control - reassigning still happens in Day
+        // view, which each date header links straight into via "View day".
         document.getElementById("grid").innerHTML = `
           <div class="table-wrap">
             <table class="week-grid">
@@ -359,18 +366,34 @@
                       <td class="hour-cell" data-label="Time slot">${escapeHtml(formatSlot(slot))}</td>
                       ${days
                         .map((date) => {
-                          const { approvedBySlot, pendingBySlot } = cellsByDate.get(date);
-                          const approved = approvedBySlot.get(slot) ?? 0;
-                          const pending = pendingBySlot.get(slot) ?? 0;
+                          const rows = cellsByDate.get(date).get(slot) ?? [];
+                          const approved = rows.filter((b) => b.status === "approved").length;
                           const atCapacity = totalBays > 0 && approved >= totalBays;
                           return `
-                        <td class="capacity${atCapacity ? " capacity-full" : ""}${
+                        <td class="week-cell${atCapacity ? " capacity-full" : ""}${
                             date === today ? " week-today" : ""
                           }" data-label="${escapeHtml(formatDayHeading(date))}">
-                          ${approved} / ${totalBays}${
-                            pending > 0
-                              ? `<span class="pending-dot" title="${pending} awaiting review">+${pending}</span>`
-                              : ""
+                          ${
+                            rows.length === 0
+                              ? '<span class="muted">—</span>'
+                              : `<ul class="week-cell-bookings">${rows
+                                  .map(
+                                    (b) => `
+                                <li>${statusBadge(b.status)}<span>${
+                                      b.previous_operator_name
+                                        ? `<s class="transferred-from">${escapeHtml(
+                                            b.previous_operator_name
+                                          )}</s> `
+                                        : ""
+                                    }${escapeHtml(b.operator_name)} &middot; ${escapeHtml(
+                                      b.plate_no
+                                    )} &middot; ${escapeHtml(b.route)}</span>${
+                                      b.bays?.name
+                                        ? `<span class="bay-tag">${escapeHtml(b.bays.name)}</span>`
+                                        : ""
+                                    }</li>`
+                                  )
+                                  .join("")}</ul>`
                           }
                         </td>`;
                         })

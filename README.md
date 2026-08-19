@@ -814,16 +814,17 @@ agree on where a week starts (Monday) without each re-deriving it.
 - **Week** shows the 7 days of the week containing the selected date as
   a grid - **dates across the top as column headers, time slots down the
   side as row headers** - so the layout matches how staff and operators
-  actually scan a week: by date, then by time. For staff, each cell
-  shows that day/slot's approved count over total capacity (with a small
-  badge for any bookings still awaiting review), colored the same
-  "at capacity" red as Day view; each date header doubles as a **View
-  day** link into the full Day grid for that date, since the week grid
-  only has room for counts, not full booking detail. For operators, each
-  cell shows the bay/route/plate of an approved booking on that date and
-  slot, or a dash - most cells are empty (a handful of bookings across a
-  week's 336 slots is typical), which is expected, not a rendering
-  issue. This replaces the old "Upcoming / All" filter, which Week's own
+  actually scan a week: by date, then by time. Each cell lists the
+  **actual bookings** for that date and slot (operator, plate, route,
+  status, and bay if approved) rather than just an occupancy count -
+  cells still turn "at capacity" red the same way Day view's do, once
+  approved bookings there reach total bay capacity, but the booking
+  detail itself is what a cell shows, not a number standing in for it.
+  Each date header doubles as a **View day** link into the full Day grid
+  for that date, for the bay-reassignment control this grid doesn't
+  have. For operators, most cells are empty (a handful of bookings
+  across a week's 336 slots is typical) - expected, not a rendering
+  issue. Week replaces the old "Upcoming / All" filter, which its own
   date navigation now supersedes.
 
 ### Reassigning an approved booking's bay (staff)

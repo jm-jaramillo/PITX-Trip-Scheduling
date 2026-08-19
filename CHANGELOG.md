@@ -2020,6 +2020,40 @@ roles.
 
 ---
 
+### 64. Staff's Week grid shows actual bookings, not occupancy counts (19 Aug)
+
+User: "for the weekly schedule view, I want the bookings to show in the
+grid rather than the slot occupancy" - #63 gave staff's Week grid the
+right axes (dates as columns, time slots as rows) but each cell still
+only showed an approved/capacity count plus a small "+N awaiting review"
+badge. Replaced that with the actual bookings themselves.
+
+Each cell now lists every booking for that date/slot - status badge,
+operator (previous operator struck through if transferred), plate,
+route, and assigned bay - the same information Day view's per-slot list
+already shows, just without the bay-reassignment control (still only in
+Day view, one click away via each date header's "View day" link). The
+query backing Week view now selects the full booking columns instead of
+just `booking_date, slot, status`. Cells still turn "at capacity" red
+the same way as before once approved bookings reach total bay capacity
+- that coloring didn't change, only what's displayed inside the cell.
+
+Operators' Week grid (`my-schedule.html`) already showed actual bookings
+(bay/route/plate) rather than a count, so it needed no change here -
+this was specifically the staff occupancy-count regression from #63.
+
+Removed the now-unused `.pending-dot` style; added `.week-cell`/
+`.week-cell-bookings` (`docs/assets/styles.css`) sized for a cell that
+needs to grow and wrap around a small list rather than stay single-line.
+
+Verified with a full authenticated visual walkthrough (throwaway staff +
+operator test accounts, cleaned up after): seeded one approved and one
+pending booking in the same date/slot, confirmed both render fully in
+that cell (status badge, operator, plate, route, bay) rather than a
+count.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
