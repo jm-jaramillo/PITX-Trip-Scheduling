@@ -1851,6 +1851,54 @@ this change.
 
 ---
 
+### 60. Restart vehicle-route matching as plain equality, not fuzzy word overlap (18 Aug)
+
+User: "For the bus bay slot reservation, I need you to restart. The
+operator should only see the routes where they have registered vehicles
+in it then the vehicles plate number will be filtered based on the
+route." Both halves of this were already built (#51/#52 for the route
+narrowing, #48 for the plate filter) - but every refinement to the
+underlying matching rule kept surfacing a new false-positive bug
+(#56 diacritics, #59 SAN/SANTA/SANTO), because the rule itself - word-
+overlap between a vehicle's free-text route and a canonical booking
+route - was the wrong tool for data that's no longer free text.
+
+Since #58 rebuilt `ROUTES` directly from the cleaned masterlist and
+re-linked vehicles against it, `vehicles.route` holds the *exact*
+canonical string for the overwhelming majority of vehicles (checked
+directly: 1,778 of 1,832, and - the number that actually matters -
+every operator with at least one approved vehicle has at least one
+exact canonical match, so nobody falls through to the "no matches, show
+everything" fallback). Fuzzy matching was solving a problem that no
+longer exists.
+
+Replaced `vehicleMatchesRoute()` with plain equality
+(`vehicle.route === bookingRoute`), deleting `routeTokens()`,
+`routeTownPart()`, and `ROUTE_STOPWORDS` entirely - three rounds of
+increasingly-specific-case patches (#48, #51, #56, #59) collapse into
+one line. Mirrored server-side: `vehicle_matches_route()` (the function
+`bookings_insert_own`'s RLS `WITH CHECK` and `request_booking_change()`
+actually enforce) is now `p_vehicle_route IS NOT DISTINCT FROM
+p_booking_route AND p_vehicle_route IS NOT NULL` via migration
+`0031_vehicle_matches_route_exact.sql`; `route_tokens()` and
+`route_town_part()` are dropped outright rather than left as dead code,
+since nothing else in the schema calls them.
+
+The two operator-facing behaviors themselves are unchanged - Route
+dropdown narrowed to the operator's own registered routes
+(`routesWithRegisteredVehicle()`), Plate No. dropdown hard-filtered to
+vehicles matching the selected route (`plateOptionsHtml()`) - only the
+matching rule underneath changed.
+
+Verified directly against the database post-migration:
+`vehicle_matches_route('Santa Rosa, Laguna', 'Santa Rosa, Laguna')` true,
+`vehicle_matches_route('Santa Cruz, Laguna', 'Santa Rosa, Laguna')` now
+false, Biñan and Balanga/Mariveles cases from #56/#51 still correct,
+`route_tokens`/`route_town_part` confirmed dropped, Jam Liner's 7 Biñan
+vehicles still match.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

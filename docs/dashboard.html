@@ -205,23 +205,6 @@
         "Gate 4": "Bicol / Visayas / Mindanao (Gate 4)",
       };
 
-      // Used by vehicleMatchesRoute()/routeTokens() below - must be up
-      // here with the rest of the early state, since initForm() (called
-      // a few lines down) now calls routesWithRegisteredVehicle() at
-      // module top-level, which needs this already initialized rather
-      // than still in its temporal dead zone.
-      //
-      // "SAN"/"SANTA"/"SANTO" are generic Spanish-place-name honorifics
-      // shared by many otherwise-unrelated towns ("Santa Cruz, Laguna"
-      // vs "Santa Rosa, Laguna", "San Juan, Batangas" vs "San Jose,
-      // Camarines Sur") - without filtering them, a vehicle registered
-      // for one "Santa X" town matched the Route dropdown into showing
-      // every other "Santa Y" route too, purely on the shared "SANTA"
-      // token (#59).
-      const ROUTE_STOPWORDS = new Set([
-        "CITY", "VIA", "THE", "AND", "OF", "TUNNEL", "SAN", "SANTA", "SANTO",
-      ]);
-
       const profile = await guardPage("operator");
       if (profile) {
         renderNav(profile);
@@ -366,56 +349,23 @@
         approvedVehicles = data ?? [];
       }
 
-      // A vehicle's own `route` is free text (a franchise description
-      // like "TABACO, ALBAY- PASAY CITY" for a masterlist-imported
-      // vehicle, or whatever an operator typed by hand) - it won't match
-      // a canonical booking route ("Tabaco City, Albay") as a plain
-      // substring, so compare on significant word overlap instead.
-      // "CITY" alone is filtered out as too generic to mean anything.
-      // (ROUTE_STOPWORDS itself lives with the early module-level state
-      // above - see the comment there.)
+      // A vehicle's own `route` is set by the masterlist data-linking
+      // pass (see CHANGELOG.md #58) to the exact canonical route string
+      // in ROUTES - not free text - so a plain equality check is enough.
       //
-      // Diacritics (e.g. the "ñ" in "Biñan") are stripped to their base
-      // letter *before* the non-alphanumeric strip below, not by it -
-      // stripping "ñ" outright (as a bare [^A-Z0-9 ] replace would) turns
-      // "BIÑAN" into "BI AN", two 2-letter fragments that the length>=3
-      // filter then discards entirely, leaving zero tokens - a route
-      // whose town name has zero tokens can never match itself. Found
-      // via a real "Biñan, Laguna" vehicle that a matching booking
-      // rejected outright (#56).
-      function routeTokens(s) {
-        return (s || "")
-          .toUpperCase()
-          .replace(/Á/g, "A")
-          .replace(/É/g, "E")
-          .replace(/Í/g, "I")
-          .replace(/Ó/g, "O")
-          .replace(/Ú/g, "U")
-          .replace(/Ñ/g, "N")
-          .replace(/Ü/g, "U")
-          .replace(/[^A-Z0-9 ]/g, " ")
-          .split(/\s+/)
-          .filter((w) => w.length >= 3 && !ROUTE_STOPWORDS.has(w));
-      }
-
-      // Matching only the *town* segment (text before the first comma),
-      // never the full string - two different towns in the same
-      // province ("Balanga, Bataan" vs "Mariveles, Bataan") would
-      // otherwise match each other purely on the shared province word
-      // "Bataan", exactly the province-level-instead-of-city-level
-      // linking mistake already fixed once in the masterlist data itself
-      // (see the CHANGELOG). A route with no comma (a raw fallback
-      // string with no confident canonical link) just compares its
-      // whole text as the "town" part, same as before.
-      function routeTownPart(route) {
-        const idx = (route || "").indexOf(",");
-        return idx === -1 ? route || "" : route.slice(0, idx);
-      }
-
+      // This replaces three rounds of word-overlap fuzzy matching (#48,
+      // #51, #56, #59) that compared significant-word tokens between a
+      // vehicle's route and a booking's route. That approach made sense
+      // back when `vehicles.route` was still an unlinked franchise
+      // sentence like "TABACO, ALBAY- PASAY CITY", but every fuzzy-match
+      // refinement kept surfacing new false positives once the data
+      // itself became a clean canonical string (accented town names
+      // tokenizing to nothing, "SAN"/"SANTA" bleeding unrelated towns
+      // into each other, province names matching across different
+      // towns). Restarted (#60) as plain equality now that matching the
+      // data exactly is all that's needed.
       function vehicleMatchesRoute(vehicle, bookingRoute) {
-        if (!vehicle.route || !bookingRoute) return false;
-        const vehicleTownTokens = new Set(routeTokens(routeTownPart(vehicle.route)));
-        return routeTokens(routeTownPart(bookingRoute)).some((t) => vehicleTownTokens.has(t));
+        return Boolean(vehicle.route) && vehicle.route === bookingRoute;
       }
 
       // The Route dropdown itself is narrowed to routes at least one of

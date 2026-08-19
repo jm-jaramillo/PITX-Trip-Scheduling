@@ -725,59 +725,60 @@ re-runs the check immediately, in case that slot fills up too.
 Once a route is picked, the Plate No. dropdown **only** offers vehicles
 whose own `route` matches it - not a suggestion, a hard requirement.
 With none, the dropdown disables with an explanatory note and the
-Request button disables too. Matching compares significant word overlap
-between the canonical booking route ("Tabaco City, Albay") and the
-vehicle's own free-text `route` field (a franchise description like
-"TABACO, ALBAY-PASAY CITY" for a masterlist-imported vehicle, or
-whatever an operator typed by hand) - `"CITY"` and a few other generic
-words are ignored as too common to mean anything
-(`routeTokens()`/`vehicleMatchesRoute()` in `docs/dashboard.html`). The
-same rule applies to the **Change** dialog, re-filtering live if the
+Request button disables too. Matching is **plain equality**
+(`vehicleMatchesRoute()` in `docs/dashboard.html`): `vehicles.route` is
+set by the one-time masterlist data-linking pass to the exact canonical
+string from `ROUTES` (see "Real operator data import" below), so a
+vehicle matches a route only when its own `route` is that exact string.
+The same rule applies to the **Change** dialog, re-filtering live if the
 route is changed there too.
 
 **This is enforced server-side, not just in the UI** (migration
-`0026_vehicle_route_required.sql`, `0027` fixing a real bug in it - see
-below): `bookings_insert_own`'s RLS policy and `request_booking_change()`
-both require an `exists` match against the operator's own approved,
+`0026_vehicle_route_required.sql`, restarted as plain equality in
+`0031_vehicle_matches_route_exact.sql` - see below):
+`bookings_insert_own`'s RLS policy and `request_booking_change()` both
+require an `exists` match against the operator's own approved,
 LTFRB-eligible vehicles via a SQL port of the same matching function
-(`vehicle_matches_route()`/`route_tokens()`), kept in lockstep with the
-client-side version. The dropdown filter is UX only, same as everywhere
-else in this app - RLS is the real gate, confirmed by bypassing the UI
-entirely and inserting a mismatched booking directly.
+(`vehicle_matches_route()`), kept in lockstep with the client-side
+version. The dropdown filter is UX only, same as everywhere else in this
+app - RLS is the real gate, confirmed by bypassing the UI entirely and
+inserting a mismatched booking directly.
 
-`0026`'s first version of the RLS check had a real bug: inside the
-correlated `EXISTS` subquery, the bare `plate_no`/`route` references
-(meant to mean the row being inserted) got shadowed by the subquery's
-own `vehicles.plate_no`/`vehicles.route` columns of the same name -
-Postgres resolved them to the innermost scope, so the check silently
-became "does this vehicle's plate/route equal itself," which is always
-true. A live bypass test (inserting a deliberately mismatched booking
-directly, skipping the dropdown entirely) went through with no error,
-which is how this was caught. Fixed in `0027` by qualifying the outer
-row explicitly as `bookings.plate_no`/`bookings.route` - the table name
-itself works as the row's own qualifier in a `WITH CHECK` expression
-when no alias was given.
-
-**Matching compares only the *town* segment** (text before the first
-comma) of each route, never the full string - two different towns in
-the same province ("Balanga, Bataan" vs "Mariveles, Bataan") would
-otherwise match each other purely on the shared province word "Bataan",
-the exact province-level-instead-of-city-level mistake already caught
-once in the masterlist data itself (`routeTownPart()` client-side,
-`route_town_part()` in the same migration `0028` server-side - both
-matchers needed the fix, not just one, since the client-side dropdown
-filter and the server-side RLS gate each carry their own copy of this
-logic).
+**History - three rounds of fuzzy matching, then a restart:** this
+requirement went through several iterations before landing on plain
+equality. `0026`'s first version compared *significant word overlap*
+between the canonical booking route and the vehicle's own free-text
+`route` (still an unlinked franchise description like "TABACO,
+ALBAY-PASAY CITY" at the time), filtering generic words like `"CITY"`.
+That version also had a real bug: inside the correlated `EXISTS`
+subquery, the bare `plate_no`/`route` references (meant to mean the row
+being inserted) got shadowed by the subquery's own `vehicles.plate_no`/
+`vehicles.route` columns of the same name, so the check silently became
+"does this vehicle's plate/route equal itself" - always true. Caught via
+a live bypass test (inserting a mismatched booking directly, skipping
+the dropdown) and fixed in `0027` by qualifying the outer row explicitly
+as `bookings.plate_no`/`bookings.route`. `0028` narrowed matching to
+just the *town* segment (text before the first comma), since two
+different towns in the same province ("Balanga, Bataan" vs "Mariveles,
+Bataan") otherwise matched on the shared province word. Word-overlap
+matching kept surfacing new false positives even after that - `0029`
+found accented town names (`"Biñan"`) tokenizing to nothing at all, and
+`0030` found `"SAN"`/`"SANTA"`/`"SANTO"` bleeding unrelated towns
+together ("Santa Cruz, Laguna" matching "Santa Rosa, Laguna"). Once the
+#58 masterlist rebuild made `vehicles.route` hold the exact canonical
+string for the overwhelming majority of vehicles, word-overlap matching
+was solving a problem that no longer existed - `0031` replaced it with
+plain equality, deleting the token/stopword machinery entirely.
 
 ### The Route dropdown only shows routes the operator has a vehicle for
 
 The Route field itself is narrowed to routes at least one of the
-operator's own vehicles is registered for - e.g. Genesis Transport (with
-vehicles registered only for Balanga, Clark, and Mariveles) only ever
-sees those three routes, never the other 80. This follows directly from
+operator's own vehicles is registered for - e.g. an operator with
+vehicles registered only for Balanga City, Clark, and Mariveles only
+ever sees those three routes, never the rest. This follows directly from
 the requirement above: there'd be no point offering a route with no way
 to actually fulfill it. Never locks an operator out entirely, though -
-with no vehicles yet, or with vehicles whose route text doesn't match
+with no vehicles yet, or with vehicles whose route doesn't exactly match
 any canonical route at all, this falls back to the full list rather
 than showing nothing (`routesWithRegisteredVehicle()` in
 `docs/dashboard.html`). Same narrowing applies to the **Change**
