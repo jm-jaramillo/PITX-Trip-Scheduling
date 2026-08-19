@@ -926,6 +926,52 @@ other side of the app.
   same already-loaded booking data - both views render from one fetch,
   CSS just switches which is visible.
 
+### Region/Province/City route picker for new vehicles
+
+A vehicle's `route` used to be a free-text field ("e.g. PITX - Batangas")
+- the single biggest source of the dirty-route-data problems this app has
+repeatedly had to clean up (see #49/#50/#53/#58 above). `vehicles.html`'s
+Add and Edit forms now generate the route from three cascading dropdowns
+- **Region**, **Province**, **City/Municipality** - instead of accepting
+typed text at all.
+
+Data comes from a public PSGC-based JSON API
+([isaacdarcilla/philippine-addresses](https://github.com/isaacdarcilla/select-philippines-address),
+the same data behind the well-known `select-philippines-address` npm
+package), fetched client-side at runtime and cached for the session -
+the same pattern this app already uses to load Supabase and Tesseract.js
+from a CDN rather than bundling a dependency, since there's no build step
+to vendor one into. Region/Province/City cover every region in the
+Philippines, not just PITX's 91 currently-served routes - if the
+generated route isn't one of them yet, a non-blocking note says so
+("not currently one of PITX's served routes... staff will review it")
+rather than blocking registration; this mirrors the same "separate
+finding, not fixed here" treatment new real destinations have gotten in
+the CHANGELOG rather than silently rejecting them.
+
+City/province names from the source data are normalized to this app's
+own convention before becoming part of a route - a trailing "City" not
+a leading "City Of", no "(Capital)"/parenthetical-alias markers, and
+"del"/"Del" cased to match ("Davao del Sur", not "Davao Del Sur") - so a
+generated route matches the style of every existing entry in `ROUTES`.
+**NCR is special-cased**: PSGC has no real provinces for Metro Manila
+(its cities sit under numbered "districts" instead, and Manila's own
+internal districts like Tondo/Binondo appear in the source data as if
+they were independent cities) - unfamiliar and inconsistent with how
+every other region works here, so choosing the NCR region skips the
+province step entirely, lists the real 16 cities + Pateros directly, and
+uses "Metro Manila" as the province name, matching the one NCR route
+already in `ROUTES` ("Muntinlupa City, Metro Manila").
+
+**Editing an existing vehicle** tries to reverse the process: given its
+current `route` string, it looks for a region/province/city combination
+that would generate that exact string, and pre-selects the dropdowns if
+found. Older free-text routes that don't decompose cleanly (registered
+before this feature existed) leave the dropdowns blank rather than
+guessing - but the route itself is left completely untouched unless the
+operator actively picks a new one, so editing an unrelated field on an
+old vehicle never silently rewrites or loses its existing route data.
+
 ### Reassigning an approved booking's bay (staff)
 
 Staff can move an already-approved booking to a different bay from
@@ -948,7 +994,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   operator-overview.html     Operator: shift-start dashboard - counts, lockout alerts, quick links
   dashboard.html             Operator: request form + own requests (CSV export)
   my-schedule.html           Operator: own approved slots + bay assignments (Day/Week views, CSV export, mobile agenda)
-  vehicles.html              Operator: register/edit vehicles (scan or manual, search, column toggle, CSV export)
+  vehicles.html              Operator: register/edit vehicles (scan or manual, Region/Province/City route picker, search, column toggle, CSV export)
   operator-profile.html     Operator: one-time company details (no approval)
   overview.html              Staff: shift-start dashboard - queue counts, lockout alerts, quick links
   staff.html                 Staff: pending booking queue (search, bulk actions, decided log)

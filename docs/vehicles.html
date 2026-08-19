@@ -172,9 +172,26 @@
             <label for="f_orcr_validity">OR/CR validity</label>
             <input id="f_orcr_validity" type="date" />
           </div>
-          <div class="field">
-            <label for="f_route">Route</label>
-            <input id="f_route" placeholder="e.g. PITX - Batangas" />
+          <div class="field span-all">
+            <label>Route</label>
+            <p class="fineprint" style="margin: 0 0 6px">
+              Pick region, province, and city/municipality - the route is
+              generated from these, not typed freehand, so it can't drift
+              into a near-duplicate spelling of a route that already exists.
+            </p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <select id="f_region" style="flex: 1; min-width: 140px">
+                <option value="">Loading regions…</option>
+              </select>
+              <select id="f_province" style="flex: 1; min-width: 140px" disabled>
+                <option value="">Province…</option>
+              </select>
+              <select id="f_city" style="flex: 1; min-width: 140px" disabled>
+                <option value="">City/Municipality…</option>
+              </select>
+            </div>
+            <input type="hidden" id="f_route" />
+            <p class="fineprint" id="f_route_preview"></p>
           </div>
           <div class="field">
             <label for="f_bus_number">Bus No.</label>
@@ -284,9 +301,21 @@
             <label for="e_orcr_validity">OR/CR validity</label>
             <input id="e_orcr_validity" type="date" />
           </div>
-          <div class="field">
-            <label for="e_route">Route</label>
-            <input id="e_route" placeholder="e.g. PITX - Batangas" />
+          <div class="field span-all">
+            <label>Route</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <select id="e_region" style="flex: 1; min-width: 140px">
+                <option value="">Loading regions…</option>
+              </select>
+              <select id="e_province" style="flex: 1; min-width: 140px" disabled>
+                <option value="">Province…</option>
+              </select>
+              <select id="e_city" style="flex: 1; min-width: 140px" disabled>
+                <option value="">City/Municipality…</option>
+              </select>
+            </div>
+            <input type="hidden" id="e_route" />
+            <p class="fineprint" id="e_route_preview"></p>
           </div>
           <div class="field">
             <label for="e_bus_number">Bus No.</label>
@@ -362,6 +391,7 @@
         applyVehicleHighlightFromQuery,
         escapeHtml,
         downloadCsv,
+        ROUTES,
       } from "./assets/app.js";
       import { extractOrCr } from "./assets/orcr-parser.js";
 
@@ -377,6 +407,325 @@
       let docUrlById = new Map();
       let sortKey = null;
       let sortDir = "asc";
+
+      /* ------------------------------------------------------- PH geography */
+      // Route used to be a free-text field ("e.g. PITX - Batangas") - the
+      // single biggest source of the dirty-route-data problems this app has
+      // spent a lot of effort cleaning up (see CHANGELOG #49/#50/#53/#58).
+      // Region/Province/City dropdowns replace it: the route is generated
+      // from the selection, never typed. Data comes from a public PSGC-based
+      // JSON API (isaacdarcilla/philippine-addresses on GitHub Pages, the
+      // data source behind the well-known `select-philippines-address` npm
+      // package) - fetched client-side at runtime, the same way this app
+      // already loads Supabase and Tesseract.js from a CDN rather than
+      // bundling them, since there's no build step to vendor a dependency
+      // into.
+      const PH_GEO_BASE = "https://isaacdarcilla.github.io/philippine-addresses";
+      let phRegions = [];
+      let phProvincesByRegion = new Map(); // region_code -> [province, ...]
+      let phCitiesByProvince = new Map(); // province_code -> [city, ...]
+      let phGeoLoadPromise = null;
+
+      // NCR has no real provinces in PSGC - its cities are grouped into
+      // numbered "districts" instead (and Manila's own internal districts,
+      // e.g. Tondo/Binondo/Quiapo, appear in the source data as if they
+      // were independent cities, which they aren't). Rather than surface
+      // that district structure - unfamiliar to anyone filling this form
+      // out and inconsistent with how every other region works here - NCR
+      // is special-cased: skip the province step entirely, list the real
+      // 16 cities + Pateros directly, and use "Metro Manila" as the
+      // province name, matching the one NCR route already in ROUTES
+      // ("Muntinlupa City, Metro Manila").
+      const NCR_REGION_CODE = "13";
+      const NCR_CITIES = [
+        "Caloocan City", "Las Piñas City", "Makati City", "Malabon City",
+        "Mandaluyong City", "Manila", "Marikina City", "Muntinlupa City",
+        "Navotas City", "Parañaque City", "Pasay City", "Pasig City",
+        "Pateros", "Quezon City", "San Juan City", "Taguig City",
+        "Valenzuela City",
+      ];
+
+      // The source data's city names are inconsistent - "City Of Batac",
+      // "Naga City", "Vigan (Capital)", bare municipality names - normalized
+      // to this app's own convention (a trailing "City", never a leading
+      // "City Of", never a "(Capital)" marker) so a generated route matches
+      // the style of every existing canonical route in ROUTES.
+      function normalizeCityName(name) {
+        return (name || "")
+          // Strips any trailing parenthetical alias - "(Capital)",
+          // "(Dadiangas)" (General Santos's old name), "(Mendez-Nuñez)" -
+          // not just the "(Capital)" marker specifically; all of them are
+          // source-data asides, not part of the place's actual name.
+          .replace(/\s*\([^)]*\)\s*$/, "")
+          .replace(/^city\s+of\s+(.+)$/i, "$1 City")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      // Same idea for province names - strips a parenthetical alias
+      // ("Cotabato (North Cotabato)" -> "Cotabato") and lowercases the
+      // "Del"/"del" connector to match standard usage ("Davao del Sur",
+      // not "Davao Del Sur").
+      function normalizeProvinceName(name) {
+        return (name || "")
+          .replace(/\s*\([^)]*\)\s*$/, "")
+          .replace(/\bDel\b/g, "del")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      // Fetched once per page load (not per dialog open) and cached -
+      // region.json/province.json/city.json together are under 200KB, and
+      // both the Add and Edit dialogs share the same cached data rather
+      // than each re-fetching it.
+      function loadPhGeoData() {
+        if (phGeoLoadPromise) return phGeoLoadPromise;
+        phGeoLoadPromise = (async () => {
+          const [regions, provinces, cities] = await Promise.all(
+            ["region", "province", "city"].map((name) =>
+              fetch(`${PH_GEO_BASE}/${name}.json`).then((r) => r.json())
+            )
+          );
+
+          phRegions = [...regions].sort((a, b) =>
+            a.region_name.localeCompare(b.region_name)
+          );
+
+          phProvincesByRegion = new Map();
+          for (const p of provinces) {
+            if (!phProvincesByRegion.has(p.region_code)) {
+              phProvincesByRegion.set(p.region_code, []);
+            }
+            phProvincesByRegion.get(p.region_code).push(p);
+          }
+          for (const list of phProvincesByRegion.values()) {
+            list.sort((a, b) => a.province_name.localeCompare(b.province_name));
+          }
+
+          phCitiesByProvince = new Map();
+          for (const c of cities) {
+            if (!phCitiesByProvince.has(c.province_code)) {
+              phCitiesByProvince.set(c.province_code, []);
+            }
+            phCitiesByProvince.get(c.province_code).push(c);
+          }
+          for (const list of phCitiesByProvince.values()) {
+            list.sort((a, b) => a.city_name.localeCompare(b.city_name));
+          }
+        })();
+        return phGeoLoadPromise;
+      }
+
+      function regionOptionsHtml(selectedCode) {
+        return (
+          `<option value="" disabled${selectedCode ? "" : " selected"}>Select region…</option>` +
+          phRegions
+            .map(
+              (r) =>
+                `<option value="${escapeHtml(r.region_code)}"${
+                  r.region_code === selectedCode ? " selected" : ""
+                }>${escapeHtml(r.region_name)}</option>`
+            )
+            .join("")
+        );
+      }
+
+      // Populates the province select for a chosen region - or, for NCR,
+      // skips straight to a fixed "Metro Manila" value and disables it,
+      // since there's nothing to actually choose. Never touches the route
+      // hidden input itself; callers decide whether to clear or preserve it.
+      function populateProvinceSelect(prefix, regionCode, selectedProvinceCode) {
+        const provinceSel = document.getElementById(`${prefix}_province`);
+        const citySel = document.getElementById(`${prefix}_city`);
+
+        if (!regionCode) {
+          provinceSel.innerHTML = `<option value="">Province…</option>`;
+          provinceSel.disabled = true;
+          citySel.innerHTML = `<option value="">City/Municipality…</option>`;
+          citySel.disabled = true;
+          return;
+        }
+
+        if (regionCode === NCR_REGION_CODE) {
+          provinceSel.innerHTML = `<option value="Metro Manila" selected>Metro Manila</option>`;
+          provinceSel.disabled = true;
+          return;
+        }
+
+        const provinces = phProvincesByRegion.get(regionCode) ?? [];
+        provinceSel.innerHTML =
+          `<option value="" disabled${selectedProvinceCode ? "" : " selected"}>Select province…</option>` +
+          provinces
+            .map((p) => {
+              const label = normalizeProvinceName(p.province_name);
+              return `<option value="${escapeHtml(p.province_code)}"${
+                p.province_code === selectedProvinceCode ? " selected" : ""
+              }>${escapeHtml(label)}</option>`;
+            })
+            .join("");
+        provinceSel.disabled = false;
+
+        if (!selectedProvinceCode) {
+          citySel.innerHTML = `<option value="">City/Municipality…</option>`;
+          citySel.disabled = true;
+        }
+      }
+
+      // Populates the city/municipality select - either the fixed NCR list
+      // or the real cities/municipalities of the chosen province.
+      function populateCitySelect(prefix, regionCode, provinceCode, selectedCity) {
+        const citySel = document.getElementById(`${prefix}_city`);
+
+        if (regionCode === NCR_REGION_CODE) {
+          citySel.innerHTML =
+            `<option value="" disabled${selectedCity ? "" : " selected"}>Select city…</option>` +
+            NCR_CITIES.map(
+              (c) =>
+                `<option value="${escapeHtml(c)}"${c === selectedCity ? " selected" : ""}>${escapeHtml(c)}</option>`
+            ).join("");
+          citySel.disabled = false;
+          return;
+        }
+
+        if (!provinceCode) {
+          citySel.innerHTML = `<option value="">City/Municipality…</option>`;
+          citySel.disabled = true;
+          return;
+        }
+
+        const cities = phCitiesByProvince.get(provinceCode) ?? [];
+        citySel.innerHTML =
+          `<option value="" disabled${selectedCity ? "" : " selected"}>Select city/municipality…</option>` +
+          cities
+            .map((c) => {
+              const name = normalizeCityName(c.city_name);
+              return `<option value="${escapeHtml(name)}"${
+                name === selectedCity ? " selected" : ""
+              }>${escapeHtml(name)}</option>`;
+            })
+            .join("");
+        citySel.disabled = false;
+      }
+
+      // Shows what route will actually be saved, and - since this app now
+      // covers every region/province/city in the Philippines, not just
+      // PITX's own 91 served routes - flags when the generated route isn't
+      // one of them yet, non-blockingly (mirrors the "separate finding, not
+      // fixed here" treatment new real destinations have gotten in the
+      // CHANGELOG before, rather than silently accepting or rejecting it).
+      function updateRoutePreview(prefix) {
+        const route = document.getElementById(`${prefix}_route`).value;
+        const previewEl = document.getElementById(`${prefix}_route_preview`);
+        if (!route) {
+          previewEl.textContent =
+            "Select region, province, and city/municipality above to set the route.";
+          return;
+        }
+        previewEl.textContent = ROUTES.includes(route)
+          ? `Route: ${route}`
+          : `Route: ${route} — not currently one of PITX's served routes. The vehicle can still be registered; staff will review it.`;
+      }
+
+      // Wires the three selects' change handlers once (not re-wired per
+      // dialog open) - each just populates the next select down and clears
+      // the route until a city is actually chosen, since any changed
+      // region/province invalidates whatever city was previously picked.
+      function initGeoSelects(prefix) {
+        const regionSel = document.getElementById(`${prefix}_region`);
+        const provinceSel = document.getElementById(`${prefix}_province`);
+        const citySel = document.getElementById(`${prefix}_city`);
+        const routeInput = document.getElementById(`${prefix}_route`);
+
+        regionSel.addEventListener("change", () => {
+          routeInput.value = "";
+          populateProvinceSelect(prefix, regionSel.value, null);
+          if (regionSel.value === NCR_REGION_CODE) {
+            populateCitySelect(prefix, NCR_REGION_CODE, null, null);
+          }
+          updateRoutePreview(prefix);
+        });
+
+        provinceSel.addEventListener("change", () => {
+          routeInput.value = "";
+          populateCitySelect(prefix, regionSel.value, provinceSel.value, null);
+          updateRoutePreview(prefix);
+        });
+
+        citySel.addEventListener("change", () => {
+          const city = citySel.value;
+          const provinceLabel =
+            regionSel.value === NCR_REGION_CODE
+              ? "Metro Manila"
+              : (provinceSel.options[provinceSel.selectedIndex]?.textContent ?? "");
+          routeInput.value = city && provinceLabel ? `${city}, ${provinceLabel}` : "";
+          updateRoutePreview(prefix);
+        });
+      }
+
+      // Given an existing (possibly free-text, pre-this-feature) route
+      // string, tries to find the region/province/city it decomposes into,
+      // so opening Edit on an older vehicle pre-selects the dropdowns
+      // instead of leaving them blank. Returns null if no exact match is
+      // found (old dirty data) - the caller then leaves the selects blank
+      // but keeps the existing route value untouched, rather than forcing
+      // every edit of an old vehicle to first re-pick its route.
+      function findRegionProvinceCityForRoute(route) {
+        if (!route || !route.includes(",")) return null;
+        const commaIdx = route.indexOf(",");
+        const cityPart = route.slice(0, commaIdx).trim();
+        const provincePart = route.slice(commaIdx + 1).trim();
+
+        if (provincePart === "Metro Manila") {
+          return NCR_CITIES.includes(cityPart)
+            ? { regionCode: NCR_REGION_CODE, provinceCode: null, city: cityPart }
+            : null;
+        }
+
+        for (const [regionCode, provinces] of phProvincesByRegion) {
+          for (const p of provinces) {
+            if (normalizeProvinceName(p.province_name) !== provincePart) continue;
+            const cities = phCitiesByProvince.get(p.province_code) ?? [];
+            const match = cities.find(
+              (c) => normalizeCityName(c.city_name) === cityPart
+            );
+            if (match) {
+              return { regionCode, provinceCode: p.province_code, city: cityPart };
+            }
+          }
+        }
+        return null;
+      }
+
+      // Resets the Add dialog's Region/Province/City selects to blank -
+      // called every time the dialog opens fresh, same as the other fields
+      // resetAddForm() already clears.
+      async function resetGeoSelects(prefix) {
+        await loadPhGeoData();
+        document.getElementById(`${prefix}_region`).innerHTML = regionOptionsHtml(null);
+        populateProvinceSelect(prefix, null, null);
+        document.getElementById(`${prefix}_route`).value = "";
+        updateRoutePreview(prefix);
+      }
+
+      // Pre-selects the Edit dialog's Region/Province/City selects from the
+      // vehicle's existing route, via reverse lookup - or leaves them blank
+      // (existing route preserved untouched) if it doesn't decompose
+      // cleanly, e.g. free-text entered before this feature existed.
+      async function populateGeoForEdit(route) {
+        await loadPhGeoData();
+        document.getElementById("e_region").innerHTML = regionOptionsHtml(null);
+        document.getElementById("e_route").value = route ?? "";
+
+        const found = findRegionProvinceCityForRoute(route);
+        if (found) {
+          document.getElementById("e_region").value = found.regionCode;
+          populateProvinceSelect("e", found.regionCode, found.provinceCode);
+          populateCitySelect("e", found.regionCode, found.provinceCode, found.city);
+        } else {
+          populateProvinceSelect("e", null, null);
+        }
+        updateRoutePreview("e");
+      }
 
       // Every column the table can show, in on-screen order. `csv` renders
       // the plain-text value for export - separate from the `<td>` markup
@@ -444,6 +793,8 @@
       initEditDialog();
       initDetailsDialog();
       initColumnsPopover();
+      initGeoSelects("f");
+      initGeoSelects("e");
       document.getElementById("search").addEventListener("input", renderVehicleTable);
       document.getElementById("export-csv").addEventListener("click", exportCsv);
       await loadVehicles();
@@ -751,6 +1102,11 @@
         document.getElementById("add-vehicle-btn").addEventListener("click", () => {
           resetAddForm();
           dialog.showModal();
+          // Not awaited before showing the modal - the region select
+          // starts as "Loading regions…" (see the markup) and is filled
+          // in once the fetch resolves, rather than delaying the dialog
+          // opening on a network round trip.
+          resetGeoSelects("f");
         });
         document
           .getElementById("add-cancel")
@@ -1066,7 +1422,11 @@
         document.getElementById("e_sticker_no").value = v.sticker_no ?? "";
         document.getElementById("e_cpc_validity").value = v.cpc_validity ?? "";
         document.getElementById("e_orcr_validity").value = v.orcr_validity ?? "";
-        document.getElementById("e_route").value = v.route ?? "";
+        // Pre-selects Region/Province/City from the existing route via
+        // reverse lookup, or leaves them blank (route left untouched) if
+        // it's old free-text data that doesn't decompose cleanly - see
+        // populateGeoForEdit()'s own comment.
+        await populateGeoForEdit(v.route ?? "");
         document.getElementById("e_bus_number").value = v.bus_number ?? "";
         document.getElementById("e_seating_capacity").value = v.seating_capacity ?? "";
         document.getElementById("e_seat_type").value = v.seat_type ?? "";

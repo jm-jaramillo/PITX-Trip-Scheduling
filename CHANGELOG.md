@@ -2297,6 +2297,80 @@ the desktop grid confirmed unaffected on reload at full width.
 
 ---
 
+### 68. Region/Province/City route picker replaces free-text vehicle routes (19 Aug)
+
+User: "For new vehicle registration create a dropdown for Region,
+Province, City, and Barangay then auto generate the route based on
+those details to avoid dirty data in the future." Route on
+`vehicles.html`'s Add/Edit forms was still a free-text input
+("e.g. PITX - Batangas") - the single biggest source of the dirty-route
+problems this app has repeatedly had to clean up (#49/#50/#53/#58).
+
+Two scope questions resolved with the user before building: whether the
+dropdowns should cover only PITX's 91 currently-served routes or the
+full Philippines (chose **full Philippines** - any region/province/city,
+not just ones PITX serves yet), and what Barangay should actually do,
+given none of the 91 canonical routes track barangay-level detail and a
+full Philippines barangay list runs to ~42,000 entries (chose to
+**drop Barangay** - route generation only ever needs City + Province).
+
+- **Data source**: fetched client-side at runtime from
+  [isaacdarcilla/philippine-addresses](https://github.com/isaacdarcilla/select-philippines-address)
+  (a public PSGC-based JSON API, the same data behind the well-known
+  `select-philippines-address` npm package) - region.json/province.json/
+  city.json together under 200KB, cached once per page load. Same
+  pattern this app already uses to load Supabase/Tesseract.js from a CDN
+  rather than bundling a dependency, since there's no build step to
+  vendor one into.
+- **Cascading Region → Province → City selects** replace the free-text
+  input on both Add and Edit forms; the route is generated as
+  `{City}, {Province}` the moment a city is chosen, never typed. If the
+  generated route isn't one of PITX's 91 currently-served routes, a
+  non-blocking note says so rather than rejecting the registration -
+  same "separate finding, not fixed here" treatment new real
+  destinations have gotten in the CHANGELOG before.
+- **NCR special-cased**: PSGC has no real provinces for Metro Manila
+  (cities sit under numbered "districts" instead, and Manila's own
+  internal districts - Tondo, Binondo, Quiapo - appear in the source
+  data as if they were independent cities). Choosing the NCR region
+  skips the province step entirely, lists the real 16 cities + Pateros
+  directly, and uses "Metro Manila" as the province name, matching the
+  one NCR route already in `ROUTES` ("Muntinlupa City, Metro Manila").
+- **Name normalization** so a generated route matches the style of every
+  existing `ROUTES` entry: city names get a trailing "City" rather than
+  a leading "City Of", and any trailing parenthetical alias is stripped
+  - not just "(Capital)" specifically, but also things like
+  "General Santos City **(Dadiangas)**" (the city's old name) and
+  "Mendez **(Mendez-Nuñez)**", both found as real bugs during
+  verification (initially only "(Capital)" was stripped, missing every
+  other parenthetical alias in the source data). Province names get the
+  same parenthetical strip plus "Del"→"del" casing
+  ("Davao del Sur", not "Davao Del Sur").
+- **Editing an existing vehicle** reverse-decomposes its current route
+  back into region/province/city and pre-selects the dropdowns if it
+  finds an exact match; older free-text routes that don't decompose
+  cleanly (registered before this feature existed) leave the dropdowns
+  blank - but the route itself is left completely untouched unless the
+  operator actively picks a new one, so editing an unrelated field on an
+  old vehicle never silently rewrites or loses its existing route data.
+
+Verified directly: fetched the real dataset and ran the exact
+normalization + reverse-lookup logic against a spot-check of 19 routes
+from the current `ROUTES` list - caught and fixed the two parenthetical-
+alias bugs above this way before ever opening a browser. Then verified
+live with a throwaway operator account and seeded data (cleaned up
+after): the Add form's Region→Province→City cascade populated correctly
+end-to-end (including the NCR special case, confirmed to generate
+exactly "Muntinlupa City, Metro Manila"), a non-served destination
+correctly showed the non-blocking note, a new vehicle saved with the
+generated route via the real form submission; the Edit form correctly
+reverse-selected Region V/Camarines Sur/Naga City for an existing clean
+"Naga City, Camarines Sur" vehicle, and correctly left the dropdowns
+blank while preserving an existing dirty free-text route
+("PITX - Batangas (via SLEX)") completely unchanged after a save.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
