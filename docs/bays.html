@@ -87,6 +87,8 @@
                     }">${bay.is_active ? "Active" : "Inactive"}</span></td>
                     <td style="text-align: right">
                       <button type="button" class="btn-link"
+                        data-rename="${bay.id}" data-name="${escapeHtml(bay.name)}">Rename</button>
+                      <button type="button" class="btn-link"
                         data-toggle="${bay.id}"
                         data-next="${(!bay.is_active).toString()}">${
                       bay.is_active ? "Deactivate" : "Activate"
@@ -105,6 +107,24 @@
             setActive(Number(btn.dataset.toggle), btn.dataset.next === "true")
           );
         });
+        document.querySelectorAll("[data-rename]").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            renameBay(Number(btn.dataset.rename), btn.dataset.name)
+          );
+        });
+      }
+
+      async function renameBay(bayId, currentName) {
+        const name = prompt("Rename bay:", currentName)?.trim();
+        if (!name || name === currentName) return;
+
+        showMessage("message", "");
+        const { error } = await supabase
+          .from("bays")
+          .update({ name })
+          .eq("id", bayId);
+        if (error) return showMessage("message", error.message);
+        await load();
       }
 
       async function addBay(event) {

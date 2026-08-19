@@ -27,15 +27,24 @@
             approval step, so what's shown here is always current.
           </p>
         </div>
-        <p class="subtle" id="summary-count"></p>
+        <div>
+          <p class="subtle" id="summary-count"></p>
+          <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
+        </div>
       </div>
 
-      <div class="field" style="max-width: 360px; margin-bottom: 20px">
-        <label for="search">Search</label>
-        <input
-          id="search"
-          placeholder="Username, operator, or company name…"
-        />
+      <div class="toolbar" style="justify-content: space-between; margin-bottom: 20px">
+        <div class="field" style="max-width: 360px; margin-bottom: 0">
+          <label for="search">Search</label>
+          <input
+            id="search"
+            placeholder="Username, operator, or company name…"
+          />
+        </div>
+        <div class="mode-switch" role="tablist" id="profile-filter">
+          <button type="button" class="mode-tab is-active" data-filter="all">All</button>
+          <button type="button" class="mode-tab" data-filter="missing">Missing profile</button>
+        </div>
       </div>
 
       <div class="hidden" id="message"></div>
@@ -49,6 +58,7 @@
         renderNav,
         showMessage,
         escapeHtml,
+        downloadCsv,
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
@@ -56,9 +66,86 @@
       renderNav(profile);
 
       let rows = [];
+      let profileFilter = "all";
+      let sortKey = null;
+      let sortDir = "asc";
+
+      // Operator (display name/username) and Company are sortable - click
+      // a header to sort by it, click again to flip direction. Everything
+      // else here is free text with no natural sort order worth adding.
+      const SORT_VALUE = {
+        operator: (r) => (r.operator_name || r.username)?.toUpperCase() ?? null,
+        company: (r) => r.companyProfile?.company_name?.toUpperCase() ?? null,
+      };
+
+      function sortTh(label, key) {
+        const active = sortKey === key;
+        const arrow = active ? (sortDir === "asc" ? " &#9650;" : " &#9660;") : "";
+        return `<th class="sortable" data-sort="${key}">${escapeHtml(label)}${arrow}</th>`;
+      }
+
+      function applySort(list) {
+        if (!sortKey) return list;
+        const getValue = SORT_VALUE[sortKey];
+        const dir = sortDir === "asc" ? 1 : -1;
+        return [...list].sort((a, b) => {
+          const av = getValue(a);
+          const bv = getValue(b);
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          if (av < bv) return -1 * dir;
+          if (av > bv) return 1 * dir;
+          return 0;
+        });
+      }
 
       document.getElementById("search").addEventListener("input", render);
+      document.querySelectorAll("#profile-filter [data-filter]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          profileFilter = btn.dataset.filter;
+          document
+            .querySelectorAll("#profile-filter [data-filter]")
+            .forEach((b) => b.classList.toggle("is-active", b === btn));
+          render();
+        });
+      });
+      document.getElementById("export-csv").addEventListener("click", exportCsv);
       await load();
+
+      function exportCsv() {
+        downloadCsv(
+          "operator-profiles.csv",
+          [
+            "Operator", "Username", "Company", "Owner", "TIN No.",
+            "Serial Number (OR)", "Booking system", "NAU",
+            "Contact person 1", "Contact person 2",
+          ],
+          currentRows().map((r) => {
+            const p = r.companyProfile;
+            return [
+              r.operator_name || r.username,
+              r.username,
+              p?.company_name ?? "",
+              p?.company_owner ?? "",
+              p?.tin_no ?? "",
+              p?.or_serial_number ?? "",
+              !p ? "" : p.has_booking_system ? p.booking_system_name || "Yes" : "No",
+              p?.nau ?? "",
+              p?.contact1_name ?? "",
+              p?.contact2_name ?? "",
+            ];
+          })
+        );
+      }
+
+      // The exact filtered/sorted set currently on screen - shared between
+      // render() and exportCsv() so the CSV always matches what's visible,
+      // not the full unfiltered list.
+      let lastVisibleRows = [];
+      function currentRows() {
+        return lastVisibleRows;
+      }
 
       async function load() {
         // Every operator account, not just the ones that have saved a
@@ -91,13 +178,18 @@
 
       function render() {
         const query = document.getElementById("search").value.trim().toLowerCase();
-        const filtered = query
+        let filtered = query
           ? rows.filter((r) =>
               [r.username, r.operator_name, r.companyProfile?.company_name]
                 .filter(Boolean)
                 .some((v) => v.toLowerCase().includes(query))
             )
           : rows;
+        if (profileFilter === "missing") {
+          filtered = filtered.filter((r) => !r.companyProfile);
+        }
+        filtered = applySort(filtered);
+        lastVisibleRows = filtered;
 
         const withProfile = rows.filter((r) => r.companyProfile).length;
         document.getElementById("summary-count").textContent =
@@ -117,7 +209,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Operator</th><th>Username</th><th>Company</th>
+                  ${sortTh("Operator", "operator")}<th>Username</th>${sortTh("Company", "company")}
                   <th>Owner</th><th>TIN No.</th><th>Serial Number (OR)</th>
                   <th>Booking system</th><th>NAU</th>
                   <th>Contact person 1</th><th>Contact person 2</th>
@@ -175,6 +267,15 @@
             </table>
           </div>
         `;
+
+        host.querySelectorAll("[data-sort]").forEach((th) => {
+          th.addEventListener("click", () => {
+            const key = th.dataset.sort;
+            sortDir = sortKey === key && sortDir === "asc" ? "desc" : "asc";
+            sortKey = key;
+            render();
+          });
+        });
       }
     </script>
   </body>

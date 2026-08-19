@@ -377,7 +377,7 @@ export async function guardPage(requiredRole) {
     return null;
   }
   if (profile.role !== requiredRole) {
-    location.replace(profile.role === "staff" ? "staff.html" : "dashboard.html");
+    location.replace(profile.role === "staff" ? "overview.html" : "dashboard.html");
     return null;
   }
   return profile;
@@ -398,6 +398,7 @@ const OPERATOR_LINKS = [
 ];
 
 const STAFF_LINKS = [
+  { href: "overview.html", label: "Overview" },
   { href: "staff.html", label: "Pending requests" },
   { href: "vehicle-approvals.html", label: "Vehicle approvals" },
   { href: "vehicles-database.html", label: "Vehicles" },
@@ -692,4 +693,36 @@ export function showMessage(id, text, kind = "error") {
   }
   el.className = `msg msg-${kind === "ok" ? "ok" : "error"}`;
   el.textContent = text;
+}
+
+/* ---------------------------------------------------------------- export */
+
+// One field, RFC-4180 quoted only when it needs to be (contains a comma,
+// quote, or newline) - quoting everything unconditionally still works in
+// every spreadsheet app but reads noisier than necessary for the common
+// case of plain text/numbers.
+function csvField(value) {
+  const s = value == null ? "" : String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// Builds a CSV string from column headers + row arrays and triggers a
+// browser download - used by every staff table page's "Export CSV"
+// button. A leading UTF-8 BOM makes Excel (which otherwise guesses the
+// system codepage) read accented characters like "Biñan" correctly
+// instead of mangling them.
+export function downloadCsv(filename, headers, rows) {
+  const lines = [headers, ...rows].map((row) =>
+    row.map(csvField).join(",")
+  );
+  const csv = "﻿" + lines.join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

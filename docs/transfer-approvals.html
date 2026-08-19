@@ -30,8 +30,30 @@
         <p class="subtle" id="queue-count"></p>
       </div>
 
+      <div class="mode-switch" role="tablist" id="view-tabs">
+        <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
+        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+      </div>
+
+      <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="pending-toolbar">
+        <div class="field" style="max-width: 360px; margin-bottom: 0">
+          <label for="search">Search</label>
+          <input id="search" placeholder="From/to operator, plate no., or route…" />
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn-link" id="select-all">Select all actionable</button>
+          <button type="button" class="btn-outline" id="approve-selected" disabled>
+            Approve selected
+          </button>
+          <button type="button" class="btn-danger-outline" id="reject-selected" disabled>
+            Reject selected
+          </button>
+        </div>
+      </div>
+
       <div class="hidden" id="message"></div>
       <div id="requests"></div>
+      <div class="hidden" id="decided"></div>
     </main>
 
     <script type="module">
@@ -48,7 +70,60 @@
       if (!profile) throw new Error("unauthorised");
       renderNav(profile);
 
+      // Keeps the last full pending fetch around so the search box and
+      // bulk-select checkboxes can work client-side without re-querying
+      // Supabase on every keystroke/click.
+      let pendingRequests = [];
+      const selectedIds = new Set();
+      let view = "pending";
+
+      document.getElementById("search").addEventListener("input", renderRequests);
+      document.getElementById("select-all").addEventListener("click", toggleSelectAll);
+      document.getElementById("approve-selected").addEventListener("click", approveSelected);
+      document.getElementById("reject-selected").addEventListener("click", rejectSelected);
+      initViewTabs();
+
       await load();
+
+      function initViewTabs() {
+        document.querySelectorAll("#view-tabs [data-view]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            view = btn.dataset.view;
+            document
+              .querySelectorAll("#view-tabs [data-view]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            document.getElementById("pending-toolbar").classList.toggle("hidden", view !== "pending");
+            document.getElementById("requests").classList.toggle("hidden", view !== "pending");
+            document.getElementById("decided").classList.toggle("hidden", view !== "decided");
+            showMessage("message", "");
+            if (view === "decided") await loadDecided();
+          });
+        });
+      }
+
+      /** A transfer is only actionable by staff once the recipient has
+       * confirmed - mirrors the same check the approve/reject RPCs make
+       * server-side, so a row without buttons never gets a checkbox either. */
+      function isActionable(t) {
+        return t.recipient_response === "accepted";
+      }
+
+      function currentQuery() {
+        return document.getElementById("search").value.trim().toLowerCase();
+      }
+
+      function matchesQuery(t, query) {
+        if (!query) return true;
+        const fromLabel =
+          t.from_profile?.operator_name || t.from_profile?.username || "";
+        const toLabel =
+          t.to_profile?.operator_name || t.to_profile?.username || t.to_username || "";
+        const haystack = [fromLabel, toLabel, t.new_plate_no, t.route]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(query);
+      }
 
       async function load() {
         const { data, error } = await supabase
@@ -67,16 +142,38 @@
           return;
         }
 
-        const requests = data ?? [];
+        pendingRequests = data ?? [];
+        // Drop selections for ids that no longer exist / are no longer
+        // actionable (e.g. this reload followed a bulk action).
+        const stillActionableIds = new Set(
+          pendingRequests.filter(isActionable).map((t) => t.id)
+        );
+        for (const id of [...selectedIds]) {
+          if (!stillActionableIds.has(id)) selectedIds.delete(id);
+        }
+
+        renderRequests();
+      }
+
+      function renderRequests() {
+        const query = currentQuery();
+        const requests = pendingRequests.filter((t) => matchesQuery(t, query));
         const host = document.getElementById("requests");
 
         document.getElementById("queue-count").textContent =
-          requests.length === 0
+          pendingRequests.length === 0
             ? "Queue clear"
-            : `${requests.length} awaiting review`;
+            : `${pendingRequests.length} awaiting review`;
+
+        if (pendingRequests.length === 0) {
+          host.innerHTML = `<p class="empty">No transfer requests awaiting approval.</p>`;
+          updateBulkButtons();
+          return;
+        }
 
         if (requests.length === 0) {
-          host.innerHTML = `<p class="empty">No transfer requests awaiting approval.</p>`;
+          host.innerHTML = `<p class="empty">No transfer requests match your search.</p>`;
+          updateBulkButtons();
           return;
         }
 
@@ -86,9 +183,17 @@
               t.from_profile?.operator_name || t.from_profile?.username || "Operator";
             const toLabel =
               t.to_profile?.operator_name || t.to_profile?.username || t.to_username;
+            const actionable = isActionable(t);
             return `
               <div class="request-card">
                 <div class="request-head">
+                  ${
+                    actionable
+                      ? `<input type="checkbox" data-select="${escapeHtml(t.id)}" ${
+                          selectedIds.has(t.id) ? "checked" : ""
+                        } aria-label="Select this transfer" />`
+                      : ""
+                  }
                   <div>
                     <p class="request-who">
                       ${escapeHtml(fromLabel)} &rarr; ${escapeHtml(toLabel)}
@@ -113,7 +218,7 @@
                 </div>
 
                 ${
-                  t.recipient_response === "accepted"
+                  actionable
                     ? `<div class="request-actions">
                         <form data-approve="${escapeHtml(t.id)}">
                           <button type="submit" class="btn-approve">Approve</button>
@@ -144,6 +249,37 @@
             reject(form.dataset.reject, form.querySelector("input").value.trim());
           });
         });
+        host.querySelectorAll("[data-select]").forEach((box) => {
+          box.addEventListener("change", () => {
+            const id = box.dataset.select;
+            if (box.checked) selectedIds.add(id);
+            else selectedIds.delete(id);
+            updateBulkButtons();
+          });
+        });
+
+        updateBulkButtons();
+      }
+
+      function actionableRequests() {
+        return pendingRequests.filter(isActionable);
+      }
+
+      function updateBulkButtons() {
+        document.getElementById("approve-selected").disabled = selectedIds.size === 0;
+        document.getElementById("reject-selected").disabled = selectedIds.size === 0;
+      }
+
+      function toggleSelectAll() {
+        const actionable = actionableRequests();
+        const allSelected =
+          actionable.length > 0 && actionable.every((t) => selectedIds.has(t.id));
+        if (allSelected) {
+          for (const t of actionable) selectedIds.delete(t.id);
+        } else {
+          for (const t of actionable) selectedIds.add(t.id);
+        }
+        renderRequests();
       }
 
       async function approve(transferId) {
@@ -169,6 +305,164 @@
           return;
         }
         await load();
+      }
+
+      async function approveSelected() {
+        const ids = [...selectedIds];
+        if (ids.length === 0) return;
+        showMessage("message", "");
+
+        let succeeded = 0;
+        const failures = [];
+        for (const id of ids) {
+          const { error } = await supabase.rpc("approve_booking_transfer", {
+            p_transfer_id: id,
+          });
+          if (error) failures.push(error.message);
+          else succeeded += 1;
+        }
+
+        selectedIds.clear();
+        await load();
+
+        showMessage(
+          "message",
+          summarizeBulkResult("approved", succeeded, failures),
+          failures.length === 0 ? "ok" : "error"
+        );
+      }
+
+      async function rejectSelected() {
+        const ids = [...selectedIds];
+        if (ids.length === 0) return;
+
+        const reason = prompt("Reason for rejecting the selected transfers (optional):", "");
+        // A prompt Cancel (null) backs out entirely; an empty string means
+        // "reject with no reason", which is a normal choice to proceed with.
+        if (reason === null) return;
+
+        showMessage("message", "");
+
+        let succeeded = 0;
+        const failures = [];
+        for (const id of ids) {
+          const { error } = await supabase.rpc("reject_booking_transfer", {
+            p_transfer_id: id,
+            p_reason: reason.trim() || null,
+          });
+          if (error) failures.push(error.message);
+          else succeeded += 1;
+        }
+
+        selectedIds.clear();
+        await load();
+
+        showMessage(
+          "message",
+          summarizeBulkResult("rejected", succeeded, failures),
+          failures.length === 0 ? "ok" : "error"
+        );
+      }
+
+      // Shared by approveSelected/rejectSelected - a per-item RPC failure
+      // (e.g. another staff member already decided it, or the recipient's
+      // confirmation was somehow rescinded mid-loop) doesn't abort the rest
+      // of the batch; it's just reported alongside how many did succeed.
+      function summarizeBulkResult(verb, succeeded, failures) {
+        if (failures.length === 0) {
+          return `${succeeded} transfer${succeeded === 1 ? "" : "s"} ${verb}.`;
+        }
+        const parts = [
+          succeeded > 0
+            ? `${succeeded} transfer${succeeded === 1 ? "" : "s"} ${verb}`
+            : `No transfers were ${verb}`,
+          `${failures.length} failed (${failures.join("; ")}) - likely already decided or no longer actionable`,
+        ];
+        return parts.join(". ") + ".";
+      }
+
+      /* --------------------------------------------------- decided view */
+
+      async function loadDecided() {
+        const host = document.getElementById("decided");
+        host.innerHTML = `<p class="empty">Loading…</p>`;
+
+        const { data, error } = await supabase
+          .from("booking_transfers")
+          .select(
+            "id, to_username, new_plate_no, reason, booking_date, slot, route, status, decided_at, " +
+              "from_profile:profiles!booking_transfers_from_operator_id_fkey ( username, operator_name ), " +
+              "to_profile:profiles!booking_transfers_to_operator_id_fkey ( username, operator_name ), " +
+              "decider:profiles!booking_transfers_decided_by_fkey ( username, operator_name )"
+          )
+          .in("status", ["approved", "rejected"])
+          // Postgres defaults DESC to NULLS FIRST - force actual
+          // decisions to the top instead of behind any null-decided_at
+          // row (same fix as staff.html/vehicle-approvals.html's
+          // equivalent "recently decided" query).
+          .order("decided_at", { ascending: false, nullsFirst: false })
+          .limit(50);
+
+        if (error) {
+          host.innerHTML = "";
+          showMessage("message", error.message);
+          return;
+        }
+
+        const decided = data ?? [];
+        if (decided.length === 0) {
+          host.innerHTML = `<p class="empty">No transfers have been decided yet.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Date</th>
+                  <th>Slot</th>
+                  <th>Route</th>
+                  <th>New plate</th>
+                  <th>Status</th>
+                  <th>Decided by</th>
+                  <th>Decided</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${decided
+                  .map((t) => {
+                    const fromLabel =
+                      t.from_profile?.operator_name || t.from_profile?.username || "Operator";
+                    const toLabel =
+                      t.to_profile?.operator_name || t.to_profile?.username || t.to_username;
+                    const deciderLabel =
+                      t.decider?.operator_name || t.decider?.username || "—";
+                    return `
+                      <tr>
+                        <td data-label="From">${escapeHtml(fromLabel)}</td>
+                        <td data-label="To">${escapeHtml(toLabel)}</td>
+                        <td data-label="Date">${escapeHtml(t.booking_date)}</td>
+                        <td data-label="Slot">${escapeHtml(formatSlot(t.slot))}</td>
+                        <td data-label="Route">${escapeHtml(t.route ?? "—")}</td>
+                        <td data-label="New plate">${escapeHtml(t.new_plate_no)}</td>
+                        <td data-label="Status"><span class="badge badge-${escapeHtml(
+                          t.status
+                        )}">${escapeHtml(t.status)}</span></td>
+                        <td data-label="Decided by">${escapeHtml(deciderLabel)}</td>
+                        <td data-label="Decided">${
+                          t.decided_at ? escapeHtml(new Date(t.decided_at).toLocaleString()) : "—"
+                        }</td>
+                      </tr>
+                    `;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
       }
     </script>
   </body>

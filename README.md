@@ -149,15 +149,17 @@ Every operator account has identical functionality - access is granted by
 book, register vehicles, and transfer bookings exactly like any other the
 moment its account exists.
 
-### 5. Deploy the account-creation and account-deletion Edge Functions
+### 5. Deploy the account-creation, account-deletion, and password-reset Edge Functions
 
 Staff create accounts from the **Accounts** page, which calls the
 [`create-account`](supabase/functions/create-account/index.ts) Edge
-Function, and delete them with the
+Function, delete them with the
 [`delete-account`](supabase/functions/delete-account/index.ts) Edge
-Function. Until each is deployed, that page's create/delete action shows
-"Could not reach the account-creation/deletion service" and every other
-feature still works.
+Function, and reset a forgotten password with the
+[`reset-password`](supabase/functions/reset-password/index.ts) Edge
+Function. Until each is deployed, that page's create/delete/reset action
+shows "Could not reach the account-creation/deletion/password-reset
+service" and every other feature still works.
 
 ```bash
 npm install -g supabase          # or: npx supabase
@@ -165,6 +167,7 @@ supabase login                   # opens your browser
 supabase link --project-ref <your-project-ref>
 supabase functions deploy create-account
 supabase functions deploy delete-account
+supabase functions deploy reset-password
 ```
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are
@@ -891,14 +894,15 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   my-schedule.html           Operator: own approved slots + bay assignments (Day/Week views)
   vehicles.html              Operator: register/edit vehicles (scan or manual)
   operator-profile.html     Operator: one-time company details (no approval)
-  staff.html                 Staff: pending booking queue (approve / reject)
-  vehicle-approvals.html     Staff: pending vehicle queue (approve / reject)
-  vehicles-database.html     Staff: every registered vehicle, any status, searchable
-  transfer-approvals.html    Staff: pending booking-transfer queue (approve / reject)
-  schedule.html              Staff: 30-minute-slot capacity grid (Day/Week views)
-  bays.html                  Staff: manage the bay list
-  operator-profiles.html     Staff: read-only view of every operator's company profile
-  accounts.html              Staff: create/delete logins (via Edge Functions)
+  overview.html              Staff: shift-start dashboard - queue counts, lockout alerts, quick links
+  staff.html                 Staff: pending booking queue (search, bulk actions, decided log)
+  vehicle-approvals.html     Staff: pending vehicle queue (search, bulk actions, columns, CSV, decided log)
+  vehicles-database.html     Staff: every registered vehicle, any status, searchable, column toggle, CSV export
+  transfer-approvals.html    Staff: pending booking-transfer queue (search, bulk actions, decided log)
+  schedule.html              Staff: 30-minute-slot capacity grid (Day/Week views, CSV export)
+  bays.html                  Staff: manage the bay list (add, rename, activate/deactivate)
+  operator-profiles.html     Staff: read-only view of every operator's company profile (sortable, CSV export)
+  accounts.html              Staff: create/delete/reset-password logins (via Edge Functions)
   assets/
     config.js                Supabase URL + public anon key
     app.js                   Shared client, auth guard, nav, helpers
@@ -911,6 +915,7 @@ supabase/
   seed.sql                   Optional starter bays
   functions/create-account/  Edge Function for privileged account creation
   functions/delete-account/  Edge Function for privileged account deletion
+  functions/reset-password/  Edge Function for privileged password reset
 
 scripts/
   create-staff.mjs           Bootstrap the first staff account

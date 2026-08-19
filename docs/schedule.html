@@ -30,6 +30,7 @@
           <button type="button" class="btn-outline" id="prev">&larr; Prev</button>
           <input type="date" id="date" />
           <button type="button" class="btn-outline" id="next">Next &rarr;</button>
+          <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
         </div>
       </div>
 
@@ -53,6 +54,7 @@
         gateForRoute,
         showMessage,
         escapeHtml,
+        downloadCsv,
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
@@ -104,6 +106,66 @@
         load();
       });
 
+      document.getElementById("export-csv").addEventListener("click", () => {
+        if (viewMode === "week") {
+          exportWeekCsv();
+        } else {
+          exportDayCsv();
+        }
+      });
+
+      // Retained from the most recent loadDay()/loadWeek() call so the
+      // Export CSV button can reuse the already-fetched bookings instead
+      // of refetching from Supabase just for the export.
+      let lastDayBookings = [];
+      let lastWeekBookings = [];
+
+      const CSV_HEADERS = [
+        "Date",
+        "Time slot",
+        "Operator",
+        "Route",
+        "Plate No.",
+        "Status",
+        "Assigned bay",
+        "Trip No.",
+      ];
+
+      function bookingToCsvRow(b) {
+        return [
+          b.booking_date ?? currentDate,
+          formatSlot(b.slot),
+          b.operator_name ?? "",
+          b.route ?? "",
+          b.plate_no ?? "",
+          b.status ?? "",
+          b.bays?.name ?? "",
+          b.trip_number ?? "",
+        ];
+      }
+
+      function exportDayCsv() {
+        const rows = [...lastDayBookings]
+          .sort((a, b) => a.slot - b.slot)
+          .map(bookingToCsvRow);
+        downloadCsv(`schedule-${currentDate}.csv`, CSV_HEADERS, rows);
+      }
+
+      function exportWeekCsv() {
+        const days = weekDates(currentDate);
+        const rows = [...lastWeekBookings]
+          .sort(
+            (a, b) =>
+              a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot
+          )
+          .map(bookingToCsvRow);
+        downloadCsv(
+          `schedule-week-${days[0]}-to-${days[6]}.csv`,
+          CSV_HEADERS,
+          rows
+        );
+      }
+
       await load();
 
       async function load() {
@@ -126,6 +188,7 @@
         const activeBays = baysRes.data ?? [];
         const totalBays = activeBays.length;
         const bookings = bookingsRes.data ?? [];
+        lastDayBookings = bookings;
 
         document.getElementById("capacity-note").textContent =
           `Arrivals for ${currentDate}. Each 30-minute slot holds at most ` +
@@ -270,6 +333,7 @@
 
         const totalBays = (baysRes.data ?? []).length;
         const bookings = bookingsRes.data ?? [];
+        lastWeekBookings = bookings;
 
         document.getElementById("capacity-note").textContent =
           `Week of ${days[0]} – ${days[6]}. Each 30-minute slot holds at ` +

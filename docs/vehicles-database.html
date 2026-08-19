@@ -11,6 +11,49 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="assets/styles.css" />
+    <style>
+      /* Small popover for the Columns toggle - the rest of the site has no
+         existing dropdown component to reuse, so this is scoped to this
+         page only and leans on the same tokens/radii as the shared sheet. */
+      .columns-control {
+        position: relative;
+      }
+
+      .columns-popover {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 30;
+        min-width: 220px;
+        max-height: 320px;
+        overflow-y: auto;
+        background: var(--surface);
+        border: 1px solid oklch(88% 0.006 260);
+        border-radius: var(--r-card);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+        padding: 10px;
+      }
+
+      .columns-popover label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-2);
+        padding: 5px 4px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      .columns-popover label:hover {
+        background: var(--ground);
+      }
+
+      .columns-popover input {
+        margin: 0;
+      }
+    </style>
   </head>
   <body>
     <header class="nav" id="nav"></header>
@@ -39,6 +82,11 @@
           <button type="button" class="mode-tab" data-filter="pending">Pending</button>
           <button type="button" class="mode-tab" data-filter="rejected">Declined</button>
         </div>
+        <div class="columns-control">
+          <button type="button" class="btn-outline" id="columns-toggle">Columns</button>
+          <div class="columns-popover hidden" id="columns-popover"></div>
+        </div>
+        <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
       </div>
 
       <div class="hidden" id="message"></div>
@@ -65,6 +113,7 @@
         vehicleDetailsHtml,
         applyVehicleHighlightFromQuery,
         escapeHtml,
+        downloadCsv,
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
@@ -82,11 +131,135 @@
       // load() runs below, or it's still in its temporal dead zone.
       const PAGE_SIZE = 1000;
 
+      // Every column the table can show, in on-screen order. `csv` renders
+      // the plain-text value for export - separate from the `<td>` markup
+      // below since several columns (status/LTFRB badges, aircon) render
+      // as HTML on screen but should be plain text in the exported file.
+      const COLUMNS = [
+        { key: "plate_no", label: "Plate No.", csv: (v) => v.plate_no ?? "" },
+        {
+          key: "operator",
+          label: "Operator",
+          csv: (v) => v.profiles?.operator_name || v.profiles?.username || "",
+        },
+        { key: "status", label: "Status", csv: (v) => v.status ?? "" },
+        { key: "ltfrb", label: "LTFRB", csv: (v) => v.ltfrb_status ?? "" },
+        { key: "case_number", label: "Case No.", csv: (v) => v.case_number ?? "" },
+        { key: "mv_file_number", label: "MV File #", csv: (v) => v.mv_file_number ?? "" },
+        { key: "or_number", label: "OR No.", csv: (v) => v.or_number ?? "" },
+        { key: "cr_number", label: "CR No.", csv: (v) => v.cr_number ?? "" },
+        { key: "chassis_no", label: "Chassis No.", csv: (v) => v.chassis_no ?? "" },
+        { key: "franchise", label: "Franchise", csv: (v) => v.franchise ?? "" },
+        { key: "sticker_no", label: "Sticker No.", csv: (v) => v.sticker_no ?? "" },
+        { key: "cpc_validity", label: "CPC validity", csv: (v) => v.cpc_validity ?? "" },
+        { key: "orcr_validity", label: "OR/CR validity", csv: (v) => v.orcr_validity ?? "" },
+        { key: "route", label: "Route", csv: (v) => v.route ?? "" },
+        { key: "bus_number", label: "Bus No.", csv: (v) => v.bus_number ?? "" },
+        { key: "seating_capacity", label: "Seating", csv: (v) => v.seating_capacity ?? "" },
+        { key: "seat_type", label: "Seat", csv: (v) => v.seat_type ?? "" },
+        { key: "aircon", label: "Aircon", csv: (v) => airconLabel(v.aircon) },
+        { key: "date_granted", label: "Date granted", csv: (v) => v.date_granted ?? "" },
+        { key: "date_expiry", label: "Date expiry", csv: (v) => v.date_expiry ?? "" },
+        { key: "rejection_reason", label: "Note", csv: (v) => v.rejection_reason ?? "" },
+        { key: "documents", label: "Documents", csv: () => "" },
+      ];
+
+      // Default subset shown on first visit - the rest stay one click away
+      // via the Columns popover. Whatever the staff member picks after that
+      // persists in localStorage under this key, so it survives a reload.
+      const COLUMNS_STORAGE_KEY = "pitx.vehiclesDatabase.columns";
+      const DEFAULT_VISIBLE_COLUMNS = [
+        "plate_no",
+        "operator",
+        "route",
+        "bus_number",
+        "status",
+        "cpc_validity",
+        "orcr_validity",
+        "ltfrb",
+      ];
+      let visibleColumns = loadVisibleColumns();
+
+      function loadVisibleColumns() {
+        try {
+          const stored = JSON.parse(localStorage.getItem(COLUMNS_STORAGE_KEY));
+          if (Array.isArray(stored) && stored.length) {
+            const validKeys = new Set(COLUMNS.map((c) => c.key));
+            return new Set(stored.filter((key) => validKeys.has(key)));
+          }
+        } catch {
+          // ignore malformed/absent localStorage value, fall back to defaults
+        }
+        return new Set(DEFAULT_VISIBLE_COLUMNS);
+      }
+
+      function saveVisibleColumns() {
+        localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify([...visibleColumns]));
+      }
+
       initStatusFilter();
       initDetailsDialog();
+      initColumnsPopover();
       document.getElementById("search").addEventListener("input", render);
+      document.getElementById("export-csv").addEventListener("click", exportCsv);
       await load();
       applyVehicleHighlightFromQuery(openDetails);
+
+      function initColumnsPopover() {
+        const toggle = document.getElementById("columns-toggle");
+        const popover = document.getElementById("columns-popover");
+
+        popover.innerHTML = COLUMNS.map(
+          (col) => `
+            <label>
+              <input type="checkbox" data-col-toggle="${col.key}" ${
+            visibleColumns.has(col.key) ? "checked" : ""
+          } />
+              ${escapeHtml(col.label)}
+            </label>`
+        ).join("");
+
+        toggle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          popover.classList.toggle("hidden");
+        });
+
+        popover.querySelectorAll("[data-col-toggle]").forEach((checkbox) => {
+          checkbox.addEventListener("change", () => {
+            const key = checkbox.dataset.colToggle;
+            if (checkbox.checked) visibleColumns.add(key);
+            else visibleColumns.delete(key);
+            saveVisibleColumns();
+            applyColumnVisibility();
+          });
+        });
+
+        // Clicking anywhere outside the popover closes it, same as a
+        // standard dropdown.
+        document.addEventListener("click", (e) => {
+          if (!popover.classList.contains("hidden") && !e.target.closest(".columns-control")) {
+            popover.classList.add("hidden");
+          }
+        });
+      }
+
+      // Re-applied after every render() since the table markup is rebuilt
+      // from scratch on each search/filter/sort change.
+      function applyColumnVisibility() {
+        document.querySelectorAll("[data-col]").forEach((cell) => {
+          cell.classList.toggle("hidden", !visibleColumns.has(cell.dataset.col));
+        });
+      }
+
+      function exportCsv() {
+        const rows = currentRows();
+        const columns = COLUMNS.filter((col) => visibleColumns.has(col.key));
+        downloadCsv(
+          "vehicles.csv",
+          columns.map((col) => col.label),
+          rows.map((v) => columns.map((col) => col.csv(v)))
+        );
+      }
 
       function initStatusFilter() {
         document.querySelectorAll("#status-filter [data-filter]").forEach((btn) => {
@@ -120,7 +293,7 @@
       function sortTh(label, key) {
         const active = sortKey === key;
         const arrow = active ? (sortDir === "asc" ? " &#9650;" : " &#9660;") : "";
-        return `<th class="sortable" data-sort="${key}">${escapeHtml(label)}${arrow}</th>`;
+        return `<th class="sortable" data-sort="${key}" data-col="${key}">${escapeHtml(label)}${arrow}</th>`;
       }
 
       function applySort(rows) {
@@ -205,7 +378,9 @@
         if (docsEl) docsEl.innerHTML = links.length ? links.join("") : "—";
       }
 
-      function render() {
+      // Shared by render() and exportCsv() so the CSV always matches
+      // exactly what's on screen - same status filter, search, and sort.
+      function currentRows() {
         const query = document.getElementById("search").value.trim().toLowerCase();
 
         let rows =
@@ -221,7 +396,11 @@
           );
         }
 
-        rows = applySort(rows);
+        return applySort(rows);
+      }
+
+      function render() {
+        const rows = currentRows();
 
         document.getElementById("summary-count").textContent =
           `${allVehicles.length} vehicle${allVehicles.length === 1 ? "" : "s"} registered across all operators`;
@@ -241,15 +420,15 @@
               <thead>
                 <tr>
                   ${sortTh("Plate No.", "plate_no")}${sortTh("Operator", "operator")}
-                  <th>Status</th><th>LTFRB</th>
-                  <th>Case No.</th>
-                  <th>MV File #</th><th>OR No.</th><th>CR No.</th>
-                  <th>Chassis No.</th><th>Franchise</th><th>Sticker No.</th>
+                  <th data-col="status">Status</th><th data-col="ltfrb">LTFRB</th>
+                  <th data-col="case_number">Case No.</th>
+                  <th data-col="mv_file_number">MV File #</th><th data-col="or_number">OR No.</th><th data-col="cr_number">CR No.</th>
+                  <th data-col="chassis_no">Chassis No.</th><th data-col="franchise">Franchise</th><th data-col="sticker_no">Sticker No.</th>
                   ${sortTh("CPC validity", "cpc_validity")}${sortTh("OR/CR validity", "orcr_validity")}
-                  <th>Route</th><th>Bus No.</th><th>Seating</th>
-                  <th>Seat</th><th>Aircon</th><th>Date granted</th>
-                  <th>Date expiry</th><th>Note</th>
-                  <th>Documents</th>
+                  <th data-col="route">Route</th><th data-col="bus_number">Bus No.</th><th data-col="seating_capacity">Seating</th>
+                  <th data-col="seat_type">Seat</th><th data-col="aircon">Aircon</th><th data-col="date_granted">Date granted</th>
+                  <th data-col="date_expiry">Date expiry</th><th data-col="rejection_reason">Note</th>
+                  <th data-col="documents">Documents</th>
                 </tr>
               </thead>
               <tbody>
@@ -259,28 +438,28 @@
                       v.profiles?.operator_name || v.profiles?.username || "—";
                     return `
                   <tr class="row-clickable" data-vehicle-id="${escapeHtml(v.id)}">
-                    <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
-                    <td data-label="Operator">${escapeHtml(operatorLabel)}</td>
-                    <td data-label="Status">${statusBadge(v.status)}</td>
-                    <td data-label="LTFRB">${ltfrbBadge(v.ltfrb_status)}</td>
-                    <td data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
-                    <td data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
-                    <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
-                    <td data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
-                    <td data-label="Chassis No.">${escapeHtml(v.chassis_no ?? "—")}</td>
-                    <td data-label="Franchise">${escapeHtml(v.franchise ?? "—")}</td>
-                    <td data-label="Sticker No.">${escapeHtml(v.sticker_no ?? "—")}</td>
-                    <td data-label="CPC validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
-                    <td data-label="OR/CR validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
-                    <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
-                    <td data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
-                    <td data-label="Seating">${v.seating_capacity ?? "—"}</td>
-                    <td data-label="Seat">${escapeHtml(v.seat_type ?? "—")}</td>
-                    <td data-label="Aircon">${airconLabel(v.aircon)}</td>
-                    <td data-label="Date granted">${escapeHtml(v.date_granted ?? "—")}</td>
-                    <td data-label="Date expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
-                    <td data-label="Note">${escapeHtml(v.rejection_reason ?? "—")}</td>
-                    <td data-label="Documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
+                    <td class="cell-strong" data-label="Plate No." data-col="plate_no">${escapeHtml(v.plate_no)}</td>
+                    <td data-label="Operator" data-col="operator">${escapeHtml(operatorLabel)}</td>
+                    <td data-label="Status" data-col="status">${statusBadge(v.status)}</td>
+                    <td data-label="LTFRB" data-col="ltfrb">${ltfrbBadge(v.ltfrb_status)}</td>
+                    <td data-label="Case No." data-col="case_number">${escapeHtml(v.case_number ?? "—")}</td>
+                    <td data-label="MV File #" data-col="mv_file_number">${escapeHtml(v.mv_file_number ?? "—")}</td>
+                    <td data-label="OR No." data-col="or_number">${escapeHtml(v.or_number ?? "—")}</td>
+                    <td data-label="CR No." data-col="cr_number">${escapeHtml(v.cr_number ?? "—")}</td>
+                    <td data-label="Chassis No." data-col="chassis_no">${escapeHtml(v.chassis_no ?? "—")}</td>
+                    <td data-label="Franchise" data-col="franchise">${escapeHtml(v.franchise ?? "—")}</td>
+                    <td data-label="Sticker No." data-col="sticker_no">${escapeHtml(v.sticker_no ?? "—")}</td>
+                    <td data-label="CPC validity" data-col="cpc_validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
+                    <td data-label="OR/CR validity" data-col="orcr_validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
+                    <td data-label="Route" data-col="route">${escapeHtml(v.route ?? "—")}</td>
+                    <td data-label="Bus No." data-col="bus_number">${escapeHtml(v.bus_number ?? "—")}</td>
+                    <td data-label="Seating" data-col="seating_capacity">${v.seating_capacity ?? "—"}</td>
+                    <td data-label="Seat" data-col="seat_type">${escapeHtml(v.seat_type ?? "—")}</td>
+                    <td data-label="Aircon" data-col="aircon">${airconLabel(v.aircon)}</td>
+                    <td data-label="Date granted" data-col="date_granted">${escapeHtml(v.date_granted ?? "—")}</td>
+                    <td data-label="Date expiry" data-col="date_expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
+                    <td data-label="Note" data-col="rejection_reason">${escapeHtml(v.rejection_reason ?? "—")}</td>
+                    <td data-label="Documents" data-col="documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
                   </tr>`;
                   })
                   .join("")}
@@ -290,6 +469,7 @@
         `;
 
         resolveDocLinks(rows);
+        applyColumnVisibility();
 
         host.querySelectorAll("[data-sort]").forEach((th) => {
           th.addEventListener("click", () => {

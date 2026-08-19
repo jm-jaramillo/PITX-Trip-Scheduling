@@ -2112,6 +2112,105 @@ across all four surfaces once a booking is approved.
 
 ---
 
+### 66. Command-center UX pass: staff dashboard, search/bulk actions, decision logs, CSV export, more (19 Aug)
+
+User asked (as a hypothetical "PITX command center staff" UX review):
+whether the app was user-friendly for that role, and what could be
+added. Proposed a landing dashboard, search + bulk actions on the three
+approval queues, a visible decision log per queue, proactive
+lockout alerts, CSV export, column visibility on the wide tables, and a
+handful of smaller gaps (bay rename, operator-profiles sorting, account
+password reset) - then was asked to build all of it. Six pieces were
+built in parallel (each independently verified before merging), plus
+groundwork done directly:
+
+- **`overview.html`** (new) - staff's landing page after sign-in
+  (replacing `staff.html` as the redirect target in `index.html` and
+  `guardPage()`'s own mismatched-role redirect, though `staff.html`
+  itself is unchanged and still in the nav). KPI tiles for pending
+  requests/vehicle approvals/transfers awaiting staff/transfers awaiting
+  the operator/today's approved count, each linking straight to its
+  queue; an "approaching lockout" alert listing pending requests within
+  2 hours of hitting the 4-hour booking-lockout window; quick links to
+  every staff page.
+- **`staff.html`, `vehicle-approvals.html`, `transfer-approvals.html`** -
+  each gained a search box (client-side filter over the loaded queue), a
+  per-row checkbox with bulk actions, and a "Recently decided" tab (last
+  50 decided items, read-only, for shift-handoff visibility). Bookings'
+  bulk approve auto-assigns each selected request the first available
+  *suggested* bay for its route's gate, skipping (with a reason shown)
+  anything with no gate match or no suggested bay left rather than
+  guessing; transfers' bulk actions only apply to transfers the
+  receiving operator has already confirmed, matching the existing
+  single-item gating.
+- **`vehicles-database.html`, `vehicle-approvals.html`** - a "Columns"
+  toggle (persisted in `localStorage`) to show/hide individual columns
+  on these ~19-column tables, defaulting to a sensible ~7-8 column
+  subset; an "Export CSV" button on both, plus `schedule.html` (Day and
+  Week) and `operator-profiles.html`, all exporting exactly what's
+  currently visible (search/filter/sort/column-toggle applied) via a new
+  shared `downloadCsv()` helper (`docs/assets/app.js`) with a UTF-8 BOM
+  so Excel reads accented characters correctly.
+- **`operator-profiles.html`** - sortable Operator/Company columns and an
+  "All / Missing profile" filter, alongside its existing search.
+- **`bays.html`** - a Rename action (bays could previously only be
+  activated/deactivated, never renamed after creation).
+- **`accounts.html`** - a Reset password action per account, via a new
+  `reset-password` Edge Function (`supabase/functions/reset-password/`,
+  same privileged-service-role-key pattern as `create-account`/
+  `delete-account`) - previously the only way to recover a lost password
+  was deleting and recreating the account.
+
+**Bugs found and fixed during verification** (this section exists
+because live testing, not just syntax-checking, caught them):
+
+- **TDZ bug in `staff.html`** (same recurring class as #37/#39/#46/#52):
+  `let selectedIds` was declared *after* the top-level `await load()`
+  that (via `renderRequests()`) reads it, throwing `ReferenceError:
+  Cannot access 'selectedIds' before initialization` and leaving the
+  entire pending queue blank. Fixed by moving the declaration up with
+  the rest of the early module-level state.
+- **Inverted lockout-alert condition in `overview.html`**: the original
+  instructions (mine) conflated "time until the slot starts" with "time
+  until the 4-hour lockout" - the implemented filter
+  (`slotStartMillis(...) - now` between 0-2h) actually caught requests
+  *already* past the point of no return, not ones approaching it, and a
+  booking seeded exactly 50 minutes from lockout showed "nothing
+  approaching lockout." Fixed by subtracting `BOOKING_LEAD_TIME_MS`
+  before comparing against the 2-hour urgent window.
+- **`NULLS FIRST` ordering bug in two "Recently decided" queries**:
+  `vehicle-approvals.html` and `transfer-approvals.html` both used
+  `.order("decided_at", { ascending: false })` without `nullsFirst:
+  false` - Postgres defaults `DESC` to `NULLS FIRST`, so the ~1,800
+  masterlist-imported vehicles with no `decided_at` at all sorted
+  *before* every genuinely-decided row, burying a just-approved test
+  vehicle completely off the visible list. `staff.html`'s equivalent
+  query already had this right; the other two didn't. Fixed both to
+  match.
+
+Verified with a full authenticated live walkthrough (throwaway staff +
+operator test accounts and data, cleaned up after) across all six
+pieces: overview.html's KPI counts and (post-fix) lockout alert matched
+seeded data exactly; staff.html's bulk-approve-with-suggested-bay
+correctly assigned two different bays to two bookings sharing a
+date/route/slot (and their trip numbers correctly got the `A` suffix per
+#65); vehicle-approvals.html's bulk approve, columns toggle, and CSV
+export (intercepted via `URL.createObjectURL` rather than relying on an
+actual file download) all produced correct output; bays.html's rename
+(via a stubbed `window.prompt`) round-tripped correctly and was reverted;
+accounts.html's reset-password flow correctly fails gracefully pending
+the Edge Function's deployment, same message pattern as the two existing
+account Edge Functions. All three PostgREST FK-embed guesses used by the
+"Recently decided" queries (`bookings_decided_by_fkey`,
+`vehicles_decided_by_fkey`, `booking_transfers_decided_by_fkey`) were
+confirmed to exist and resolve correctly against the live schema -
+`transfer-approvals.html`'s decided tab additionally got a "Decided by"
+column added after the fact once this was confirmed (the agent that
+built it hadn't been able to verify the constraint existed, so it had
+conservatively omitted the name rather than guess wrong).
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

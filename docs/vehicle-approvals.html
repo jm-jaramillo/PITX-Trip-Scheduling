@@ -28,8 +28,33 @@
         <p class="subtle" id="queue-count"></p>
       </div>
 
+      <div class="mode-switch" role="tablist" id="view-tabs">
+        <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
+        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+      </div>
+
+      <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="pending-toolbar">
+        <div class="field" style="max-width: 360px; margin-bottom: 0">
+          <label for="search">Search</label>
+          <input id="search" placeholder="Operator, plate no., or route…" />
+        </div>
+        <div class="row-actions" style="position: relative; flex-wrap: wrap">
+          <button type="button" class="btn-link" id="select-all">Select all</button>
+          <button type="button" class="btn-outline" id="approve-selected" disabled>
+            Approve selected
+          </button>
+          <button type="button" class="btn-danger-outline" id="reject-selected" disabled>
+            Reject selected
+          </button>
+          <button type="button" class="btn-outline" id="columns-toggle">Columns</button>
+          <div class="notif-panel hidden" id="columns-panel"></div>
+          <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
+        </div>
+      </div>
+
       <div class="hidden" id="message"></div>
       <div id="requests"></div>
+      <div class="hidden" id="decided"></div>
     </main>
 
     <script type="module">
@@ -40,18 +65,165 @@
         showMessage,
         expiryCell,
         escapeHtml,
+        downloadCsv,
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
       if (!profile) throw new Error("unauthorised");
       renderNav(profile);
 
+      // Which of the ~19 approval-form columns are shown, persisted across
+      // reloads so staff don't have to re-hide the same columns every visit.
+      const COLUMNS_STORAGE_KEY = "pitx.vehicleApprovals.columns";
+
+      // Every toggleable column, in table order. `key` doubles as the
+      // data-col attribute shared by the <th> and its column's <td>s, so
+      // visibility toggling is one selector per column rather than an
+      // index-based show/hide that would drift if a column were reordered.
+      const COLUMNS = [
+        { key: "plate", label: "Plate No." },
+        { key: "operator", label: "Operator" },
+        { key: "case", label: "Case No." },
+        { key: "mv", label: "MV File #" },
+        { key: "or", label: "OR No." },
+        { key: "cr", label: "CR No." },
+        { key: "chassis", label: "Chassis No." },
+        { key: "franchise", label: "Franchise" },
+        { key: "sticker", label: "Sticker No." },
+        { key: "cpc", label: "CPC validity" },
+        { key: "orcr", label: "OR/CR validity" },
+        { key: "route", label: "Route" },
+        { key: "bus", label: "Bus No." },
+        { key: "seating", label: "Seating" },
+        { key: "seat", label: "Seat" },
+        { key: "aircon", label: "Aircon" },
+        { key: "granted", label: "Date granted" },
+        { key: "expiry", label: "Date expiry" },
+        { key: "docs", label: "Documents" },
+      ];
+
+      // A sensible glance-view default - the rest stay one click away via
+      // the Columns panel rather than cluttering the table on first load.
+      const DEFAULT_VISIBLE_COLUMNS = [
+        "plate",
+        "operator",
+        "route",
+        "bus",
+        "cpc",
+        "orcr",
+        "docs",
+      ];
+
+      function loadVisibleColumns() {
+        try {
+          const raw = localStorage.getItem(COLUMNS_STORAGE_KEY);
+          if (!raw) return new Set(DEFAULT_VISIBLE_COLUMNS);
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) return new Set(DEFAULT_VISIBLE_COLUMNS);
+          const known = new Set(COLUMNS.map((c) => c.key));
+          return new Set(parsed.filter((k) => known.has(k)));
+        } catch {
+          return new Set(DEFAULT_VISIBLE_COLUMNS);
+        }
+      }
+
+      function saveVisibleColumns() {
+        localStorage.setItem(
+          COLUMNS_STORAGE_KEY,
+          JSON.stringify([...visibleColumns])
+        );
+      }
+
+      let visibleColumns = loadVisibleColumns();
+
+      // Keeps the last full pending fetch around so the search box and
+      // column toggle can both re-render client-side without re-querying.
+      let pendingRequests = [];
+      let view = "pending";
+      const selectedIds = new Set();
+
+      initViewTabs();
+      initColumnsPanel();
+      document.getElementById("search").addEventListener("input", render);
+      document.getElementById("select-all").addEventListener("click", toggleSelectAll);
+      document.getElementById("approve-selected").addEventListener("click", approveSelected);
+      document.getElementById("reject-selected").addEventListener("click", rejectSelected);
+      document.getElementById("export-csv").addEventListener("click", exportCsv);
+
       await load();
+
+      function initViewTabs() {
+        document.querySelectorAll("#view-tabs [data-view]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            view = btn.dataset.view;
+            document
+              .querySelectorAll("#view-tabs [data-view]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            document.getElementById("pending-toolbar").classList.toggle("hidden", view !== "pending");
+            document.getElementById("requests").classList.toggle("hidden", view !== "pending");
+            document.getElementById("decided").classList.toggle("hidden", view !== "decided");
+            showMessage("message", "");
+            if (view === "decided") await loadDecided();
+          });
+        });
+      }
+
+      /* ----------------------------------------------------- columns panel */
+
+      function initColumnsPanel() {
+        const panel = document.getElementById("columns-panel");
+        const toggle = document.getElementById("columns-toggle");
+
+        panel.innerHTML = COLUMNS.map(
+          (col) => `
+            <label class="notif-item" style="display: flex; gap: 8px; align-items: center; cursor: pointer">
+              <input type="checkbox" data-col-toggle="${col.key}" ${
+                visibleColumns.has(col.key) ? "checked" : ""
+              } />
+              ${escapeHtml(col.label)}
+            </label>
+          `
+        ).join("");
+
+        panel.querySelectorAll("[data-col-toggle]").forEach((cb) => {
+          cb.addEventListener("change", () => {
+            const key = cb.dataset.colToggle;
+            if (cb.checked) visibleColumns.add(key);
+            else visibleColumns.delete(key);
+            saveVisibleColumns();
+            applyColumnVisibility();
+          });
+        });
+
+        toggle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          panel.classList.toggle("hidden");
+        });
+        document.addEventListener("click", (e) => {
+          if (!panel.contains(e.target) && e.target !== toggle) panel.classList.add("hidden");
+        });
+      }
+
+      // Toggles both the <th> and every <td> sharing a data-col value -
+      // called after every render() (the table is rebuilt each time) and
+      // whenever a checkbox in the Columns panel changes.
+      function applyColumnVisibility() {
+        COLUMNS.forEach((col) => {
+          const shown = visibleColumns.has(col.key);
+          document.querySelectorAll(`[data-col="${col.key}"]`).forEach((el) => {
+            el.style.display = shown ? "" : "none";
+          });
+        });
+      }
 
       function airconLabel(aircon) {
         if (aircon === true) return "Aircon";
         if (aircon === false) return "Non-aircon";
         return "—";
+      }
+
+      function operatorLabel(v) {
+        return v.profiles?.operator_name || v.profiles?.username || "Operator";
       }
 
       async function load() {
@@ -70,16 +242,46 @@
           return;
         }
 
-        const requests = data ?? [];
+        pendingRequests = data ?? [];
+        // A reload can drop rows that were selected (approved/rejected
+        // elsewhere in the meantime) - drop stale ids so the bulk buttons'
+        // disabled state stays accurate.
+        const stillPending = new Set(pendingRequests.map((v) => v.id));
+        [...selectedIds].forEach((id) => {
+          if (!stillPending.has(id)) selectedIds.delete(id);
+        });
+
+        render();
+      }
+
+      function filteredRequests() {
+        const query = document.getElementById("search").value.trim().toLowerCase();
+        if (!query) return pendingRequests;
+        return pendingRequests.filter((v) =>
+          [v.plate_no, v.route, v.profiles?.operator_name, v.profiles?.username]
+            .filter(Boolean)
+            .some((s) => s.toLowerCase().includes(query))
+        );
+      }
+
+      function render() {
+        const requests = filteredRequests();
         const host = document.getElementById("requests");
 
         document.getElementById("queue-count").textContent =
-          requests.length === 0
+          pendingRequests.length === 0
             ? "Queue clear"
-            : `${requests.length} awaiting review`;
+            : `${pendingRequests.length} awaiting review`;
+
+        if (pendingRequests.length === 0) {
+          host.innerHTML = `<p class="empty">No vehicles awaiting approval.</p>`;
+          updateBulkButtons();
+          return;
+        }
 
         if (requests.length === 0) {
-          host.innerHTML = `<p class="empty">No vehicles awaiting approval.</p>`;
+          host.innerHTML = `<p class="empty">No matches.</p>`;
+          updateBulkButtons();
           return;
         }
 
@@ -88,47 +290,51 @@
             <table>
               <thead>
                 <tr>
-                  <th>Plate No.</th><th>Operator</th><th>Case No.</th>
-                  <th>MV File #</th><th>OR No.</th><th>CR No.</th>
-                  <th>Chassis No.</th><th>Franchise</th><th>Sticker No.</th>
-                  <th>CPC validity</th><th>OR/CR validity</th>
-                  <th>Route</th><th>Bus No.</th><th>Seating</th>
-                  <th>Seat</th><th>Aircon</th><th>Date granted</th>
-                  <th>Date expiry</th><th>Documents</th><th></th>
+                  <th><input type="checkbox" id="row-select-all" /></th>
+                  <th data-col="plate">Plate No.</th><th data-col="operator">Operator</th>
+                  <th data-col="case">Case No.</th>
+                  <th data-col="mv">MV File #</th><th data-col="or">OR No.</th><th data-col="cr">CR No.</th>
+                  <th data-col="chassis">Chassis No.</th><th data-col="franchise">Franchise</th><th data-col="sticker">Sticker No.</th>
+                  <th data-col="cpc">CPC validity</th><th data-col="orcr">OR/CR validity</th>
+                  <th data-col="route">Route</th><th data-col="bus">Bus No.</th><th data-col="seating">Seating</th>
+                  <th data-col="seat">Seat</th><th data-col="aircon">Aircon</th><th data-col="granted">Date granted</th>
+                  <th data-col="expiry">Date expiry</th><th data-col="docs">Documents</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 ${requests
                   .map((v) => {
-                    const operatorLabel =
-                      v.profiles?.operator_name || v.profiles?.username || "Operator";
+                    const label = operatorLabel(v);
                     return `
                   <tr>
-                    <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}${
+                    <td><input type="checkbox" data-select="${escapeHtml(v.id)}" ${
+                      selectedIds.has(v.id) ? "checked" : ""
+                    } /></td>
+                    <td class="cell-strong" data-col="plate" data-label="Plate No.">${escapeHtml(v.plate_no)}${
                       v.previously_approved
                         ? `<span class="revised">changed after approval</span>`
                         : v.revision_count > 0
                           ? `<span class="revised">changed &times;${v.revision_count}</span>`
                           : ""
                     }</td>
-                    <td data-label="Operator">${escapeHtml(operatorLabel)}</td>
-                    <td data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
-                    <td data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
-                    <td data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
-                    <td data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
-                    <td data-label="Chassis No.">${escapeHtml(v.chassis_no ?? "—")}</td>
-                    <td data-label="Franchise">${escapeHtml(v.franchise ?? "—")}</td>
-                    <td data-label="Sticker No.">${escapeHtml(v.sticker_no ?? "—")}</td>
-                    <td data-label="CPC validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
-                    <td data-label="OR/CR validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
-                    <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
-                    <td data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
-                    <td data-label="Seating">${v.seating_capacity ?? "—"}</td>
-                    <td data-label="Seat">${escapeHtml(v.seat_type ?? "—")}</td>
-                    <td data-label="Aircon">${airconLabel(v.aircon)}</td>
-                    <td data-label="Date granted">${escapeHtml(v.date_granted ?? "—")}</td>
-                    <td data-label="Date expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
-                    <td data-label="Documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
+                    <td data-col="operator" data-label="Operator">${escapeHtml(label)}</td>
+                    <td data-col="case" data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
+                    <td data-col="mv" data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
+                    <td data-col="or" data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
+                    <td data-col="cr" data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
+                    <td data-col="chassis" data-label="Chassis No.">${escapeHtml(v.chassis_no ?? "—")}</td>
+                    <td data-col="franchise" data-label="Franchise">${escapeHtml(v.franchise ?? "—")}</td>
+                    <td data-col="sticker" data-label="Sticker No.">${escapeHtml(v.sticker_no ?? "—")}</td>
+                    <td data-col="cpc" data-label="CPC validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
+                    <td data-col="orcr" data-label="OR/CR validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
+                    <td data-col="route" data-label="Route">${escapeHtml(v.route ?? "—")}</td>
+                    <td data-col="bus" data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
+                    <td data-col="seating" data-label="Seating">${v.seating_capacity ?? "—"}</td>
+                    <td data-col="seat" data-label="Seat">${escapeHtml(v.seat_type ?? "—")}</td>
+                    <td data-col="aircon" data-label="Aircon">${airconLabel(v.aircon)}</td>
+                    <td data-col="granted" data-label="Date granted">${escapeHtml(v.date_granted ?? "—")}</td>
+                    <td data-col="expiry" data-label="Date expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
+                    <td data-col="docs" data-label="Documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
                     <td>
                       <div class="row-actions">
                         <form data-approve="${escapeHtml(v.id)}">
@@ -149,6 +355,7 @@
         `;
 
         resolveDocLinks(requests);
+        applyColumnVisibility();
 
         host.querySelectorAll("[data-approve]").forEach((form) => {
           form.addEventListener("submit", (e) => {
@@ -162,6 +369,51 @@
             reject(form.dataset.reject, form.querySelector("input").value.trim());
           });
         });
+        host.querySelectorAll("[data-select]").forEach((cb) => {
+          cb.addEventListener("change", () => {
+            if (cb.checked) selectedIds.add(cb.dataset.select);
+            else selectedIds.delete(cb.dataset.select);
+            updateBulkButtons();
+            syncRowSelectAll(requests);
+          });
+        });
+
+        const rowSelectAll = document.getElementById("row-select-all");
+        rowSelectAll?.addEventListener("change", () => {
+          requests.forEach((v) => {
+            if (rowSelectAll.checked) selectedIds.add(v.id);
+            else selectedIds.delete(v.id);
+          });
+          render();
+        });
+        syncRowSelectAll(requests);
+        updateBulkButtons();
+      }
+
+      function syncRowSelectAll(requests) {
+        const rowSelectAll = document.getElementById("row-select-all");
+        if (!rowSelectAll) return;
+        rowSelectAll.checked =
+          requests.length > 0 && requests.every((v) => selectedIds.has(v.id));
+      }
+
+      function updateBulkButtons() {
+        const disabled = selectedIds.size === 0;
+        document.getElementById("approve-selected").disabled = disabled;
+        document.getElementById("reject-selected").disabled = disabled;
+      }
+
+      // "Select all" in the toolbar (as distinct from the in-table header
+      // checkbox) selects every row currently matching the search filter.
+      function toggleSelectAll() {
+        const requests = filteredRequests();
+        const allSelected =
+          requests.length > 0 && requests.every((v) => selectedIds.has(v.id));
+        requests.forEach((v) => {
+          if (allSelected) selectedIds.delete(v.id);
+          else selectedIds.add(v.id);
+        });
+        render();
       }
 
       // Signed URLs are resolved after the table paints (rather than
@@ -201,8 +453,10 @@
         );
       }
 
-      async function approve(vehicleId) {
-        showMessage("message", "");
+      // Core status-update queries, shared by the single-row and bulk
+      // approve/reject actions so both paths stay identical. Neither
+      // reloads or messages on its own - the caller decides when.
+      async function approveVehicle(vehicleId) {
         const { data, error } = await supabase
           .from("vehicles")
           .update({
@@ -215,19 +469,12 @@
           .eq("status", "pending")
           .select("id");
 
-        if (error) {
-          showMessage("message", error.message);
-          return;
-        }
-        if (!data || data.length === 0) {
-          showMessage("message", "That vehicle was already decided on.");
-        }
-        await load();
+        if (error) return { ok: false, error };
+        return { ok: true, decided: (data ?? []).length > 0 };
       }
 
-      async function reject(vehicleId, reason) {
-        showMessage("message", "");
-        await supabase
+      async function rejectVehicle(vehicleId, reason) {
+        const { error } = await supabase
           .from("vehicles")
           .update({
             status: "rejected",
@@ -237,7 +484,179 @@
           })
           .eq("id", vehicleId)
           .eq("status", "pending");
+
+        if (error) return { ok: false, error };
+        return { ok: true };
+      }
+
+      async function approve(vehicleId) {
+        showMessage("message", "");
+        const result = await approveVehicle(vehicleId);
+        if (!result.ok) {
+          showMessage("message", result.error.message);
+          return;
+        }
+        if (!result.decided) {
+          showMessage("message", "That vehicle was already decided on.");
+        }
+        selectedIds.delete(vehicleId);
         await load();
+      }
+
+      async function reject(vehicleId, reason) {
+        showMessage("message", "");
+        const result = await rejectVehicle(vehicleId, reason);
+        if (!result.ok) {
+          showMessage("message", result.error.message);
+          return;
+        }
+        selectedIds.delete(vehicleId);
+        await load();
+      }
+
+      async function approveSelected() {
+        if (selectedIds.size === 0) return;
+        showMessage("message", "");
+        const ids = [...selectedIds];
+        let approved = 0;
+        for (const id of ids) {
+          const result = await approveVehicle(id);
+          if (result.ok && result.decided) approved += 1;
+        }
+        selectedIds.clear();
+        await load();
+        showMessage(
+          "message",
+          `Approved ${approved} vehicle${approved === 1 ? "" : "s"}.`,
+          "ok"
+        );
+      }
+
+      async function rejectSelected() {
+        if (selectedIds.size === 0) return;
+        // One shared reason for the whole batch, prompted once up front -
+        // matches the single-row Reject form's optional free-text reason.
+        const reason = prompt("Rejection reason (optional, applied to all selected):", "") ?? "";
+        showMessage("message", "");
+        const ids = [...selectedIds];
+        let rejected = 0;
+        for (const id of ids) {
+          const result = await rejectVehicle(id, reason.trim());
+          if (result.ok) rejected += 1;
+        }
+        selectedIds.clear();
+        await load();
+        showMessage(
+          "message",
+          `Rejected ${rejected} vehicle${rejected === 1 ? "" : "s"}.`,
+          "ok"
+        );
+      }
+
+      /* --------------------------------------------------------- CSV export */
+
+      // Plain-text value per column key, mirroring the table cells above
+      // but without any HTML - used only for the CSV export.
+      const CSV_VALUE = {
+        plate: (v) => v.plate_no ?? "",
+        operator: (v) => operatorLabel(v),
+        case: (v) => v.case_number ?? "",
+        mv: (v) => v.mv_file_number ?? "",
+        or: (v) => v.or_number ?? "",
+        cr: (v) => v.cr_number ?? "",
+        chassis: (v) => v.chassis_no ?? "",
+        franchise: (v) => v.franchise ?? "",
+        sticker: (v) => v.sticker_no ?? "",
+        cpc: (v) => v.cpc_validity ?? "",
+        orcr: (v) => v.orcr_validity ?? "",
+        route: (v) => v.route ?? "",
+        bus: (v) => v.bus_number ?? "",
+        seating: (v) => v.seating_capacity ?? "",
+        seat: (v) => v.seat_type ?? "",
+        aircon: (v) => airconLabel(v.aircon),
+        granted: (v) => v.date_granted ?? "",
+        expiry: (v) => v.date_expiry ?? "",
+        docs: () => "",
+      };
+
+      // Exports exactly what's on screen - the search-filtered rows, and
+      // only the columns currently toggled on in the Columns panel.
+      function exportCsv() {
+        const cols = COLUMNS.filter((c) => visibleColumns.has(c.key));
+        const headers = cols.map((c) => c.label);
+        const rows = filteredRequests().map((v) => cols.map((c) => CSV_VALUE[c.key](v)));
+        downloadCsv("pending-vehicle-approvals.csv", headers, rows);
+      }
+
+      /* ------------------------------------------------------ decided view */
+
+      async function loadDecided() {
+        const host = document.getElementById("decided");
+        host.innerHTML = `<p class="empty">Loading&hellip;</p>`;
+
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select(
+            // Same two-FK situation as the pending query above, plus a
+            // second embed for whoever decided it - vehicles_decided_by_fkey
+            // is Postgres's default-generated name for the unnamed
+            // `decided_by uuid references profiles(id)` column added in
+            // migration 0005, the same convention vehicles_operator_id_fkey
+            // already relies on elsewhere in this codebase.
+            "id, plate_no, route, status, decided_at, rejection_reason, profiles!vehicles_operator_id_fkey ( username, operator_name ), decider:profiles!vehicles_decided_by_fkey ( username, operator_name )"
+          )
+          .in("status", ["approved", "rejected"])
+          // Postgres defaults DESC to NULLS FIRST - most vehicles here
+          // were bulk-imported straight to "approved" with no decided_at
+          // at all, which would otherwise bury every genuinely-decided
+          // row underneath ~1,800 nulls. nullsFirst: false forces actual
+          // decisions to the top instead, where "recently decided" means.
+          .order("decided_at", { ascending: false, nullsFirst: false })
+          .limit(50);
+
+        if (error) {
+          showMessage("message", error.message);
+          host.innerHTML = `<p class="empty">Couldn't load recently decided vehicles.</p>`;
+          return;
+        }
+
+        const rows = data ?? [];
+        if (rows.length === 0) {
+          host.innerHTML = `<p class="empty">No decisions yet.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Plate No.</th><th>Operator</th><th>Route</th>
+                  <th>Status</th><th>Decided by</th><th>Decided at</th><th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map((v) => {
+                    const label = operatorLabel(v);
+                    const decider =
+                      v.decider?.operator_name || v.decider?.username || "—";
+                    return `
+                  <tr>
+                    <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
+                    <td data-label="Operator">${escapeHtml(label)}</td>
+                    <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
+                    <td data-label="Status">${escapeHtml(v.status)}</td>
+                    <td data-label="Decided by">${escapeHtml(decider)}</td>
+                    <td data-label="Decided at">${escapeHtml(v.decided_at ?? "—")}</td>
+                    <td data-label="Note">${escapeHtml(v.rejection_reason ?? "—")}</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
       }
     </script>
   </body>

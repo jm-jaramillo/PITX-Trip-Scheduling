@@ -30,8 +30,30 @@
         <p class="subtle" id="queue-count"></p>
       </div>
 
+      <div class="mode-switch" role="tablist" id="view-tabs">
+        <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
+        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+      </div>
+
+      <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="pending-toolbar">
+        <div class="field" style="max-width: 360px; margin-bottom: 0">
+          <label for="search">Search</label>
+          <input id="search" placeholder="Operator, plate no., or route…" />
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn-link" id="select-all">Select all</button>
+          <button type="button" class="btn-outline" id="approve-selected" disabled>
+            Approve selected (suggested bay)
+          </button>
+          <button type="button" class="btn-danger-outline" id="reject-selected" disabled>
+            Reject selected
+          </button>
+        </div>
+      </div>
+
       <div class="hidden" id="message"></div>
       <div id="requests"></div>
+      <div class="hidden" id="decided"></div>
     </main>
 
     <script type="module">
@@ -47,9 +69,44 @@
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
+      // Keeps the last full pending fetch around so the search box can
+      // filter client-side without re-querying Supabase on every keystroke.
+      let pendingRequests = [];
+      let pendingBays = [];
+      let pendingTaken = new Map();
+      let view = "pending";
+      // Which pending ids the bulk actions apply to - cleared on every
+      // reload since the queue itself changes underneath it. Must be
+      // declared up here, before the `await load()` a few lines down -
+      // load() -> renderRequests() reads this at module top-level, which
+      // would otherwise run while this `let` is still in its temporal
+      // dead zone (same class of bug as #37/#39/#46/#52).
+      let selectedIds = new Set();
+
       if (profile) {
         renderNav(profile);
+        initViewTabs();
+        document.getElementById("search").addEventListener("input", renderRequests);
+        document.getElementById("select-all").addEventListener("click", toggleSelectAll);
+        document.getElementById("approve-selected").addEventListener("click", approveSelected);
+        document.getElementById("reject-selected").addEventListener("click", rejectSelected);
         await load();
+      }
+
+      function initViewTabs() {
+        document.querySelectorAll("#view-tabs [data-view]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            view = btn.dataset.view;
+            document
+              .querySelectorAll("#view-tabs [data-view]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            document.getElementById("pending-toolbar").classList.toggle("hidden", view !== "pending");
+            document.getElementById("requests").classList.toggle("hidden", view !== "pending");
+            document.getElementById("decided").classList.toggle("hidden", view !== "decided");
+            showMessage("message", "");
+            if (view === "decided") await loadDecided();
+          });
+        });
       }
 
       async function load() {
@@ -72,49 +129,71 @@
             .eq("status", "approved"),
         ]);
 
-        const requests = pendingRes.data ?? [];
-        const bays = (baysRes.data ?? []).sort((a, b) =>
+        pendingRequests = pendingRes.data ?? [];
+        pendingBays = (baysRes.data ?? []).sort((a, b) =>
           compareBayNames(a.name, b.name)
         );
 
         // Which bays are already committed for a given date+slot.
-        const taken = new Map();
+        pendingTaken = new Map();
         for (const row of approvedRes.data ?? []) {
           const key = `${row.booking_date}|${row.slot}`;
-          if (!taken.has(key)) taken.set(key, new Set());
-          if (row.assigned_bay_id) taken.get(key).add(row.assigned_bay_id);
+          if (!pendingTaken.has(key)) pendingTaken.set(key, new Set());
+          if (row.assigned_bay_id) pendingTaken.get(key).add(row.assigned_bay_id);
         }
+
+        selectedIds = new Set();
+        renderRequests();
+      }
+
+      // Given a route, works out which bay the single-approve dropdown
+      // would auto-pick and preselect - the bulk "Approve selected" button
+      // reuses this exact same rule so a selected item never gets a bay
+      // the per-row flow wouldn't also have suggested.
+      function bayChoicesFor(booking) {
+        const takenIds =
+          pendingTaken.get(`${booking.booking_date}|${booking.slot}`) ?? new Set();
+        const available = pendingBays.filter((bay) => !takenIds.has(bay.id));
+        const gate = gateForRoute(booking.route);
+        const suggested = gate ? available.filter((bay) => bay.gate === gate) : [];
+        const other = gate ? available.filter((bay) => bay.gate !== gate) : available;
+        const autoPick = suggested[0] ?? other[0] ?? null;
+        return { gate, available, suggested, other, autoPick };
+      }
+
+      function renderRequests() {
+        const query = document.getElementById("search").value.trim().toLowerCase();
+        const requests = query
+          ? pendingRequests.filter((b) =>
+              [b.operator_name, b.plate_no, b.route]
+                .filter(Boolean)
+                .some((s) => s.toLowerCase().includes(query))
+            )
+          : pendingRequests;
 
         const host = document.getElementById("requests");
 
         document.getElementById("queue-count").textContent =
-          requests.length === 0
+          pendingRequests.length === 0
             ? "Queue clear"
-            : `${requests.length} awaiting review`;
+            : `${pendingRequests.length} awaiting review`;
+
+        if (pendingRequests.length === 0) {
+          host.innerHTML = `<p class="empty">No pending requests right now.</p>`;
+          updateBulkButtons();
+          return;
+        }
 
         if (requests.length === 0) {
-          host.innerHTML = `<p class="empty">No pending requests right now.</p>`;
+          host.innerHTML = `<p class="empty">No matches.</p>`;
+          updateBulkButtons();
           return;
         }
 
         host.innerHTML = requests
           .map((b) => {
-            const takenIds = taken.get(`${b.booking_date}|${b.slot}`) ?? new Set();
-            const available = bays.filter((bay) => !takenIds.has(bay.id));
-            const none = available.length === 0;
-
-            // Bays at the gate this route is meant to use come first, as
-            // a separate optgroup - staff can still pick from "Other
-            // bays" if that gate is full or the route has no gate rule.
-            const gate = gateForRoute(b.route);
-            const suggested = gate ? available.filter((bay) => bay.gate === gate) : [];
-            const other = gate ? available.filter((bay) => bay.gate !== gate) : available;
-
-            // Auto-assign: the lowest-numbered bay at the suggested gate,
-            // or the lowest-numbered available bay if there's no gate
-            // match - staff just click Approve; the dropdown is there to
-            // override, not something they have to fill in themselves.
-            const autoPick = suggested[0] ?? other[0] ?? null;
+            const { gate, suggested, other, autoPick } = bayChoicesFor(b);
+            const none = suggested.length + other.length === 0;
 
             const optionsHtml = (list) =>
               list
@@ -129,6 +208,11 @@
             return `
               <div class="request-card">
                 <div class="request-head">
+                  <label class="row-actions" style="margin-right: 8px">
+                    <input type="checkbox" data-select="${escapeHtml(b.id)}" ${
+                      selectedIds.has(b.id) ? "checked" : ""
+                    } />
+                  </label>
                   <div>
                     <p class="request-who">${escapeHtml(
                       b.operator_name
@@ -199,6 +283,180 @@
             reject(form.dataset.reject, form.querySelector("input").value.trim());
           });
         });
+
+        host.querySelectorAll("[data-select]").forEach((box) => {
+          box.addEventListener("change", () => {
+            const id = box.dataset.select;
+            if (box.checked) selectedIds.add(id);
+            else selectedIds.delete(id);
+            updateBulkButtons();
+          });
+        });
+
+        updateBulkButtons();
+      }
+
+      function updateBulkButtons() {
+        const anySelected = selectedIds.size > 0;
+        document.getElementById("approve-selected").disabled = !anySelected;
+        document.getElementById("reject-selected").disabled = !anySelected;
+      }
+
+      function toggleSelectAll() {
+        const visibleIds = Array.from(
+          document.querySelectorAll("#requests [data-select]")
+        ).map((box) => box.dataset.select);
+        const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+        if (allSelected) {
+          visibleIds.forEach((id) => selectedIds.delete(id));
+        } else {
+          visibleIds.forEach((id) => selectedIds.add(id));
+        }
+        renderRequests();
+      }
+
+      async function rejectSelected() {
+        showMessage("message", "");
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) return;
+        const reason = prompt("Rejection reason for all selected requests (optional):") ?? "";
+        for (const id of ids) {
+          await supabase
+            .from("bookings")
+            .update({
+              status: "rejected",
+              rejection_reason: reason.trim() || null,
+              decided_by: profile.id,
+              decided_at: new Date().toISOString(),
+            })
+            .eq("id", id)
+            .eq("status", "pending");
+        }
+        showMessage("message", `Rejected ${ids.length} request(s).`, "ok");
+        await load();
+      }
+
+      async function approveSelected() {
+        showMessage("message", "");
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) return;
+
+        let approvedCount = 0;
+        const skipped = [];
+
+        for (const id of ids) {
+          const booking = pendingRequests.find((b) => b.id === id);
+          if (!booking) {
+            skipped.push(`${id} (no longer pending)`);
+            continue;
+          }
+
+          const { gate, suggested } = bayChoicesFor(booking);
+          const bay = suggested[0];
+          if (!bay) {
+            skipped.push(
+              `${booking.operator_name} (${
+                gate ? `no suggested bay left at ${gate}` : "route has no gate match"
+              })`
+            );
+            continue;
+          }
+
+          const { data, error } = await supabase
+            .from("bookings")
+            .update({
+              status: "approved",
+              assigned_bay_id: bay.id,
+              decided_by: profile.id,
+              decided_at: new Date().toISOString(),
+            })
+            .eq("id", id)
+            .eq("status", "pending")
+            .select("id");
+
+          if (error || !data || data.length === 0) {
+            skipped.push(`${booking.operator_name} (${error ? error.message : "already decided on"})`);
+            continue;
+          }
+
+          approvedCount += 1;
+          // Keep this booking's now-used bay out of the pool for the rest
+          // of this loop's picks, so two selected rows sharing a slot
+          // don't both get auto-assigned the same suggested bay.
+          const key = `${booking.booking_date}|${booking.slot}`;
+          if (!pendingTaken.has(key)) pendingTaken.set(key, new Set());
+          pendingTaken.get(key).add(bay.id);
+        }
+
+        showMessage(
+          "message",
+          skipped.length === 0
+            ? `Approved ${approvedCount} request(s).`
+            : `Approved ${approvedCount}, skipped ${skipped.length}: ${skipped.join("; ")}`,
+          skipped.length === 0 ? "ok" : "error"
+        );
+        await load();
+      }
+
+      async function loadDecided() {
+        const host = document.getElementById("decided");
+        const { data, error } = await supabase
+          .from("bookings")
+          .select(
+            "id, operator_name, route, plate_no, booking_date, slot, status, rejection_reason, decided_at, decided_by_profile:profiles!bookings_decided_by_fkey ( username, operator_name )"
+          )
+          .in("status", ["approved", "rejected"])
+          .order("decided_at", { ascending: false, nullsFirst: false })
+          .limit(50);
+
+        if (error) {
+          host.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+          return;
+        }
+
+        const rows = data ?? [];
+        if (rows.length === 0) {
+          host.innerHTML = `<p class="empty">No decided requests yet.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th><th>Time slot</th><th>Operator</th><th>Route</th>
+                  <th>Plate No.</th><th>Status</th><th>Decided by</th>
+                  <th>Decided at</th><th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map((b) => {
+                    const decider =
+                      b.decided_by_profile?.operator_name ||
+                      b.decided_by_profile?.username ||
+                      "—";
+                    return `
+                  <tr>
+                    <td data-label="Date">${escapeHtml(b.booking_date)}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
+                    <td data-label="Operator">${escapeHtml(b.operator_name)}</td>
+                    <td data-label="Route">${escapeHtml(b.route)}</td>
+                    <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
+                    <td data-label="Status">${escapeHtml(b.status)}</td>
+                    <td data-label="Decided by">${escapeHtml(decider)}</td>
+                    <td data-label="Decided at">${
+                      b.decided_at ? escapeHtml(b.decided_at) : "—"
+                    }</td>
+                    <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
       }
 
       async function approve(bookingId, bayIdRaw) {

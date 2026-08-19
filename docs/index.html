@@ -64,7 +64,7 @@
       getProfile().then((profile) => {
         if (profile) {
           location.replace(
-            profile.role === "staff" ? "staff.html" : "dashboard.html"
+            profile.role === "staff" ? "overview.html" : "dashboard.html"
           );
         }
       });
@@ -90,7 +90,7 @@
 
         const profile = await getProfile();
         location.replace(
-          profile?.role === "staff" ? "staff.html" : "dashboard.html"
+          profile?.role === "staff" ? "overview.html" : "dashboard.html"
         );
       });
     </script>
