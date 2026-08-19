@@ -264,14 +264,26 @@ server-side.
 When one operator can't make a slot and has an internal arrangement for
 another operator to cover it, the current owner opens **Transfer** next to
 **Change**/**Cancel** on their dashboard and picks the receiving operator
-from a dropdown (every other operator account, via
-`list_operator_accounts()` - migration `0011`), then picks **their plate
-no.** from a second dropdown sourced from *that* operator's own approved
-vehicles (`list_operator_vehicles()` - migration `0016`) - not free text,
-so a transfer can't name a plate the receiving operator hasn't actually
-registered and had approved. Plus an optional reason. Same eligibility as
-**Change** (pending/approved, at least 4 hours out, and no other transfer
-already awaiting review on that booking).
+from a dropdown, then picks **their plate no.** from a second dropdown -
+not free text, so a transfer can't name a plate the receiving operator
+hasn't actually registered and had approved. Plus an optional reason.
+Same eligibility as **Change** (pending/approved, at least 4 hours out,
+and no other transfer already awaiting review on that booking).
+
+**Both dropdowns are narrowed to the booking's own route** (migration
+`0032`, same "must be registered for the route it books" rule #51/#60
+already enforce for the original operator): the operator dropdown
+(`list_operator_accounts(p_route)`) only lists operators with at least
+one approved vehicle registered for that exact route - not "every other
+operator account" - and the plate dropdown
+(`list_operator_vehicles(p_username, p_route)`) only lists that
+operator's vehicles registered for it. Since the applicable route
+depends on which specific booking is being transferred, both are loaded
+fresh each time the dialog opens for that booking, not preloaded once at
+page load. `request_booking_transfer()` re-validates the route match
+server-side - the real gate, confirmed with a direct bypass attempt
+(calling it straight at a route-mismatched plate, skipping both
+dropdowns) that was correctly rejected.
 
 The receiving operator sees it under **Incoming transfer requests** on
 their own dashboard and must **Confirm** or **Decline** before anything

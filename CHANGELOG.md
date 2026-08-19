@@ -1899,6 +1899,51 @@ vehicles still match.
 
 ---
 
+### 61. Transfers now require the receiving operator to match the route too (18 Aug)
+
+User: "For the transfer option, they may only select operators with the
+same route and vehicles must also be filtered based on the route." The
+transfer dialog (#10/#16) let a sender pick *any* other operator account
+and *any* of that operator's approved vehicles, with no route check at
+all - a "Batangas City, Batangas" booking could be handed to an operator
+(and a specific vehicle) with nothing to do with that route. Applied the
+same "must be registered for the route it books" rule #51/#60 already
+enforce for the original operator, to the receiving side too.
+
+- `list_operator_accounts()` now takes the booking's route and only
+  returns operators with at least one approved, LTFRB-eligible vehicle
+  registered for it - no point offering an operator who could never
+  actually take the booking. Since which route applies depends on which
+  specific booking is being transferred, this is no longer preloaded
+  once at page load - it's loaded fresh each time the transfer dialog
+  opens, for that booking's route.
+- `list_operator_vehicles()` now also takes that route and only returns
+  the chosen operator's vehicles registered for it - same narrowing the
+  booking form already applies to the sender's own plate dropdown.
+- `request_booking_transfer()` re-validates the route match server-side
+  (migration `0032_transfer_recipient_route_match.sql`) - the dropdowns
+  above are UX only, same as everywhere else in this app. Both `list_*`
+  functions change their parameter list (route added), so they're
+  `DROP FUNCTION` + `CREATE`, not `CREATE OR REPLACE`. All three reuse
+  `vehicle_matches_route()` (#60's plain-equality rule) rather than a
+  separate check - one source of truth for "is this vehicle registered
+  for this route," used everywhere it's asked.
+
+Verified with a full authenticated round-trip using three throwaway test
+operators (cleaned up after): A and B each with an approved vehicle on
+"Santa Rosa, Laguna", C with one on "Batangas City, Batangas" only, and
+a real booking by A for "Santa Rosa, Laguna". Signed in as A:
+`list_operator_accounts` correctly returned B (and any other Santa
+Rosa-registered operator) but not C and not A itself;
+`list_operator_vehicles` correctly returned B's matching vehicle and an
+empty list for C; `request_booking_transfer` to B's vehicle succeeded;
+a direct bypass attempt - calling `request_booking_transfer` straight at
+C's wrong-route plate, skipping the dropdowns entirely - was correctly
+rejected server-side with "That plate isn't one of the receiving
+operator's approved vehicles registered for this booking's route."
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

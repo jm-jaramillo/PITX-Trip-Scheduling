@@ -208,7 +208,7 @@
       const profile = await guardPage("operator");
       if (profile) {
         renderNav(profile);
-        await Promise.all([loadApprovedVehicles(), loadOperatorAccounts(), loadActiveBays()]);
+        await Promise.all([loadApprovedVehicles(), loadActiveBays()]);
         initForm();
         initEditDialog();
         initTransferDialog();
@@ -392,8 +392,18 @@
       // operator accounts, via a narrow SECURITY DEFINER function rather
       // than a direct profiles query (RLS only lets an operator read their
       // own row). See migration 0011.
-      async function loadOperatorAccounts() {
-        const { data } = await supabase.rpc("list_operator_accounts");
+      //
+      // Narrowed to only operators with an approved vehicle registered
+      // for the *booking being transferred*'s route (migration 0032) -
+      // there's no point offering an operator who could never actually
+      // take this booking, same "must be registered for the route"
+      // requirement #51/#60 already enforce for the original operator.
+      // Route-specific, so this is loaded fresh each time the dialog
+      // opens (see openTransfer()), not once at page load.
+      async function loadOperatorAccounts(route) {
+        const { data } = await supabase.rpc("list_operator_accounts", {
+          p_route: route,
+        });
         operatorAccounts = data ?? [];
       }
 
@@ -890,7 +900,7 @@
 
       function operatorOptionsHtml() {
         if (operatorAccounts.length === 0) {
-          return `<option value="" disabled selected>No other operator accounts yet</option>`;
+          return `<option value="" disabled selected>No other operator has an approved vehicle for this route</option>`;
         }
         return (
           `<option value="" disabled selected>Select an operator</option>` +
@@ -908,7 +918,9 @@
       // Populates "Their plate no." from the chosen operator's own
       // approved vehicles - via list_operator_vehicles() (migration 0016),
       // since the sender can't read another operator's vehicles table
-      // directly (RLS only allows reading your own).
+      // directly (RLS only allows reading your own). Narrowed to just the
+      // vehicles registered for the booking's route (migration 0032) -
+      // same reasoning as the operator dropdown above.
       async function loadTransferPlateOptions(toUsername) {
         const plateSelect = document.getElementById("transfer_plate_no");
         if (!toUsername) {
@@ -919,14 +931,16 @@
         plateSelect.innerHTML = `<option value="" disabled selected>Loading…</option>`;
         plateSelect.disabled = true;
 
+        const booking = bookingsById.get(transferringId);
         const { data } = await supabase.rpc("list_operator_vehicles", {
           p_username: toUsername,
+          p_route: booking?.route ?? null,
         });
         const vehicles = data ?? [];
 
         plateSelect.innerHTML =
           vehicles.length === 0
-            ? `<option value="" disabled selected>No approved vehicles for this operator</option>`
+            ? `<option value="" disabled selected>No approved vehicles for this operator registered for this route</option>`
             : `<option value="" disabled selected>Select a vehicle</option>` +
               vehicles
                 .map(
@@ -939,14 +953,14 @@
         plateSelect.disabled = vehicles.length === 0;
       }
 
-      function openTransfer(bookingId) {
+      async function openTransfer(bookingId) {
         const booking = bookingsById.get(bookingId);
         if (!booking) return;
         transferringId = bookingId;
 
         const operatorSelect = document.getElementById("transfer_username");
-        operatorSelect.innerHTML = operatorOptionsHtml();
-        operatorSelect.disabled = operatorAccounts.length === 0;
+        operatorSelect.innerHTML = `<option value="" disabled selected>Loading…</option>`;
+        operatorSelect.disabled = true;
         document.getElementById("transfer_plate_no").innerHTML =
           `<option value="" disabled selected>Pick an operator first</option>`;
         document.getElementById("transfer_plate_no").disabled = true;
@@ -955,6 +969,16 @@
           `${booking.booking_date}, ${formatSlot(booking.slot)} — ${booking.route}`;
         document.getElementById("transfer-error").className = "inline-error hidden";
         transferDialog.showModal();
+
+        // Loaded fresh per booking, not preloaded at page load - which
+        // operators qualify depends on this specific booking's route.
+        await loadOperatorAccounts(booking.route);
+        // The dialog may have been closed/reopened for a different
+        // booking while this was in flight - only apply it if it's still
+        // the one being transferred.
+        if (transferringId !== bookingId) return;
+        operatorSelect.innerHTML = operatorOptionsHtml();
+        operatorSelect.disabled = operatorAccounts.length === 0;
       }
 
       async function saveTransfer(event) {
