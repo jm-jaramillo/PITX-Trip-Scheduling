@@ -144,6 +144,7 @@
         },
         { key: "status", label: "Status", csv: (v) => v.status ?? "" },
         { key: "ltfrb", label: "LTFRB", csv: (v) => v.ltfrb_status ?? "" },
+        { key: "route", label: "Route", csv: (v) => v.route ?? "" },
         { key: "case_number", label: "Case No.", csv: (v) => v.case_number ?? "" },
         { key: "mv_file_number", label: "MV File #", csv: (v) => v.mv_file_number ?? "" },
         { key: "or_number", label: "OR No.", csv: (v) => v.or_number ?? "" },
@@ -153,7 +154,6 @@
         { key: "sticker_no", label: "Sticker No.", csv: (v) => v.sticker_no ?? "" },
         { key: "cpc_validity", label: "CPC validity", csv: (v) => v.cpc_validity ?? "" },
         { key: "orcr_validity", label: "OR/CR validity", csv: (v) => v.orcr_validity ?? "" },
-        { key: "route", label: "Route", csv: (v) => v.route ?? "" },
         { key: "bus_number", label: "Bus No.", csv: (v) => v.bus_number ?? "" },
         { key: "seating_capacity", label: "Seating", csv: (v) => v.seating_capacity ?? "" },
         { key: "seat_type", label: "Seat", csv: (v) => v.seat_type ?? "" },
@@ -279,13 +279,15 @@
         return "—";
       }
 
-      // Plate No., Operator, CPC validity, OR/CR validity are sortable -
-      // click a header to sort by it, click again to flip direction.
-      // Nulls always sort last regardless of direction, so an empty
-      // validity date doesn't jump to the top on descending sort.
+      // Plate No., Operator, Route, CPC validity, OR/CR validity are
+      // sortable - click a header to sort by it, click again to flip
+      // direction. Nulls always sort last regardless of direction, so an
+      // empty validity date (or unlinked route) doesn't jump to the top
+      // on descending sort.
       const SORT_VALUE = {
         plate_no: (v) => v.plate_no?.toUpperCase() ?? null,
         operator: (v) => (v.profiles?.operator_name || v.profiles?.username)?.toUpperCase() ?? null,
+        route: (v) => v.route?.toUpperCase() ?? null,
         cpc_validity: (v) => v.cpc_validity ?? null,
         orcr_validity: (v) => v.orcr_validity ?? null,
       };
@@ -421,11 +423,12 @@
                 <tr>
                   ${sortTh("Plate No.", "plate_no")}${sortTh("Operator", "operator")}
                   <th data-col="status">Status</th><th data-col="ltfrb">LTFRB</th>
+                  ${sortTh("Route", "route")}
                   <th data-col="case_number">Case No.</th>
                   <th data-col="mv_file_number">MV File #</th><th data-col="or_number">OR No.</th><th data-col="cr_number">CR No.</th>
                   <th data-col="chassis_no">Chassis No.</th><th data-col="franchise">Franchise</th><th data-col="sticker_no">Sticker No.</th>
                   ${sortTh("CPC validity", "cpc_validity")}${sortTh("OR/CR validity", "orcr_validity")}
-                  <th data-col="route">Route</th><th data-col="bus_number">Bus No.</th><th data-col="seating_capacity">Seating</th>
+                  <th data-col="bus_number">Bus No.</th><th data-col="seating_capacity">Seating</th>
                   <th data-col="seat_type">Seat</th><th data-col="aircon">Aircon</th><th data-col="date_granted">Date granted</th>
                   <th data-col="date_expiry">Date expiry</th><th data-col="rejection_reason">Note</th>
                   <th data-col="documents">Documents</th>
@@ -442,6 +445,7 @@
                     <td data-label="Operator" data-col="operator">${escapeHtml(operatorLabel)}</td>
                     <td data-label="Status" data-col="status">${statusBadge(v.status)}</td>
                     <td data-label="LTFRB" data-col="ltfrb">${ltfrbBadge(v.ltfrb_status)}</td>
+                    <td data-label="Route" data-col="route">${escapeHtml(v.route ?? "—")}</td>
                     <td data-label="Case No." data-col="case_number">${escapeHtml(v.case_number ?? "—")}</td>
                     <td data-label="MV File #" data-col="mv_file_number">${escapeHtml(v.mv_file_number ?? "—")}</td>
                     <td data-label="OR No." data-col="or_number">${escapeHtml(v.or_number ?? "—")}</td>
@@ -451,7 +455,6 @@
                     <td data-label="Sticker No." data-col="sticker_no">${escapeHtml(v.sticker_no ?? "—")}</td>
                     <td data-label="CPC validity" data-col="cpc_validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
                     <td data-label="OR/CR validity" data-col="orcr_validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
-                    <td data-label="Route" data-col="route">${escapeHtml(v.route ?? "—")}</td>
                     <td data-label="Bus No." data-col="bus_number">${escapeHtml(v.bus_number ?? "—")}</td>
                     <td data-label="Seating" data-col="seating_capacity">${v.seating_capacity ?? "—"}</td>
                     <td data-label="Seat" data-col="seat_type">${escapeHtml(v.seat_type ?? "—")}</td>

@@ -2400,6 +2400,30 @@ matching 78 - 68).
 
 ---
 
+### 70. Route column: sortable, moved next to LTFRB (19 Aug)
+
+Request: "In the vehicle page of PITX staff make the route sortable
+and rearrange it on the right side of LTFRB." Applies to
+`vehicles-database.html`, staff's read-only fleet database (not the
+operator-facing `vehicles.html`).
+
+Route was plain text at the end of the table, after OR/CR validity.
+Now it's a `sortTh()` column like Plate No./Operator/CPC validity/OR-CR
+validity (click to sort, click again to flip direction, nulls always
+sort last), and it sits immediately to the right of LTFRB in the
+`<thead>`, every row's `<td>` sequence, the Columns-visibility popover,
+and the CSV export column order - all four driven from the same
+`COLUMNS` array, reordered once for consistency.
+
+Verified live with a throwaway staff account against the real
+1,832-row table: a single click sorts true ascending (Alfonso,
+Cavite -> ... -> Baguio City, Benguet), a second click flips to
+descending (Virac, Catanduanes first) with the arrow flipping
+▲ -> ▼, the Columns popover lists Route right after LTFRB, and CSV
+export inherits the same order since it reads from the same array.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
