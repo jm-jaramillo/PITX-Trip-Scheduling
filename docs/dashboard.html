@@ -755,7 +755,7 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, bays ( id, name )"
+              "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, bays ( id, name )"
             )
             .eq("operator_id", profile.id)
             .order("booking_date", { ascending: false })
@@ -800,7 +800,7 @@
               <thead>
                 <tr>
                   <th>Date</th><th>Time slot</th><th>Operator</th><th>Route</th>
-                  <th>Plate No.</th><th>Status</th><th>Assigned bay</th>
+                  <th>Plate No.</th><th>Status</th><th>Assigned bay</th><th>Trip No.</th>
                   <th>Note</th><th></th>
                 </tr>
               </thead>
@@ -842,6 +842,7 @@
                         : ""
                     }</td>
                     <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
+                    <td data-label="Trip No.">${escapeHtml(b.trip_number ?? "—")}</td>
                     <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
                     <td><div class="row-actions">${
                       editable

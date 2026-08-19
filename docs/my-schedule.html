@@ -113,7 +113,7 @@
         const { data, error } = await supabase
           .from("bookings")
           .select(
-            "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, bays ( id, name )"
+            "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, trip_number, bays ( id, name )"
           )
           .eq("operator_id", profile.id)
           .eq("status", "approved")
@@ -207,7 +207,11 @@
                                   b.bays?.name ?? "No bay"
                                 )}</span> <span class="timeline-route">${escapeHtml(
                                   b.route
-                                )}</span> <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>`
+                                )}</span> <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>${
+                                  b.trip_number
+                                    ? ` <span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
+                                    : ""
+                                }`
                               : '<span class="muted">—</span>'
                           }
                         </td>`;
@@ -262,6 +266,11 @@
                                 <span class="bay-tag">${escapeHtml(b.bays?.name ?? "No bay")}</span>
                                 <span class="timeline-route">${escapeHtml(b.route)}</span>
                                 <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>
+                                ${
+                                  b.trip_number
+                                    ? `<span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
+                                    : ""
+                                }
                               </div>
                               ${
                                 b.previous_operator_name

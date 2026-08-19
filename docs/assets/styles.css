@@ -1017,6 +1017,19 @@ td strong,
   border-radius: 6px;
 }
 
+/* A booking's auto-assigned trip number (route code + 24h time, e.g.
+   "NAG1530") - a distinct color from .bay-tag so the two short codes
+   next to each other (trip number, bay) don't blend together. */
+.trip-tag {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--green-ink);
+  background: var(--green-wash);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
 /* The Schedule page's inline "reassign this approved booking's bay"
    control - a compact select + Save button standing in for the plain
    .bay-tag on rows staff can edit. */

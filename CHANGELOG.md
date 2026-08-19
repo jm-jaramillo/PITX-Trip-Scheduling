@@ -2054,6 +2054,64 @@ count.
 
 ---
 
+### 65. Auto-assigned trip numbers on approval (19 Aug)
+
+User: "Similar with airlines, I want trip numbers to be assigned the
+bookings. The naming convention may be the first 3 letters of the route
+then the booking time... When a booking is approved a name should be
+automatically assigned." Added `bookings.trip_number`, computed and set
+by a new `trg_assign_trip_number` trigger the moment a booking's status
+becomes `approved` - `Naga City, Camarines Sur` at 3:30 PM becomes
+`NAG1530`, exactly the user's own example.
+
+**Route codes**: added `route_trip_codes` (migration
+`0033_trip_numbers.sql`), one fixed 3-letter code per canonical route -
+usually the first 3 letters of the town's first word, but per the
+user's own tie-break example ("Sta Rosa and Sta Cruz... use the 2nd
+word instead"), any route that would collide on that uses its second
+word instead (`Santa Rosa, Laguna` &#8594; `ROS`, `Santa Cruz, Laguna` &#8594;
+`CRU` - the user's exact example, verified directly). Computed offline
+across all 91 routes, checked for collisions after each pass: 10
+residual collisions the word-based rule alone couldn't resolve (a
+handful of single-word towns sharing the same first 3 letters, like
+"Baguio"/"Bagamanoc" both `BAG`, and "San Jose" being the literal name
+of 4 routes in different provinces) got a manual override, each
+commented in the migration. A route not in the table (stale free-text
+data) falls back to the first 3 letters of the route string itself, so
+this never hard-fails on old data.
+
+**Same-route, same-time collisions**: multiple bays can serve the same
+route at the same time, so unlike a real flight number the base code
+alone isn't always unique per day - the 2nd, 3rd... approved booking
+sharing a date/route/slot gets a lettered suffix (`NAG1530`, `NAG1530A`,
+`NAG1530B`...), the same way an airline runs extra sections of one
+flight number.
+
+**Assigned only on approval, cleared on leaving it**: a pending
+request's route/plate/time can still change, so there's nothing stable
+to name yet - the trigger only fires on the transition into `approved`.
+It also clears `trip_number` on any transition *away* from `approved`
+(e.g. editing an approved booking via **Change**, which sends it back to
+`pending` for re-approval) so a stale trip number never survives a
+route/time change - the next approval always computes a fresh one.
+Reassigning an already-approved booking's bay doesn't touch status, so
+it correctly leaves an existing trip number untouched.
+
+Displayed next to the bay tag everywhere an approved booking shows: the
+operator's **My requests** table (`dashboard.html`), and both roles'
+Day and Week schedule views (`schedule.html`, `my-schedule.html`) - a
+new `.trip-tag` style (green, distinct from `.bay-tag`'s blue so the two
+short codes don't blend together).
+
+Verified directly against the database (all three of the user's own
+examples: `NAG1530`, `ROS1530`, `CRU1530`, plus the letter-suffix and
+clear-on-un-approve behavior with real INSERT/UPDATE sequences) and with
+a full authenticated visual walkthrough (throwaway staff + operator test
+accounts, cleaned up after) confirming the trip number renders correctly
+across all four surfaces once a booking is approved.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

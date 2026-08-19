@@ -116,7 +116,7 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, previous_operator_name, route, plate_no, slot, status, bays ( id, name )"
+              "id, operator_name, previous_operator_name, route, plate_no, slot, status, trip_number, bays ( id, name )"
             )
             .eq("booking_date", currentDate)
             .in("status", ["pending", "approved"])
@@ -204,6 +204,10 @@
                                   )} &middot; ${escapeHtml(
                                     b.plate_no
                                   )} &middot; ${escapeHtml(b.route)}</span>${
+                                    b.trip_number
+                                      ? `<span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
+                                      : ""
+                                  }${
                                     b.status === "approved"
                                       ? bayReassignHtml(b, activeBays, bookings)
                                       : b.bays?.name
@@ -257,7 +261,7 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, bays ( id, name )"
+              "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, trip_number, bays ( id, name )"
             )
             .gte("booking_date", days[0])
             .lte("booking_date", days[6])
@@ -388,6 +392,10 @@
                                     }${escapeHtml(b.operator_name)} &middot; ${escapeHtml(
                                       b.plate_no
                                     )} &middot; ${escapeHtml(b.route)}</span>${
+                                      b.trip_number
+                                        ? `<span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
+                                        : ""
+                                    }${
                                       b.bays?.name
                                         ? `<span class="bay-tag">${escapeHtml(b.bays.name)}</span>`
                                         : ""

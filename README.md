@@ -827,6 +827,47 @@ agree on where a week starts (Monday) without each re-deriving it.
   issue. Week replaces the old "Upcoming / All" filter, which its own
   date navigation now supersedes.
 
+### Trip numbers
+
+Like an airline flight number, an approved booking gets a **trip
+number**: the route's 3-letter code plus the booking's time as 24-hour
+`HHMM` - Naga City, Camarines Sur at 3:30 PM becomes `NAG1530`. Assigned
+automatically the instant a booking is approved (a `trg_assign_trip_number`
+trigger on `bookings`, migration `0033_trip_numbers.sql`), not before -
+a pending request's route/plate/time can still change, so there's
+nothing stable to name until it's approved. Shown next to the bay tag
+everywhere an approved booking appears: the operator's **My requests**
+table, both roles' Day and Week schedule views.
+
+Each of the 91 routes has a fixed 3-letter code in `route_trip_codes`
+(usually the first 3 letters of the town's first word, e.g. "Naga
+City" &#8594; `NAG`) - except where two routes would otherwise collide on
+that (`"Santa Rosa, Laguna"` and `"Santa Cruz, Laguna"` both start
+`"SAN"/"STA"`), where the *second* word is used instead (`ROS` / `CRU`).
+A handful of single-word towns that still collide even so (e.g.
+"Baguio" and "Bagamanoc" both `"BAG"`), and "San Jose" being the
+literal name of 4 routes in different provinces, needed a manual
+override - each is commented in the migration. A route not in the
+table (stale free-text data predating the canonical list) falls back to
+the first 3 letters of the route string itself, so trip numbering never
+hard-fails on old data.
+
+Multiple bays can serve the same route at the same time, so the base
+code alone isn't always unique per day - the 2nd, 3rd, etc. approved
+booking sharing a date/route/slot gets a lettered suffix (`NAG1530`,
+`NAG1530A`, `NAG1530B`...), the same way an airline runs extra sections
+of one flight number rather than reusing it.
+
+A trip number is cleared the moment a booking leaves approved status
+(the same trigger, on any non-approved transition) - editing an
+approved booking via **Change** sends it back to `pending` for
+re-approval, which would otherwise leave a stale trip number describing
+a route/time the booking may no longer have; clearing it means the next
+approval always computes a fresh one against whatever's current.
+Reassigning an already-approved booking's bay (`schedule.html`) doesn't
+touch status, so it leaves an existing trip number untouched - a trip
+number describes the route/time, not the bay.
+
 ### Reassigning an approved booking's bay (staff)
 
 Staff can move an already-approved booking to a different bay from
