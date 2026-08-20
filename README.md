@@ -691,7 +691,10 @@ for that slot, so the number of **active bays is the cap** on approvals per
 slot. A unique index enforces this in the database, so two staff approving
 at once can't double-book a bay. The **Bays** page controls the active
 count; the **Schedule** page shows approved-vs-capacity per slot for any
-day (48 slots).
+day (48 slots) in Day view, or as a 7-day occupancy heat grid in Week
+view - each cell is a fill count colour-graded by how full the slot is,
+click one to expand its actual bookings (with trip numbers); an Hourly
+toggle collapses the 48 half-hour rows to 24 for a coarser first look.
 
 ### Gates and route-based bay suggestions
 

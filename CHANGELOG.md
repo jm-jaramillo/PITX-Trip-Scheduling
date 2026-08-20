@@ -2424,6 +2424,59 @@ export inherits the same order since it reads from the same array.
 
 ---
 
+### 71. Schedule Week view: occupancy heat grid replaces the booking wall, trip numbers shown (20 Aug)
+
+Prompted by a live demo: simulating a realistic week of demand (52
+operators, several slots at full 27-bay capacity) exposed that Week
+view's cell rendering doesn't scale - every cell always rendered the
+full list of that slot's bookings, so one busy row across all 7 days
+already ran past a screen-height of scroll before a full slot even
+showed up. Proposed six fixes, showed a static mockup for sign-off
+first (occupancy heat grid + click-to-expand + hourly/half-hour
+toggle + sticky headers + heatmap colour), then built the approved
+subset into `schedule.html` for real:
+
+- Every cell now shows just a fill count (`14`, `27`, `—`), colour-
+  graded from empty to full across five steps plus a distinct "at
+  capacity" red - the grid's colour shape alone shows the day's busy
+  bands without reading a single number.
+- Clicking a cell expands that slot's actual bookings into a detail
+  row underneath (status, operator, plate, route, **trip number**,
+  assigned bay) - the same information the old always-on list showed,
+  now on demand instead of always rendered. Only one cell expands at a
+  time; clicking it again collapses it.
+- New Half-hour / Hourly density toggle (Week view only): Hourly
+  collapses each pair of half-hour slots into one row (fill count
+  summed, capacity doubled) for a coarser first look at a busy week;
+  Half-hour keeps the original 48-row precision. Expanding an hourly
+  row lists both half-hour slots' bookings together.
+- Time-slot column and day-header row are both sticky, so scrolling a
+  long grid never loses track of which row/column is in view.
+- "View day" (per date header) still jumps into Day view for bay
+  reassignment, unchanged - this grid stays a triage overview, Day
+  view stays the workbench.
+
+**Real bug found and fixed along the way**: `loadWeek()`'s booking
+query had no `.range()`, so it silently hit Supabase's 1000-row cap
+once a week's bookings exceeded that (this week's simulated data has
+~2,400) - some slots that were actually full read a bus or two short
+(e.g. a true 27/27 rendering as 26/27) with no visible sign anything
+was cut off. This existed before this change too (the old
+always-rendered list would just quietly drop a card or two per cell);
+the heat grid's cell counts made the mismatch checkable against the
+database and caught it. Fixed with the same page-through-with-.range()
+pattern `vehicles-database.html` already uses for its fleet list.
+
+Verified live against the real simulated week (2,386 approved buses,
+4 slots at full 27/27 capacity per busy day): heat colours match true
+occupancy, click-to-expand shows correct bookings with trip numbers
+(e.g. `LEG0600`, `TGB0600`) for every row, Hourly toggle correctly sums
+both half-hour slots (`54/54` at the combined peak), and the KPI strip
+and CSV export (same underlying fetch) now agree with the database
+instead of undercounting.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

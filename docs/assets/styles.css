@@ -56,6 +56,17 @@
   --r-btn: 11px;
   --r-card-sm: 16px;
   --r-card: 20px;
+
+  /* Week view occupancy heat scale - same hue family as the semantic
+     greens/reds above, just stepped so a glance at the grid's colour
+     shape shows the busy bands without reading a single number. */
+  --heat-0: oklch(98% 0.003 260);
+  --heat-1: oklch(93% 0.05 145);
+  --heat-2: oklch(87% 0.09 110);
+  --heat-3: oklch(82% 0.13 75);
+  --heat-4: oklch(75% 0.17 45);
+  --heat-full: oklch(56% 0.2 25);
+  --heat-full-ink: #fff;
 }
 
 * {
@@ -1132,36 +1143,195 @@ tr.muted td {
   background: var(--blue-wash);
 }
 
-/* Week view grid: dates across the top, time slots down the side. */
+/* Week view: an occupancy heat grid, not a list of bookings - dates
+   across the top, time slots down the side, same orientation as
+   before. Each cell is a fixed-height fill count coloured by how full
+   the slot is; clicking one expands the actual bookings (with trip
+   numbers) into a detail row inserted right below, so the grid itself
+   never grows taller than 48 (or 24, in Hourly mode) rows regardless of
+   how many buses are booked. */
+.week-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 .week-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
   text-align: center;
   white-space: nowrap;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
 }
 
-/* Each cell lists the actual bookings for that date/slot, so cells need
-   room to grow vertically and wrap - unlike the rest of the app's
-   tables, which stay single-line. */
+.week-grid th.slot-col-head {
+  left: 0;
+  z-index: 4;
+  text-align: left;
+}
+
+.week-grid th.week-today small {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--blue);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.week-grid td.hour-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 0 12px;
+  height: 34px;
+}
+
 .week-cell {
-  min-width: 180px;
-  vertical-align: top;
-  white-space: normal;
+  text-align: center;
+  padding: 0;
+  border-bottom: 1px solid var(--divider);
+  height: 34px;
+  width: 100px;
 }
 
-.week-cell-bookings {
+.heat-btn {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 34px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.heat-btn:hover,
+.heat-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+.heat-0 {
+  background: var(--heat-0);
+  color: var(--faint);
+  font-weight: 400;
+}
+.heat-1 {
+  background: var(--heat-1);
+  color: var(--green-ink);
+}
+.heat-2 {
+  background: var(--heat-2);
+  color: oklch(38% 0.11 110);
+}
+.heat-3 {
+  background: var(--heat-3);
+  color: oklch(34% 0.13 60);
+}
+.heat-4 {
+  background: var(--heat-4);
+  color: #fff;
+}
+.heat-full {
+  background: var(--heat-full);
+  color: var(--heat-full-ink);
+  position: relative;
+}
+.heat-full::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1.5px solid oklch(100% 0 0 / 0.55);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.heat-legend {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.heat-legend-scale {
+  display: flex;
+  height: 10px;
+  width: 92px;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.heat-legend-scale span {
+  flex: 1;
+}
+
+/* Detail row expanded under a clicked heat cell - spans every date
+   column so the booking list (with trip numbers) reads as one block
+   rather than being squeezed into a single 100px-wide cell. */
+.week-detail-row td {
+  padding: 14px 18px 18px;
+  background: var(--ground);
+  border-bottom: 2px solid var(--border);
+}
+
+.week-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.week-detail-head h4 {
+  font-family: var(--display);
+  font-size: 14px;
+  margin: 0;
+  color: var(--title);
+}
+.week-detail-head .week-detail-meta {
+  font-size: 12px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.week-detail-head .btn-link {
+  font-size: 12.5px;
+}
+
+.week-detail-bookings {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+  display: grid;
+  gap: 0;
 }
-
-.week-cell-bookings li {
+.week-detail-bookings li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 7px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--divider);
+  font-size: 12.5px;
+}
+.week-detail-bookings li:last-child {
+  border-bottom: none;
+}
+.week-detail-bookings .bay-tag,
+.week-detail-bookings .trip-tag {
+  margin-left: 0;
+}
+.week-detail-empty {
+  font-size: 12.5px;
+  color: var(--faint);
+  padding: 6px 0;
 }
 
 .timeline {
