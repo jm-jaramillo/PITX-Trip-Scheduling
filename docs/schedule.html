@@ -11,6 +11,139 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="assets/styles.css" />
+    <style>
+      /* Airport-style Public Information Display board. Dark bars for
+         the column header and each time-group divider (matching the
+         app's own dark nav bar, not the maroon spreadsheet look this
+         was modeled on), tabular-nums throughout since trip numbers,
+         plate numbers, and bay numbers all read as columns of digits. */
+      .pids-wrap {
+        border-radius: var(--r-card, 20px);
+        overflow: hidden;
+        border: 1px solid var(--border, #d7dbe3);
+        background: var(--surface, #fff);
+      }
+
+      .pids-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .pids-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bar, #14192b);
+        color: var(--bar-text, #c7ccdc);
+        font-family: var(--display, inherit);
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        text-align: left;
+        padding: 12px 14px;
+        white-space: nowrap;
+      }
+      .pids-table thead th.pids-num {
+        text-align: center;
+      }
+
+      .pids-time-row td {
+        background: var(--blue-wash, #eef1fb);
+        color: var(--blue-ink, #1d2b6b);
+        font-family: var(--display, inherit);
+        font-weight: 800;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+        padding: 9px 14px;
+        position: sticky;
+        top: 38px;
+        z-index: 1;
+      }
+
+      .pids-row td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--divider, #eef0f3);
+        font-size: 13.5px;
+        vertical-align: middle;
+      }
+      .pids-row:hover td {
+        background: var(--ground, #f7f8fa);
+      }
+      .pids-row.is-cancelled td {
+        color: var(--faint, #9aa1b2);
+      }
+      .pids-row.is-cancelled .pids-company-name,
+      .pids-row.is-cancelled .pids-trip-no {
+        text-decoration: line-through;
+      }
+
+      .pids-company {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .pids-avatar {
+        flex-shrink: 0;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--display, inherit);
+        font-weight: 800;
+        font-size: 12px;
+        color: #fff;
+      }
+      .pids-company-name {
+        font-weight: 700;
+        color: var(--title, #14192b);
+        line-height: 1.3;
+      }
+
+      .pids-trip-no {
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .pids-num {
+        text-align: center;
+        font-weight: 700;
+      }
+
+      .pids-status {
+        font-weight: 800;
+        font-size: 12px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+      .pids-status.status-arriving {
+        color: var(--green-ink, #1c6b3f);
+      }
+      .pids-status.status-departed {
+        color: var(--faint, #9aa1b2);
+      }
+      .pids-status.status-cancelled {
+        color: var(--red-ink, #9c1f22);
+      }
+
+      .pids-bay-reassign select {
+        font-size: 12px;
+        padding: 2px 4px;
+        border-radius: 6px;
+        border: 1px solid var(--border, #d7dbe3);
+        max-width: 88px;
+      }
+
+      .pids-empty {
+        padding: 40px 20px;
+        text-align: center;
+        color: var(--faint, #9aa1b2);
+        font-size: 13.5px;
+      }
+    </style>
   </head>
   <body>
     <header class="nav" id="nav"></header>
@@ -23,17 +156,9 @@
           <p class="subtle" id="capacity-note"></p>
         </div>
         <div class="toolbar">
-          <div class="mode-switch" role="tablist" id="view-mode">
-            <button type="button" class="mode-tab is-active" data-view="day">Day</button>
-            <button type="button" class="mode-tab" data-view="week">Week</button>
-          </div>
-          <div class="mode-switch hidden" role="tablist" id="density-mode">
-            <button type="button" class="mode-tab is-active" data-density="half">15-min</button>
-            <button type="button" class="mode-tab" data-density="hour">Hourly</button>
-          </div>
-          <button type="button" class="btn-outline" id="prev">&larr; Prev</button>
+          <button type="button" class="btn-outline" id="prev">&larr; Prev day</button>
           <input type="date" id="date" />
-          <button type="button" class="btn-outline" id="next">Next &rarr;</button>
+          <button type="button" class="btn-outline" id="next">Next day &rarr;</button>
           <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
         </div>
       </div>
@@ -41,20 +166,6 @@
       <div class="kpis" id="kpis"></div>
 
       <div class="hidden" id="message"></div>
-      <div class="hidden" id="heat-legend-wrap" style="margin-bottom: 10px">
-        <div class="heat-legend">
-          Empty
-          <span class="heat-legend-scale">
-            <span style="background: var(--heat-0)"></span>
-            <span style="background: var(--heat-1)"></span>
-            <span style="background: var(--heat-2)"></span>
-            <span style="background: var(--heat-3)"></span>
-            <span style="background: var(--heat-4)"></span>
-            <span style="background: var(--heat-full)"></span>
-          </span>
-          Full &middot; click a cell for the booking list
-        </div>
-      </div>
       <div id="grid"></div>
     </main>
 
@@ -63,14 +174,12 @@
         supabase,
         guardPage,
         renderNav,
-        SLOTS,
         formatSlot,
         todayISO,
         addDays,
-        weekDates,
-        statusBadge,
         bookingOperatorHtml,
         gateForRoute,
+        slotStartMillis,
         showMessage,
         escapeHtml,
         downloadCsv,
@@ -88,57 +197,41 @@
         : todayISO();
       dateInput.value = currentDate;
 
-      // "Day" is the original single-date grid; "Week" is a 7-day
-      // occupancy heat grid (see loadWeek()) with a link into Day view
-      // per date - full per-slot detail for 7 days at once would be an
-      // unusable wall of stacked booking cards, so Week shows just a
-      // fill count per cell (coloured by how full the slot is) and
-      // expands the actual bookings only when a cell is clicked. Day
-      // stays the place bookings are actually reviewed and bays
-      // reassigned.
-      let viewMode = "day";
-      // Week view density: "half" is the real 96-slot grid (named
-      // "half" from when slots were half-hour; still means "full
-      // granularity" now that they're quarter-hour), "hour" collapses
-      // each group of 4 quarter-hour slots into one row (summed count)
-      // for a coarser first look at a busy week.
-      let weekDensity = "half";
-      // (date, slot) of the currently expanded heat cell, or null -
-      // only one detail row is open at a time. In "hour" density this
-      // holds the first of the 4 quarter-hour slots the row covers.
-      let expandedCell = null;
+      // Retained from the most recent load() so the Export CSV button can
+      // reuse the already-fetched bookings instead of refetching.
+      let lastDayBookings = [];
+      let activeBays = [];
 
-      document.querySelectorAll("#view-mode [data-view]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          viewMode = btn.dataset.view;
-          expandedCell = null;
-          document
-            .querySelectorAll("#view-mode [data-view]")
-            .forEach((b) => b.classList.toggle("is-active", b === btn));
-          document.getElementById("prev").textContent =
-            viewMode === "week" ? "← Prev week" : "← Prev day";
-          document.getElementById("next").textContent =
-            viewMode === "week" ? "Next week →" : "Next day →";
-          document
-            .getElementById("density-mode")
-            .classList.toggle("hidden", viewMode !== "week");
-          document
-            .getElementById("heat-legend-wrap")
-            .classList.toggle("hidden", viewMode !== "week");
-          load();
-        });
-      });
+      const CSV_HEADERS = [
+        "Time",
+        "Company",
+        "Trip No.",
+        "Plate No.",
+        "Destination",
+        "Gate",
+        "Bay",
+        "Status",
+      ];
 
-      document.querySelectorAll("#density-mode [data-density]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          weekDensity = btn.dataset.density;
-          expandedCell = null;
-          document
-            .querySelectorAll("#density-mode [data-density]")
-            .forEach((b) => b.classList.toggle("is-active", b === btn));
-          renderWeekGrid();
-        });
-      });
+      function bookingToCsvRow(b) {
+        return [
+          formatSlot(b.slot).split(" – ")[0],
+          b.operator_name ?? "",
+          b.trip_number ?? "",
+          b.plate_no ?? "",
+          b.route ?? "",
+          bareGate(b.route),
+          bareBay(b.bays?.name),
+          pidsStatus(b).label,
+        ];
+      }
+
+      function exportCsv() {
+        const rows = [...lastDayBookings]
+          .sort((a, b) => a.slot - b.slot)
+          .map(bookingToCsvRow);
+        downloadCsv(`schedule-${currentDate}.csv`, CSV_HEADERS, rows);
+      }
 
       dateInput.addEventListener("change", () => {
         if (dateInput.value) {
@@ -147,138 +240,108 @@
         }
       });
       document.getElementById("prev").addEventListener("click", () => {
-        currentDate = addDays(currentDate, viewMode === "week" ? -7 : -1);
+        currentDate = addDays(currentDate, -1);
         dateInput.value = currentDate;
         load();
       });
       document.getElementById("next").addEventListener("click", () => {
-        currentDate = addDays(currentDate, viewMode === "week" ? 7 : 1);
+        currentDate = addDays(currentDate, 1);
         dateInput.value = currentDate;
         load();
       });
+      document.getElementById("export-csv").addEventListener("click", exportCsv);
 
-      document.getElementById("export-csv").addEventListener("click", () => {
-        if (viewMode === "week") {
-          exportWeekCsv();
-        } else {
-          exportDayCsv();
-        }
-      });
+      // Strips the "Gate "/"Bay " prefix a PIDS board doesn't repeat on
+      // every row (the column header already says what it is) - falls
+      // back to the full string for anything that doesn't match, so an
+      // unexpected naming scheme never silently disappears. Declared
+      // (along with everything else below, down to pidsStatus) ahead of
+      // the module's top-level `await load()` a few lines down - load()
+      // -> renderBoard() reads these at module top-level, which would
+      // otherwise run while these `const`s are still in their temporal
+      // dead zone (same class of bug as #37/#39/#46/#52/#66/#69/#75).
+      function bareNumber(prefix, value) {
+        if (!value) return "—";
+        const re = new RegExp(`^${prefix}\\s*`, "i");
+        return value.replace(re, "");
+      }
+      const bareGate = (route) => bareNumber("Gate", gateForRoute(route));
+      const bareBay = (bayName) => bareNumber("Bay", bayName);
 
-      // Retained from the most recent loadDay()/loadWeek() call so the
-      // Export CSV button can reuse the already-fetched bookings instead
-      // of refetching from Supabase just for the export.
-      let lastDayBookings = [];
-      let lastWeekBookings = [];
-
-      // Retained from the most recent loadWeek() fetch so renderWeekGrid()
-      // can redraw the grid (e.g. on a density toggle or a cell
-      // expand/collapse) without refetching from Supabase. Declared here,
-      // ahead of the module's top-level `await load()` a few lines down,
-      // same TDZ-avoidance reason as lastDayBookings/lastWeekBookings.
-      let weekDays = [];
-      let weekCellsByDate = new Map();
-      let weekTotalBays = 0;
-
-      const CSV_HEADERS = [
-        "Date",
-        "Time slot",
-        "Operator",
-        "Trade Name",
-        "Route",
-        "Plate No.",
-        "Status",
-        "Assigned bay",
-        "Trip No.",
+      // A stable colour per operator (hashed from the name, not random)
+      // so the same company always gets the same avatar colour across
+      // reloads, without needing real logo artwork on file.
+      const AVATAR_PALETTE = [
+        "#2f5fd0", "#1c6b3f", "#9c1f22", "#a15c00",
+        "#6b3fa0", "#0f7a8c", "#b0326b", "#4a5568",
       ];
-
-      function bookingToCsvRow(b) {
-        return [
-          b.booking_date ?? currentDate,
-          formatSlot(b.slot),
-          b.operator_name ?? "",
-          b.trade_name ?? "",
-          b.route ?? "",
-          b.plate_no ?? "",
-          b.status ?? "",
-          b.bays?.name ?? "",
-          b.trip_number ?? "",
-        ];
+      function avatarColor(name) {
+        let hash = 0;
+        for (const ch of name || "") hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+        return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+      }
+      function initials(name) {
+        const words = (name || "?").trim().split(/\s+/).filter(Boolean);
+        return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "?";
       }
 
-      function exportDayCsv() {
-        const rows = [...lastDayBookings]
-          .sort((a, b) => a.slot - b.slot)
-          .map(bookingToCsvRow);
-        downloadCsv(`schedule-${currentDate}.csv`, CSV_HEADERS, rows);
-      }
-
-      function exportWeekCsv() {
-        const days = weekDates(currentDate);
-        const rows = [...lastWeekBookings]
-          .sort(
-            (a, b) =>
-              a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot
-          )
-          .map(bookingToCsvRow);
-        downloadCsv(
-          `schedule-week-${days[0]}-to-${days[6]}.csv`,
-          CSV_HEADERS,
-          rows
-        );
+      // Status shown on the board is derived entirely from data this app
+      // actually has - no fabricated real-time tracking. A cancelled
+      // booking (that had a real assigned slot at some point) shows as
+      // CANCELLED; an approved one flips from ARRIVING to DEPARTED once
+      // its 15-minute window has passed, since that's the one thing we
+      // can honestly infer without live GPS/dispatch data.
+      function pidsStatus(b) {
+        if (b.status === "cancelled") return { key: "cancelled", label: "Cancelled" };
+        const hasDeparted =
+          slotStartMillis(currentDate, b.slot) + 15 * 60 * 1000 <= Date.now();
+        return hasDeparted
+          ? { key: "departed", label: "Departed" }
+          : { key: "arriving", label: "Arriving" };
       }
 
       await load();
 
       async function load() {
-        return viewMode === "week" ? loadWeek() : loadDay();
-      }
-
-      async function loadDay() {
         const [baysRes, bookingsRes] = await Promise.all([
           supabase.from("bays").select("id, name, gate").eq("is_active", true),
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, slot, status, trip_number, bays ( id, name )"
+              "id, operator_name, trade_name, route, plate_no, slot, status, previously_approved, trip_number, bays ( id, name )"
             )
             .eq("booking_date", currentDate)
-            .in("status", ["pending", "approved"])
+            // A live board shows confirmed trips, not staff's internal
+            // approval queue (that's Pending requests) - approved trips,
+            // plus cancellations of a trip that was actually confirmed
+            // at some point (a request cancelled before ever being
+            // approved never had a real slot to show here).
+            .or("status.eq.approved,and(status.eq.cancelled,previously_approved.eq.true)")
             .order("slot", { ascending: true }),
         ]);
 
-        const activeBays = baysRes.data ?? [];
+        if (bookingsRes.error) {
+          showMessage("message", bookingsRes.error.message);
+          return;
+        }
+
+        activeBays = baysRes.data ?? [];
         const totalBays = activeBays.length;
         const bookings = bookingsRes.data ?? [];
         lastDayBookings = bookings;
 
         document.getElementById("capacity-note").textContent =
-          `Arrivals for ${currentDate}. Each 15-minute slot holds at most ` +
-          `${totalBays} approved bus${totalBays === 1 ? "" : "es"}.`;
+          `Trips scheduled for ${currentDate}, across ${totalBays} active bay${
+            totalBays === 1 ? "" : "s"
+          }.`;
 
-        const bySlot = new Map();
-        for (const b of bookings) {
-          if (!bySlot.has(b.slot)) bySlot.set(b.slot, []);
-          bySlot.get(b.slot).push(b);
-        }
-
-        const approvedTotal = bookings.filter(
-          (b) => b.status === "approved"
-        ).length;
-        const pendingTotal = bookings.length - approvedTotal;
-        // Slots where every active bay is already committed.
-        const fullSlots = SLOTS.filter(
-          (s) =>
-            totalBays > 0 &&
-            (bySlot.get(s) ?? []).filter((b) => b.status === "approved")
-              .length >= totalBays
-        ).length;
+        const scheduled = bookings.filter((b) => b.status === "approved").length;
+        const cancelled = bookings.length - scheduled;
 
         document.getElementById("kpis").innerHTML = [
-          { label: "Approved today", value: approvedTotal, unit: "buses" },
-          { label: "Awaiting review", value: pendingTotal, unit: "requests" },
-          { label: "Active bays", value: totalBays, unit: "per slot" },
-          { label: "Slots at capacity", value: fullSlots, unit: "of 48" },
+          { label: "Scheduled today", value: scheduled, unit: "trips" },
+          { label: "Cancelled", value: cancelled, unit: "trips" },
+          { label: "Active bays", value: totalBays, unit: "in service" },
         ]
           .map(
             (k) => `
@@ -291,58 +354,87 @@
           )
           .join("");
 
-        document.getElementById("grid").innerHTML = `
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time slot</th><th>Approved / capacity</th><th>Bookings</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${SLOTS.map((slot) => {
-                  const rows = bySlot.get(slot) ?? [];
-                  const approved = rows.filter(
-                    (b) => b.status === "approved"
-                  ).length;
-                  const atCapacity = totalBays > 0 && approved >= totalBays;
-                  return `
-                    <tr>
-                      <td class="hour-cell" data-label="Time slot">${escapeHtml(formatSlot(slot))}</td>
-                      <td class="capacity${
-                        atCapacity ? " capacity-full" : ""
-                      }" data-label="Approved / capacity">${approved} / ${totalBays}</td>
-                      <td data-label="Bookings">${
-                        rows.length === 0
-                          ? '<span class="muted">—</span>'
-                          : `<ul class="bookings-list">${rows
-                              .map(
-                                (b) =>
-                                  `<li>${statusBadge(b.status)}<span>${bookingOperatorHtml(
-                                    b
-                                  )} &middot; ${escapeHtml(
-                                    b.plate_no
-                                  )} &middot; ${escapeHtml(b.route)}</span>${
-                                    b.trip_number
-                                      ? `<span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
-                                      : ""
-                                  }${
-                                    b.status === "approved"
-                                      ? bayReassignHtml(b, activeBays, bookings)
-                                      : b.bays?.name
-                                        ? `<span class="bay-tag">${escapeHtml(
-                                            b.bays.name
-                                          )}</span>`
-                                        : ""
-                                  }</li>`
-                              )
-                              .join("")}</ul>`
-                      }</td>
-                    </tr>
-                  `;
-                }).join("")}
-              </tbody>
-            </table>
+        renderBoard(bookings);
+      }
+
+      // Groups bookings by slot (skipping any slot with nothing
+      // scheduled - a real departures board doesn't print empty times)
+      // and renders one time-divider row per group, PIDS-style.
+      function renderBoard(bookings) {
+        const host = document.getElementById("grid");
+
+        if (bookings.length === 0) {
+          host.innerHTML = `
+            <div class="pids-wrap">
+              <p class="pids-empty">No trips scheduled for this date.</p>
+            </div>`;
+          return;
+        }
+
+        const bySlot = new Map();
+        for (const b of bookings) {
+          if (!bySlot.has(b.slot)) bySlot.set(b.slot, []);
+          bySlot.get(b.slot).push(b);
+        }
+        const slotsInOrder = [...bySlot.keys()].sort((a, b) => a - b);
+
+        host.innerHTML = `
+          <div class="pids-wrap">
+            <div class="table-wrap table-plain" style="max-height: 70vh; overflow-y: auto">
+              <table class="pids-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Trip No.</th>
+                    <th>Plate No.</th>
+                    <th>Destination</th>
+                    <th class="pids-num">Gate</th>
+                    <th class="pids-num">Bay</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${slotsInOrder
+                    .map((slot) => {
+                      const rows = bySlot.get(slot);
+                      const timeLabel = formatSlot(slot).split(" – ")[0];
+                      const rowsHtml = rows
+                        .map((b) => {
+                          const status = pidsStatus(b);
+                          const label = b.operator_name || "Operator";
+                          return `
+                        <tr class="pids-row${status.key === "cancelled" ? " is-cancelled" : ""}">
+                          <td>
+                            <div class="pids-company">
+                              <span class="pids-avatar" style="background:${avatarColor(label)}">${escapeHtml(
+                                initials(label)
+                              )}</span>
+                              <span class="pids-company-name">${bookingOperatorHtml(b)}</span>
+                            </div>
+                          </td>
+                          <td class="pids-trip-no">${escapeHtml(b.trip_number ?? "—")}</td>
+                          <td>${escapeHtml(b.plate_no)}</td>
+                          <td>${escapeHtml((b.route ?? "—").toUpperCase())}</td>
+                          <td class="pids-num">${escapeHtml(bareGate(b.route))}</td>
+                          <td class="pids-num" data-bay-cell="${escapeHtml(b.id)}">${
+                            status.key === "arriving"
+                              ? bayReassignHtml(b)
+                              : escapeHtml(bareBay(b.bays?.name))
+                          }</td>
+                          <td><span class="pids-status status-${status.key}">${escapeHtml(status.label)}</span></td>
+                        </tr>`;
+                        })
+                        .join("");
+                      return `
+                      <tr class="pids-time-row">
+                        <td colspan="7">${escapeHtml(timeLabel)}</td>
+                      </tr>
+                      ${rowsHtml}`;
+                    })
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
           </div>
         `;
 
@@ -357,326 +449,18 @@
         });
       }
 
-      function formatDayHeading(iso) {
-        const [y, m, d] = iso.split("-").map(Number);
-        // Noon avoids any timezone edge landing on the wrong calendar day.
-        const date = new Date(y, m - 1, d, 12);
-        return date.toLocaleDateString(undefined, {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
-      }
-
-      // A 7-day grid (Mon-Sun of the week containing currentDate) - the
-      // same KPIs Day view shows for a single date, so staff can spot a
-      // busy day across the week before drilling into it. Unlike Day
-      // view, cells here show only a fill count (coloured by how full
-      // the slot is) - the 27-line wall of bookings a full slot would
-      // otherwise render, times 48 rows times 7 columns, made "Week"
-      // unusable the moment real demand showed up. Clicking a cell
-      // expands its actual bookings (with trip numbers) into a detail
-      // row underneath; "View day" on each date header still jumps into
-      // Day view for the bay-reassignment control this grid has no room
-      // for.
-      // Supabase caps a plain .select() at 1000 rows - a slow week (7
-      // days x up to 48 slots x up to ~27 approved buses, plus pending
-      // overflow) can comfortably clear that, so this pages through with
-      // .range() until a page comes back short, same pattern as
-      // vehicles-database.html's fleet list. Without it, Week view would
-      // silently under-count some slots (a "26/27" that's really full)
-      // with no visible sign anything was cut off.
-      const WEEK_PAGE_SIZE = 1000;
-
-      async function loadWeek() {
-        const days = weekDates(currentDate);
-        const baysPromise = supabase.from("bays").select("id").eq("is_active", true);
-
-        let bookings = [];
-        for (let from = 0; ; from += WEEK_PAGE_SIZE) {
-          const { data, error } = await supabase
-            .from("bookings")
-            .select(
-              "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, trip_number, bays ( id, name )"
-            )
-            .gte("booking_date", days[0])
-            .lte("booking_date", days[6])
-            .in("status", ["pending", "approved"])
-            .order("booking_date", { ascending: true })
-            .order("slot", { ascending: true })
-            .range(from, from + WEEK_PAGE_SIZE - 1);
-          if (error) {
-            showMessage("message", error.message);
-            return;
-          }
-          bookings.push(...(data ?? []));
-          if (!data || data.length < WEEK_PAGE_SIZE) break;
-        }
-
-        const baysRes = await baysPromise;
-        const totalBays = (baysRes.data ?? []).length;
-        lastWeekBookings = bookings;
-
-        document.getElementById("capacity-note").textContent =
-          `Week of ${days[0]} – ${days[6]}. Each 15-minute slot holds at ` +
-          `most ${totalBays} approved bus${totalBays === 1 ? "" : "es"}.`;
-
-        const byDate = new Map(days.map((d) => [d, []]));
-        for (const b of bookings) {
-          byDate.get(b.booking_date)?.push(b);
-        }
-
-        // Per (date, slot) bookings - renderWeekGrid()'s cells look these
-        // up on demand (both for the fill count and for a clicked cell's
-        // expanded detail) - plus the per-day totals the KPI strip needs.
-        const cellsByDate = new Map();
-        const weekSummaries = days.map((date) => {
-          const rows = byDate.get(date) ?? [];
-          const approved = rows.filter((b) => b.status === "approved").length;
-          const pending = rows.length - approved;
-          const bySlot = new Map();
-          for (const b of rows) {
-            if (!bySlot.has(b.slot)) bySlot.set(b.slot, []);
-            bySlot.get(b.slot).push(b);
-          }
-          cellsByDate.set(date, bySlot);
-          const fullSlots =
-            totalBays > 0
-              ? SLOTS.filter(
-                  (s) =>
-                    (bySlot.get(s) ?? []).filter((b) => b.status === "approved")
-                      .length >= totalBays
-                ).length
-              : 0;
-          return { date, approved, pending, fullSlots };
-        });
-
-        document.getElementById("kpis").innerHTML = [
-          {
-            label: "Approved this week",
-            value: weekSummaries.reduce((sum, w) => sum + w.approved, 0),
-            unit: "buses",
-          },
-          {
-            label: "Awaiting review",
-            value: weekSummaries.reduce((sum, w) => sum + w.pending, 0),
-            unit: "requests",
-          },
-          { label: "Active bays", value: totalBays, unit: "per slot" },
-          {
-            label: "Busiest day",
-            value: weekSummaries.reduce(
-              (max, w) => Math.max(max, w.fullSlots),
-              0
-            ),
-            unit: "slots at capacity",
-          },
-        ]
-          .map(
-            (k) => `
-            <div class="kpi">
-              <div class="kpi-label">${escapeHtml(k.label)}</div>
-              <div class="kpi-value">
-                <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
-              </div>
-            </div>`
-          )
-          .join("");
-
-        weekDays = days;
-        weekCellsByDate = cellsByDate;
-        weekTotalBays = totalBays;
-        renderWeekGrid();
-      }
-
-      // Slot occupancy -> heat step. Five graduated steps between empty
-      // and full (not just "full/not full") so the grid's colour shape
-      // alone shows which bands of the day are busiest, before reading
-      // a single number.
-      function heatClass(approved, capacity) {
-        if (capacity > 0 && approved >= capacity) return "heat-full";
-        const pct = capacity > 0 ? approved / capacity : 0;
-        if (pct === 0) return "heat-0";
-        if (pct < 0.25) return "heat-1";
-        if (pct < 0.5) return "heat-2";
-        if (pct < 0.85) return "heat-3";
-        return "heat-4";
-      }
-
-      // Shared with the click-to-expand detail row: the same booking
-      // line Day view's Bookings column renders (status badge, transfer
-      // strike-through, operator/plate/route, trip number, assigned
-      // bay), just without the bay-reassignment control - that stays in
-      // Day view, which "View day" jumps straight into.
-      function bookingListHtml(rows) {
-        if (rows.length === 0) {
-          return '<p class="week-detail-empty">No bookings in this slot.</p>';
-        }
-        return `<ul class="week-detail-bookings">${rows
-          .map(
-            (b) => `
-          <li>${statusBadge(b.status)}<span>${bookingOperatorHtml(
-            b
-          )} &middot; ${escapeHtml(
-            b.plate_no
-          )} &middot; ${escapeHtml(b.route)}</span>${
-            b.trip_number
-              ? `<span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
-              : ""
-          }${
-            b.bays?.name
-              ? `<span class="bay-tag">${escapeHtml(b.bays.name)}</span>`
-              : ""
-          }</li>`
-          )
-          .join("")}</ul>`;
-      }
-
-      // Renders the heat grid itself from the module-level state loadWeek()
-      // just populated - called again (without refetching) on a density
-      // toggle or a cell expand/collapse.
-      function renderWeekGrid() {
-        const days = weekDays;
-        const totalBays = weekTotalBays;
-        const today = todayISO();
-        // 15-min density: one row per SLOT (96 rows). Hourly: one row
-        // per group of 4 quarter-hour slots (0-3, 4-7, ...), fill count
-        // summed across all 4 and compared against 4x capacity - a
-        // coarser first look at a busy week, 24 rows instead of 96.
-        const rowSlots =
-          weekDensity === "hour"
-            ? SLOTS.filter((s) => s % 4 === 0).map((s) => [s, s + 1, s + 2, s + 3])
-            : SLOTS.map((s) => [s]);
-        const rowCapacity = weekDensity === "hour" ? totalBays * 4 : totalBays;
-
-        function rowsForCell(date, slots) {
-          const bySlot = weekCellsByDate.get(date);
-          return slots.flatMap((s) => bySlot?.get(s) ?? []);
-        }
-
-        document.getElementById("grid").innerHTML = `
-          <div class="table-wrap table-plain">
-            <table class="week-grid">
-              <thead>
-                <tr>
-                  <th class="slot-col-head">Time slot</th>
-                  ${days
-                    .map(
-                      (date) => `
-                    <th${date === today ? ' class="week-today"' : ""}>
-                      <button type="button" class="btn-link" data-view-day="${escapeHtml(
-                        date
-                      )}">${escapeHtml(formatDayHeading(date))}</button>
-                      ${date === today ? "<small>Today</small>" : ""}
-                    </th>`
-                    )
-                    .join("")}
-                </tr>
-              </thead>
-              <tbody>
-                ${rowSlots
-                  .map((slots) => {
-                    const rowKey = slots[0];
-                    const label =
-                      slots.length === 1
-                        ? formatSlot(slots[0])
-                        : formatSlot(slots[0]).split(" – ")[0] +
-                          " – " +
-                          formatSlot(slots[slots.length - 1]).split(" – ")[1];
-                    const cellsHtml = days
-                      .map((date) => {
-                        const rows = rowsForCell(date, slots);
-                        const approved = rows.filter((b) => b.status === "approved").length;
-                        const isExpanded =
-                          expandedCell &&
-                          expandedCell.date === date &&
-                          expandedCell.slot === rowKey;
-                        return `
-                        <td class="week-cell${date === today ? " week-today" : ""}">
-                          <button
-                            type="button"
-                            class="heat-btn ${heatClass(approved, rowCapacity)}${
-                              isExpanded ? " is-expanded" : ""
-                            }"
-                            data-cell-date="${escapeHtml(date)}"
-                            data-cell-slot="${rowKey}"
-                            aria-label="${escapeHtml(formatDayHeading(date))} ${escapeHtml(label)}: ${approved} of ${rowCapacity} approved"
-                          >${approved === 0 ? "&mdash;" : approved}</button>
-                        </td>`;
-                      })
-                      .join("");
-                    const detailRow =
-                      expandedCell && expandedCell.slot === rowKey
-                        ? `
-                      <tr class="week-detail-row">
-                        <td colspan="${days.length + 1}">
-                          <div class="week-detail-head">
-                            <h4>${escapeHtml(formatDayHeading(expandedCell.date))} &middot; ${escapeHtml(label)}</h4>
-                            <span class="week-detail-meta">${
-                              rowsForCell(expandedCell.date, slots).filter(
-                                (b) => b.status === "approved"
-                              ).length
-                            } / ${rowCapacity} approved</span>
-                            <button type="button" class="btn-link" data-view-day="${escapeHtml(
-                              expandedCell.date
-                            )}">View day →</button>
-                          </div>
-                          ${bookingListHtml(rowsForCell(expandedCell.date, slots))}
-                        </td>
-                      </tr>`
-                        : "";
-                    return `
-                    <tr>
-                      <td class="hour-cell">${escapeHtml(label)}</td>
-                      ${cellsHtml}
-                    </tr>
-                    ${detailRow}`;
-                  })
-                  .join("")}
-              </tbody>
-            </table>
-          </div>
-        `;
-
-        document.querySelectorAll("[data-view-day]").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            currentDate = btn.dataset.viewDay;
-            dateInput.value = currentDate;
-            viewMode = "day";
-            document
-              .querySelectorAll("#view-mode [data-view]")
-              .forEach((b) => b.classList.toggle("is-active", b.dataset.view === "day"));
-            document.getElementById("density-mode").classList.add("hidden");
-            document.getElementById("heat-legend-wrap").classList.add("hidden");
-            document.getElementById("prev").textContent = "← Prev day";
-            document.getElementById("next").textContent = "Next day →";
-            load();
-          });
-        });
-
-        document.querySelectorAll("[data-cell-date]").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const date = btn.dataset.cellDate;
-            const slot = Number(btn.dataset.cellSlot);
-            expandedCell =
-              expandedCell && expandedCell.date === date && expandedCell.slot === slot
-                ? null
-                : { date, slot };
-            renderWeekGrid();
-          });
-        });
-      }
-
       // Staff can move an already-approved booking to a different bay -
       // e.g. correcting a mistaken assignment, or freeing up a bay for an
       // operational reason. Options are grouped: bays at the gate this
       // route is meant to use first, then every other bay not already
       // taken for this slot (the current bay is always included, even if
       // it's outside the suggested gate, so re-opening this never loses
-      // the existing value).
-      function bayReassignHtml(booking, activeBays, allBookingsThisDay) {
+      // the existing value). Only offered on trips still "Arriving" -
+      // once a trip has departed, its bay is history, not something to
+      // reassign.
+      function bayReassignHtml(booking) {
         const takenIds = new Set(
-          allBookingsThisDay
+          lastDayBookings
             .filter(
               (other) =>
                 other.slot === booking.slot &&
@@ -700,13 +484,13 @@
               (bay) =>
                 `<option value="${bay.id}"${
                   bay.id === booking.bays?.id ? " selected" : ""
-                }>${escapeHtml(bay.name)}</option>`
+                }>${escapeHtml(bareNumber("Bay", bay.name))}</option>`
             )
             .join("");
 
         return `
-          <form class="bay-reassign" data-reassign-bay="${escapeHtml(booking.id)}">
-            <select>
+          <form class="pids-bay-reassign" data-reassign-bay="${escapeHtml(booking.id)}">
+            <select onchange="this.form.requestSubmit()">
               ${
                 suggested.length
                   ? `<optgroup label="Suggested (${escapeHtml(gate)})">${optionsHtml(
@@ -722,7 +506,6 @@
                   : ""
               }
             </select>
-            <button type="submit" class="btn-link">Save</button>
           </form>
         `;
       }

@@ -2810,6 +2810,71 @@ commit's `app.js`, then re-verify an actual end-to-end submission.
 
 ---
 
+### 79. Schedule rebuilt as an airport-style PIDS board; Week view removed (20 Aug)
+
+Staff's `schedule.html` no longer has a Week view at all - Day view is
+now the only mode, redesigned from a slot-by-slot capacity table into
+an airport departures-board look (a Public Information Display System,
+the boards you see at PITX itself): a dark column-header bar (Company,
+Trip No., Plate No., Destination, Gate, Bay, Status), with a light-blue
+time divider row inserted before each group of trips that share a
+slot - only slots with something scheduled get a divider, so the board
+reads as a continuous list of real departures rather than 96 mostly-
+empty rows. Built from a reference screenshot of a real airport-style
+board, restyled to the app's own dark-nav-bar/oklch palette rather than
+copied verbatim.
+
+The board only shows **confirmed trips** - `approved` bookings, plus
+`cancelled` ones that were genuinely approved at some point
+(`previously_approved`) - not staff's internal approval queue (pending
+requests still live on their own page) and not a request that was
+cancelled before ever being approved, which never had a real slot to
+show here.
+
+**Status is derived only from data this app actually has** - no
+fabricated real-time GPS/dispatch tracking, unlike the reference
+image's ARRIVING/DEPARTED which implied live tracking this app doesn't
+do:
+- `cancelled` → **Cancelled**
+- `approved`, slot's 15-minute window not yet passed → **Arriving**
+- `approved`, slot's window has passed → **Departed** (the one thing
+  honestly inferable from the clock without live tracking)
+
+Each row: a colour-coded avatar (hashed from the operator's name, not
+random - the same company always gets the same colour across reloads,
+without needing real logo artwork on file) plus the operator/trade-name
+tag from #75's `bookingOperatorHtml()`; Trip No. and Destination
+(reading from the existing `route` field, just headed "Destination" to
+match PIDS terminology - no schema change); Gate and Bay shown as bare
+numbers ("4", not "Gate 4") the way a real board does, since the column
+header already says what they are. Bay reassignment (still needed -
+staff sometimes have to correct or free up a bay) is now an inline
+auto-submit `<select>` in the Bay cell itself, offered only on trips
+still "Arriving" - a departed trip's bay is history, not something to
+reassign.
+
+Removed along with Week view: the heat-grid rendering, the Half/Hourly
+density toggle, `formatSlot`'s Week-only helpers, and the paginated
+`WEEK_PAGE_SIZE` fetch loop (#71's fix for Week view specifically no
+longer has anything to fix). The operator-facing `my-schedule.html`'s
+own, separate Week view is untouched - this was a staff-only redesign.
+
+**Bug caught during verification**: `AVATAR_PALETTE` and several helper
+functions were first declared *after* the module's top-level `await
+load()` call - the same TDZ pattern this codebase keeps hitting
+(#37/#39/#46/#52/#66/#69/#75/#76's list keeps growing) - caught
+immediately via the browser console and fixed by moving the whole
+helper block above `await load()`.
+
+Verified live against real seeded data (356 scheduled trips on one
+date): the board renders grouped by time with no empty-slot rows, a
+booking with a slot already in the past correctly shows "Departed", a
+cancelled-after-approval booking correctly shows "Cancelled", and a
+cancelled-but-never-approved booking is correctly absent from the
+board entirely (confirmed by row count, not just visually).
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (Operator, trade name/
@@ -2826,9 +2891,10 @@ change a booking or a vehicle (back to staff for approval either way);
 cancel a pending booking.
 
 **PITX staff** — approve or reject vehicle registrations and booking
-requests (assigning an available bay on approval); view a day-by-day
-15-minute-slot schedule with approved-vs-capacity; add/deactivate bays;
-create operator and staff logins.
+requests (assigning an available bay on approval); view an airport-style
+departures board of the day's confirmed trips (Arriving/Departed/
+Cancelled), grouped by time, with inline bay reassignment; add/deactivate
+bays; create operator and staff logins.
 
 **Enforced by the database, not just the UI**
 

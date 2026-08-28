@@ -14,7 +14,7 @@ and approve/reject each request, assigning a specific bay on approval.
   and see their own approved slots with bay assignments on **My schedule**.
 - **PITX staff** see every pending request, approve it (picking one of the
   bays not already taken for that slot) or reject it with an optional note,
-  view a day-by-day schedule broken into 15-minute slots, manage the bay
+  view the day's confirmed trips as an airport-style departures board, manage the bay
   list, browse every operator's company profile, and create or delete
   login accounts (there is no self-signup).
 
@@ -739,11 +739,13 @@ When staff approve a request they assign one of the bays not already taken
 for that slot, so the number of **active bays is the cap** on approvals per
 slot. A unique index enforces this in the database, so two staff approving
 at once can't double-book a bay. The **Bays** page controls the active
-count; the **Schedule** page shows approved-vs-capacity per slot for any
-day (96 slots) in Day view, or as a 7-day occupancy heat grid in Week
-view - each cell is a fill count colour-graded by how full the slot is,
-click one to expand its actual bookings (with trip numbers); an Hourly
-toggle collapses the 96 quarter-hour rows to 24 for a coarser first look.
+count; the **Schedule** page (staff - see CHANGELOG #79) shows one day
+at a time as an airport-style departures board, grouped by time, of
+that day's confirmed trips (Arriving/Departed/Cancelled, derived from
+the slot's clock time and status - no live GPS/dispatch tracking) with
+inline bay reassignment. There is no Week view here anymore (UI-only
+change, no schema involved); the operator-facing **My schedule** still
+has one, unchanged.
 
 Slots were 30 minutes (48/day) before migration
 `0038_fifteen_minute_slots.sql` - like `0037`, prepared but **not yet
@@ -1060,7 +1062,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   vehicle-approvals.html     Staff: pending vehicle queue (search, bulk actions, columns, CSV, decided log)
   vehicles-database.html     Staff: every registered vehicle, any status, searchable, column toggle, CSV export
   transfer-approvals.html    Staff: pending booking-transfer queue (search, bulk actions, decided log)
-  schedule.html              Staff: 15-minute-slot capacity grid (Day/Week views, CSV export)
+  schedule.html              Staff: airport-style departures board, one day at a time (CSV export)
   bays.html                  Staff: manage the bay list (add, rename, activate/deactivate)
   operator-profiles.html     Staff: read-only view of every operator's company profile (sortable, CSV export)
   accounts.html              Staff: create/delete/reset-password logins (via Edge Functions)
