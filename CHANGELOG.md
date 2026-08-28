@@ -3080,6 +3080,32 @@ order correctly on both pages.
 
 ---
 
+### 85. Time slots shown as a specific time everywhere, not a range (20 Aug)
+
+`formatSlot()` had always rendered a slot as its full 15-minute range
+("9:00 PM – 9:15 PM"). Every page still calling it directly - `dashboard.
+html` (request form's "also scheduled at" hint, plate-needed banner, the
+requests table, the transfer/edit dialogs' context lines), `request-
+history.html`, `staff.html` (request cards, the decided-requests table),
+`operator-overview.html`, `overview.html`, and `transfer-approvals.html`
+- showed that range. (`my-schedule.html` and `schedule.html`'s PIDS
+boards already only showed the start time, via a `.split(" – ")[0]` on
+the same range string - simplified those two call sites to call
+`formatSlotStart()` directly instead, same result, less indirection.)
+
+Every one of those switched to `formatSlotStart()` (existing, previously
+only used by the hourly mini-card slot picker) - a slot's departure is
+its start time; the fact that it's a 15-minute-wide slot isn't a second
+piece of information worth repeating on every row. `formatSlot()` itself
+had no remaining callers anywhere in the app after this, so it was
+removed rather than left as dead code.
+
+Verified live across dashboard.html, request-history.html, staff.html,
+and schedule.html with real data - every time slot now reads as a single
+specific time ("11:00 AM"), never a range.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (Operator, trade name/

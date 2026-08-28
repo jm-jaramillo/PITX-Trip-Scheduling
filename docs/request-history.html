@@ -51,7 +51,7 @@
         supabase,
         guardPage,
         renderNav,
-        formatSlot,
+        formatSlotStart,
         statusBadge,
         bookingOperatorHtml,
         escapeHtml,
@@ -152,7 +152,7 @@
       function exportCsv() {
         const rows = sortedFiltered().map((b) => [
           b.booking_date ?? "",
-          formatSlot(b.slot),
+          formatSlotStart(b.slot),
           b.route ?? "",
           b.plate_no ?? "",
           b.status ?? "",
@@ -217,7 +217,7 @@
                     (b) => `
                   <tr>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
-                    <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlotStart(b.slot))}</td>
                     <td data-label="Operator">${bookingOperatorHtml(b)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${escapeHtml(b.plate_no ?? "—")}</td>

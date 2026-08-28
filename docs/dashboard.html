@@ -182,7 +182,6 @@
         ROUTES,
         ROUTE_GATES,
         gateForRoute,
-        formatSlot,
         formatSlotStart,
         todayISO,
         statusBadge,
@@ -275,7 +274,7 @@
                       <div>
                         <p class="request-who">${escapeHtml(fromLabel)} &rarr; you</p>
                         <p class="subtle">
-                          ${escapeHtml(t.booking_date)} &middot; ${escapeHtml(formatSlot(t.slot))}${
+                          ${escapeHtml(t.booking_date)} &middot; ${escapeHtml(formatSlotStart(t.slot))}${
                             t.route ? ` &middot; ${escapeHtml(t.route)}` : ""
                           }
                         </p>
@@ -375,7 +374,7 @@
         );
         const rows = bookings.map((b) => [
           b.booking_date ?? "",
-          formatSlot(b.slot),
+          formatSlotStart(b.slot),
           b.route ?? "",
           b.plate_no ?? "",
           b.status ?? "",
@@ -547,7 +546,7 @@
 
         hintEl.innerHTML =
           `${scopeLabel} has no open bays at ${escapeHtml(
-            formatSlot(slot)
+            formatSlotStart(slot)
           )} on this date - you can still submit and staff may assign a ` +
           `different gate, but you'll have better luck at: ` +
           (candidates.length
@@ -555,7 +554,7 @@
                 .map(
                   (s) =>
                     `<button type="button" class="btn-link" data-suggest-slot="${s}">${escapeHtml(
-                      formatSlot(s)
+                      formatSlotStart(s)
                     )}</button>`
                 )
                 .join(", ")
@@ -613,7 +612,7 @@
           listEl.className = "fineprint hidden";
         } else {
           listEl.innerHTML =
-            `Also scheduled at ${escapeHtml(formatSlot(slot))}: ` +
+            `Also scheduled at ${escapeHtml(formatSlotStart(slot))}: ` +
             atThisSlot
               .map((r) => {
                 const label = `${escapeHtml(r.trade_name || r.operator_name)} → ${escapeHtml(
@@ -649,7 +648,7 @@
           `${sameRouteHere.length} other operator${
             sameRouteHere.length === 1 ? "" : "s"
           } already scheduled to ${escapeHtml(route)} at ${escapeHtml(
-            formatSlot(slot)
+            formatSlotStart(slot)
           )} - you can still submit, but a different time avoids departing ` +
           `alongside them: ` +
           (candidates.length
@@ -657,7 +656,7 @@
                 .map(
                   (s) =>
                     `<button type="button" class="btn-link" data-suggest-route-slot="${s}">${escapeHtml(
-                      formatSlot(s)
+                      formatSlotStart(s)
                     )}</button>`
                 )
                 .join(", ")
@@ -1022,7 +1021,7 @@
               (b) =>
                 `<button type="button" class="btn-link" style="color:inherit;text-decoration:underline" data-setplate="${escapeHtml(
                   b.id
-                )}">${escapeHtml(b.booking_date)}, ${escapeHtml(formatSlot(b.slot))} → ${escapeHtml(
+                )}">${escapeHtml(b.booking_date)}, ${escapeHtml(formatSlotStart(b.slot))} → ${escapeHtml(
                   b.route
                 )}</button>`
             )
@@ -1099,7 +1098,7 @@
                     return `
                   <tr${needsPlateUrgently ? ' class="row-alert"' : ""}>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
-                    <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlotStart(b.slot))}</td>
                     <td data-label="Operator">${bookingOperatorHtml(b)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${
@@ -1290,7 +1289,7 @@
         document.getElementById("transfer_plate_no").disabled = true;
         document.getElementById("transfer_reason").value = "";
         document.getElementById("transfer-context").textContent =
-          `${booking.booking_date}, ${formatSlot(booking.slot)} — ${booking.route}`;
+          `${booking.booking_date}, ${formatSlotStart(booking.slot)} — ${booking.route}`;
         document.getElementById("transfer-error").className = "inline-error hidden";
         transferDialog.showModal();
 
@@ -1413,7 +1412,7 @@
         syncSlotPickerSelection("edit-slot-picker", "edit_slot");
 
         document.getElementById("edit-context").textContent =
-          `Currently ${booking.booking_date}, ${formatSlot(booking.slot)}` +
+          `Currently ${booking.booking_date}, ${formatSlotStart(booking.slot)}` +
           (booking.bays?.name ? ` in ${booking.bays.name}.` : ".");
 
         // The warning only applies when there's an approved slot to lose.

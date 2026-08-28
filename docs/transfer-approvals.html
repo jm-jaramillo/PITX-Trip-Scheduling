@@ -63,7 +63,7 @@
         renderNav,
         showMessage,
         escapeHtml,
-        formatSlot,
+        formatSlotStart,
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
@@ -199,7 +199,7 @@
                       ${escapeHtml(fromLabel)} &rarr; ${escapeHtml(toLabel)}
                     </p>
                     <p class="subtle">
-                      ${escapeHtml(t.booking_date)} &middot; ${escapeHtml(formatSlot(t.slot))}
+                      ${escapeHtml(t.booking_date)} &middot; ${escapeHtml(formatSlotStart(t.slot))}
                       ${t.route ? ` &middot; ${escapeHtml(t.route)}` : ""}
                     </p>
                     <p class="subtle">
@@ -445,7 +445,7 @@
                         <td data-label="From">${escapeHtml(fromLabel)}</td>
                         <td data-label="To">${escapeHtml(toLabel)}</td>
                         <td data-label="Date">${escapeHtml(t.booking_date)}</td>
-                        <td data-label="Slot">${escapeHtml(formatSlot(t.slot))}</td>
+                        <td data-label="Slot">${escapeHtml(formatSlotStart(t.slot))}</td>
                         <td data-label="Route">${escapeHtml(t.route ?? "—")}</td>
                         <td data-label="New plate">${escapeHtml(t.new_plate_no)}</td>
                         <td data-label="Status"><span class="badge badge-${escapeHtml(

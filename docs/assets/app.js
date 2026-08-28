@@ -263,16 +263,12 @@ function formatClock(totalMinutes) {
   return `${displayHour}:${String(minute).padStart(2, "0")} ${period}`;
 }
 
-export function formatSlot(slot) {
-  const start = slot * 15;
-  const end = start + 15;
-  return `${formatClock(start)} – ${formatClock(end % (24 * 60))}`;
-}
-
-// Just the slot's start time ("9:00 AM"), no range - used by the
-// hourly mini-card slot picker (dashboard.html), where the range is
-// implied by the card's own hour heading and each tick only needs its
-// own start time.
+// A slot's start time only ("9:00 AM"), never a range - every page that
+// displays a time slot shows the specific departure time, not a "9:00 -
+// 9:15" span (a booking's actual scheduled moment is its start; the
+// trailing 15 minutes isn't a separate fact worth repeating on every
+// row). formatSlot() used to return that range and has been retired -
+// see #85.
 export function formatSlotStart(slot) {
   return formatClock(slot * 15);
 }

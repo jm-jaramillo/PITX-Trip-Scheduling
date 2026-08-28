@@ -65,7 +65,7 @@
         supabase,
         guardPage,
         renderNav,
-        formatSlot,
+        formatSlotStart,
         compareBayNames,
         gateForRoute,
         showMessage,
@@ -205,7 +205,7 @@
                     <p class="subtle">Reason: ${escapeHtml(b.cancellation_reason || "No reason given")}</p>
                   </div>
                   <p class="request-when">${escapeHtml(b.booking_date)} &middot; ${escapeHtml(
-                    formatSlot(b.slot)
+                    formatSlotStart(b.slot)
                   )}</p>
                 </div>
                 <div class="request-actions">
@@ -342,7 +342,7 @@
                   </div>
                   <p class="request-when">${escapeHtml(
                     b.booking_date
-                  )} &middot; ${escapeHtml(formatSlot(b.slot))}</p>
+                  )} &middot; ${escapeHtml(formatSlotStart(b.slot))}</p>
                 </div>
                 <div class="request-actions">
                   <form data-approve="${escapeHtml(b.id)}">
@@ -551,7 +551,7 @@
                     return `
                   <tr>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
-                    <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlotStart(b.slot))}</td>
                     <td data-label="Operator">${bookingOperatorHtml(b)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${escapeHtml(b.plate_no ?? "—")}</td>

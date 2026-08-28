@@ -177,7 +177,7 @@
         supabase,
         guardPage,
         renderNav,
-        formatSlot,
+        formatSlotStart,
         todayISO,
         addDays,
         bookingOperatorHtml,
@@ -231,7 +231,7 @@
 
       function bookingToCsvRow(b) {
         return [
-          formatSlot(b.slot).split(" – ")[0],
+          formatSlotStart(b.slot),
           b.operator_name ?? "",
           b.trip_number ?? "",
           b.plate_no ?? "",
@@ -423,7 +423,7 @@
                   ${slotsInOrder
                     .map((slot) => {
                       const rows = bySlot.get(slot);
-                      const timeLabel = formatSlot(slot).split(" – ")[0];
+                      const timeLabel = formatSlotStart(slot);
                       const rowsHtml = rows
                         .map((b) => {
                           const status = pidsStatus(b);

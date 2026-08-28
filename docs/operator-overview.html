@@ -135,7 +135,7 @@
         addDays,
         slotStartMillis,
         BOOKING_LEAD_TIME_MS,
-        formatSlot,
+        formatSlotStart,
       } from "./assets/app.js";
 
       const profile = await guardPage("operator");
@@ -309,7 +309,7 @@
                           b.plate_no
                         )}
                         &middot; ${escapeHtml(b.booking_date)} ${escapeHtml(
-                          formatSlot(b.slot)
+                          formatSlotStart(b.slot)
                         )}
                         &middot; ${hoursLeft}h left
                       </span>
