@@ -2694,8 +2694,8 @@ an actual rename would collide in meaning with `profiles.operator_name`
 on a different table, so this is a label-only change.
 
 **Grouped fields** in the form: Operator identity (logo, Operator,
-Trade Name, Operator/Trade Code, Company owner) - Booking system (yes/
-no, software name) - Contact persons (the dynamic list + Add button).
+Trade Name, Operator/Trade Code, Company owner) - Booking system
+(software name) - Contact persons (the dynamic list + Add button).
 
 Staff's `operator-profiles.html` was updated in the same commit (new
 Trade Name/Operator/Trade Code/Logo/Contacts columns, TIN/Serial/NAU
@@ -2715,6 +2715,23 @@ attempting to save produces a clean, expected error naming the
 not-yet-existing `contacts` column rather than a silent failure or
 crash. Run `node scripts/run-migration.mjs` against the new database
 once it's live, then re-verify the save path end to end.
+
+---
+
+### 77. Operator profile: drop the "Do you use one?" booking-system question (20 Aug)
+
+The Booking system group asked a yes/no question before letting you
+type the software name - collapsed into just the name field itself;
+leaving it blank means no booking system, same meaning the "No" option
+used to carry. `has_booking_system` (still read by
+`operator-profiles.html`'s Yes/No column) is now derived from whether
+a name was given, rather than asked as its own question.
+
+Verified live: the select is gone from the form, the name field's
+placeholder reads "Leave blank if you don't use one," and saving still
+runs the (currently expected) schema-mismatch error from #76 rather
+than a new JS error - confirming the derived-boolean logic itself
+executes cleanly before the network call.
 
 ---
 

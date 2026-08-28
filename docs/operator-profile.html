@@ -133,18 +133,11 @@
         </div>
 
         <p class="field-group-heading span-all">Booking system</p>
-        <div class="field">
-          <label for="has_booking_system">Do you use one?</label>
-          <select id="has_booking_system">
-            <option value="false">No</option>
-            <option value="true">Yes</option>
-          </select>
-        </div>
-        <div class="field">
+        <div class="field span-all">
           <label for="booking_system_name">Name of software/app/website</label>
           <input
             id="booking_system_name"
-            placeholder="Only if you use one"
+            placeholder="Leave blank if you don't use one"
           />
         </div>
 
@@ -297,9 +290,6 @@
         for (const field of FIELDS) {
           document.getElementById(field).value = data[field] ?? "";
         }
-        document.getElementById("has_booking_system").value = String(
-          data.has_booking_system ?? false
-        );
 
         contacts = Array.isArray(data.contacts) ? data.contacts : [];
         renderContacts();
@@ -358,8 +348,10 @@
         for (const field of FIELDS) {
           values[field] = document.getElementById(field).value.trim() || null;
         }
-        values.has_booking_system =
-          document.getElementById("has_booking_system").value === "true";
+        // has_booking_system is derived from whether a name was given,
+        // rather than asked as its own yes/no question - one field to
+        // fill in instead of two.
+        values.has_booking_system = Boolean(values.booking_system_name);
 
         const { error } = await supabase
           .from("operator_profiles")
