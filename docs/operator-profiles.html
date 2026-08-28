@@ -120,27 +120,44 @@
       document.getElementById("export-csv").addEventListener("click", exportCsv);
       await load();
 
+      // A contact's plain-text one-liner ("Name (Position) · Number ·
+      // Email"), used by both the table cell and the CSV export so the
+      // two always agree. `contacts` is the new JSONB array
+      // (migration 0037) - up to 5 entries, replacing the old fixed
+      // contact1_*/contact2_* column pairs.
+      function contactLine(c) {
+        if (!c?.name) return "";
+        return [
+          c.position ? `${c.name} (${c.position})` : c.name,
+          c.number || null,
+          c.email || null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+      }
+
       function exportCsv() {
         downloadCsv(
           "operator-profiles.csv",
           [
-            "Operator", "Username", "Company", "Owner", "TIN No.",
-            "Serial Number (OR)", "Booking system", "NAU",
-            "Contact person 1", "Contact person 2",
+            "Operator", "Username", "Company", "Trade Name", "Operator/Trade Code",
+            "Owner", "Booking system", "Contacts",
           ],
           currentRows().map((r) => {
             const p = r.companyProfile;
+            const contactsText = (p?.contacts ?? [])
+              .map(contactLine)
+              .filter(Boolean)
+              .join("; ");
             return [
               r.operator_name || r.username,
               r.username,
               p?.company_name ?? "",
+              p?.trade_name ?? "",
+              p?.operator_code ?? "",
               p?.company_owner ?? "",
-              p?.tin_no ?? "",
-              p?.or_serial_number ?? "",
               !p ? "" : p.has_booking_system ? p.booking_system_name || "Yes" : "No",
-              p?.nau ?? "",
-              p?.contact1_name ?? "",
-              p?.contact2_name ?? "",
+              contactsText,
             ];
           })
         );
@@ -213,9 +230,10 @@
               <thead>
                 <tr>
                   ${sortTh("Operator", "operator")}<th>Username</th>${sortTh("Company", "company")}
-                  <th>Owner</th><th>TIN No.</th><th>Serial Number (OR)</th>
-                  <th>Booking system</th><th>NAU</th>
-                  <th>Contact person 1</th><th>Contact person 2</th>
+                  <th>Trade Name</th><th>Operator/Trade Code</th><th>Logo</th>
+                  <th>Owner</th>
+                  <th>Booking system</th>
+                  <th>Contacts</th>
                 </tr>
               </thead>
               <tbody>
@@ -232,11 +250,12 @@
                     }</td>
                     <td data-label="Username">@${escapeHtml(r.username)}</td>
                     <td data-label="Company">${escapeHtml(p?.company_name || "—")}</td>
+                    <td data-label="Trade Name">${escapeHtml(p?.trade_name || "—")}</td>
+                    <td data-label="Operator/Trade Code">${escapeHtml(p?.operator_code || "—")}</td>
+                    <td data-label="Logo" data-logo-path="${escapeHtml(p?.logo_path ?? "")}">${
+                      p?.logo_path ? "&hellip;" : "—"
+                    }</td>
                     <td data-label="Owner">${escapeHtml(p?.company_owner || "—")}</td>
-                    <td data-label="TIN No.">${escapeHtml(p?.tin_no || "—")}</td>
-                    <td data-label="Serial Number (OR)">${escapeHtml(
-                      p?.or_serial_number || "—"
-                    )}</td>
                     <td data-label="Booking system">${
                       !p
                         ? "—"
@@ -244,23 +263,12 @@
                           ? escapeHtml(p.booking_system_name || "Yes")
                           : "No"
                     }</td>
-                    <td data-label="NAU">${escapeHtml(p?.nau || "—")}</td>
-                    <td data-label="Contact person 1">${
-                      p?.contact1_name
-                        ? `${escapeHtml(p.contact1_name)}${
-                            p.contact1_position ? ` (${escapeHtml(p.contact1_position)})` : ""
-                          }${
-                            p.contact1_number ? ` &middot; ${escapeHtml(p.contact1_number)}` : ""
-                          }${p.contact1_email ? ` &middot; ${escapeHtml(p.contact1_email)}` : ""}`
-                        : "—"
-                    }</td>
-                    <td data-label="Contact person 2">${
-                      p?.contact2_name
-                        ? `${escapeHtml(p.contact2_name)}${
-                            p.contact2_position ? ` (${escapeHtml(p.contact2_position)})` : ""
-                          }${
-                            p.contact2_number ? ` &middot; ${escapeHtml(p.contact2_number)}` : ""
-                          }${p.contact2_email ? ` &middot; ${escapeHtml(p.contact2_email)}` : ""}`
+                    <td data-label="Contacts">${
+                      (p?.contacts ?? []).length
+                        ? p.contacts
+                            .map((c) => escapeHtml(contactLine(c)))
+                            .filter(Boolean)
+                            .join("<br />")
                         : "—"
                     }</td>
                   </tr>`;
@@ -279,6 +287,27 @@
             render();
           });
         });
+
+        resolveLogoLinks();
+      }
+
+      // Signed URLs are resolved after the table paints (rather than
+      // blocking the initial render on every row's storage round-trip),
+      // same pattern as vehicles-database.html's document links.
+      async function resolveLogoLinks() {
+        const cells = [...document.querySelectorAll("[data-logo-path]")].filter(
+          (cell) => cell.dataset.logoPath
+        );
+        await Promise.all(
+          cells.map(async (cell) => {
+            const { data } = await supabase.storage
+              .from("operator-docs")
+              .createSignedUrl(cell.dataset.logoPath, 300);
+            cell.innerHTML = data?.signedUrl
+              ? `<a href="${data.signedUrl}" target="_blank" rel="noopener">View logo</a>`
+              : "—";
+          })
+        );
       }
     </script>
   </body>

@@ -2654,15 +2654,80 @@ Columns.
 
 ---
 
+### 76. Operator profile redesign: logo, up to 5 contacts, trade name/code (20 Aug)
+
+Prep work for a fresh database - the operator is setting up a clean
+Supabase project and asked for this page's code to be ready ahead of
+that cutover, so **this migration was written but deliberately not
+applied to the current live database** (per the operator's own
+instruction); everything below is verified as far as it can be without
+touching the current schema - see the note at the end.
+
+`supabase/migrations/0037_operator_profile_redesign.sql` reworks
+`operator_profiles` (the company-details form on `operator-profile.html`):
+
+**Removed:** TIN No., Serial Number (OR), and NAU - no longer collected.
+
+**Added:**
+- **Trade Name** and **Operator/Trade Code** - both optional text fields
+  next to Operator in the "Operator identity" group. (This is a
+  per-*account* trade name, distinct from #75's per-*vehicle*
+  `vehicles.trade_name` for operators running more than one trade.)
+- **Logo upload** - stored in a new private `operator-docs` bucket, same
+  path/RLS convention as `vehicle-docs` (`<operator_id>/logo.<ext>`,
+  staff can also read). Shows a live preview on the form and a "View
+  logo" link on staff's `operator-profiles.html`.
+- **Up to 5 contact persons** via an "+ Add contact person" button,
+  replacing the old fixed Contact person 1/Contact person 2 sections.
+  Stored as a `contacts` JSONB array (`{name, position, number, email}`
+  each, `check`-constrained to at most 5 entries) instead of the old
+  `contact1_*`/`contact2_*` column pairs - existing contact data is
+  folded into the array by the migration itself before those columns
+  are dropped, so nothing already on file is lost. Removing a contact
+  card re-renders the rest with their typed values intact (each
+  card's inputs are read back into the underlying array before every
+  re-render, not just on save).
+
+**Modified:** "Company name" is relabeled **"Operator"** on the form.
+The underlying column stays `company_name` rather than being renamed -
+an actual rename would collide in meaning with `profiles.operator_name`
+on a different table, so this is a label-only change.
+
+**Grouped fields** in the form: Operator identity (logo, Operator,
+Trade Name, Operator/Trade Code, Company owner) - Booking system (yes/
+no, software name) - Contact persons (the dynamic list + Add button).
+
+Staff's `operator-profiles.html` was updated in the same commit (new
+Trade Name/Operator/Trade Code/Logo/Contacts columns, TIN/Serial/NAU
+columns removed, CSV export matching) since it reads the same table -
+left unfixed, it would have broken outright reading columns migration
+0037 drops.
+
+**Verification note:** since the migration isn't applied to the
+current database yet, `operator-profile.html`'s actual save path
+(`upsert` against the new columns) can't be exercised end-to-end right
+now - confirmed live instead that both pages load and render correctly
+against the *current* (old) schema with no crash (the page uses
+`select("*")`, so new/removed fields just read as empty rather than
+erroring), that adding/removing contact cards works correctly up to
+the 5-contact cap with data preserved across re-renders, and that
+attempting to save produces a clean, expected error naming the
+not-yet-existing `contacts` column rather than a silent failure or
+crash. Run `node scripts/run-migration.mjs` against the new database
+once it's live, then re-verify the save path end to end.
+
+---
+
 ## What the app does now
 
-**Operators** — fill in a one-time company profile (name, owner, TIN, OR
-serial number, booking system, two contacts); register vehicles one at a
-time (scan or manual entry) or several at once via CSV batch upload, with
-fields grouped by what they describe (Registration & Paperwork; CPC
-Validity, including an optional CPC Extension of Validity; Route, Origin,
-and Destination; Body Number, Year, Make, Bus Type, Seating capacity, and
-Seat configuration; Remarks); request a 30-minute slot by picking a plate
+**Operators** — fill in a one-time company profile (Operator, trade name/
+code, logo, owner, booking system, up to 5 contact persons); register
+vehicles one at a time (scan or manual entry) or several at once via CSV
+batch upload, with fields grouped by what they describe (LTFRB Franchise
+Details - Case No., Franchise, Sticker No., Body Number, trade name, CPC/
+OR-CR validity, CPC Extension of Validity, Route, Origin, Destination;
+Vehicle Details - MV File #, Chassis No., Year, Make, Bus Type, Seating
+capacity, Seat configuration; Remarks); request a 30-minute slot by picking a plate
 from their *approved*, CPC-current vehicles; see status, assigned bay, and
 any rejection note; filter their own requests by status; change a booking
 or a vehicle (back to staff for approval either way); cancel a pending

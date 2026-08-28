@@ -11,6 +11,77 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="assets/styles.css" />
+    <style>
+      .field-group-heading {
+        margin: 4px 0 -6px;
+        padding-top: 18px;
+        border-top: 1px solid var(--divider, #e5e7eb);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--label, #6b7280);
+      }
+      .field-group-heading:first-of-type {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      .logo-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .logo-preview {
+        width: 72px;
+        height: 72px;
+        border-radius: var(--r-card-sm, 16px);
+        border: 1px solid var(--border, #d7dbe3);
+        object-fit: cover;
+        background: var(--ground-alt, #f3f4f6);
+        flex-shrink: 0;
+      }
+      .logo-preview.is-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: var(--faint, #9ca3af);
+        text-align: center;
+      }
+
+      .contact-card {
+        border: 1px solid var(--border, #d7dbe3);
+        border-radius: var(--r-card-sm, 16px);
+        padding: 16px;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1fr;
+        position: relative;
+      }
+      @media (min-width: 560px) {
+        .contact-card {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      .contact-card-head {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .contact-card-head h3 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--title, #111827);
+      }
+      .contacts-list {
+        grid-column: 1 / -1;
+        display: grid;
+        gap: 14px;
+      }
+    </style>
   </head>
   <body>
     <header class="nav" id="nav"></header>
@@ -31,25 +102,39 @@
       <div class="hidden" id="message"></div>
 
       <form class="card grid grid-2" id="profile-form">
+        <p class="field-group-heading span-all">Operator identity</p>
         <div class="field span-all">
-          <label for="company_name">Company name</label>
+          <label>Logo</label>
+          <div class="logo-row">
+            <img class="logo-preview is-empty" id="logo-preview" alt="Operator logo" />
+            <div>
+              <input type="file" id="logo-input" accept="image/*" />
+              <p class="fineprint" id="logo-file-name"></p>
+            </div>
+          </div>
+        </div>
+        <div class="field span-all">
+          <label for="company_name">Operator</label>
           <input id="company_name" />
+        </div>
+        <div class="field">
+          <label for="trade_name">
+            Trade Name <span class="fineprint">(optional)</span>
+          </label>
+          <input id="trade_name" placeholder="If different from Operator" />
+        </div>
+        <div class="field">
+          <label for="operator_code">Operator/Trade Code</label>
+          <input id="operator_code" />
         </div>
         <div class="field span-all">
           <label for="company_owner">Company owner</label>
           <input id="company_owner" />
         </div>
-        <div class="field">
-          <label for="tin_no">TIN No.</label>
-          <input id="tin_no" />
-        </div>
-        <div class="field">
-          <label for="or_serial_number">Serial Number (OR)</label>
-          <input id="or_serial_number" />
-        </div>
 
+        <p class="field-group-heading span-all">Booking system</p>
         <div class="field">
-          <label for="has_booking_system">Booking system</label>
+          <label for="has_booking_system">Do you use one?</label>
           <select id="has_booking_system">
             <option value="false">No</option>
             <option value="true">Yes</option>
@@ -63,45 +148,13 @@
           />
         </div>
 
-        <div class="field span-all">
-          <label for="nau">NAU</label>
-          <input id="nau" />
-        </div>
-
-        <h2 class="span-all" style="margin-top: 8px">Contact person 1</h2>
-        <div class="field">
-          <label for="contact1_name">Name</label>
-          <input id="contact1_name" />
-        </div>
-        <div class="field">
-          <label for="contact1_number">Contact No.</label>
-          <input id="contact1_number" />
-        </div>
-        <div class="field">
-          <label for="contact1_position">Position</label>
-          <input id="contact1_position" />
-        </div>
-        <div class="field">
-          <label for="contact1_email">Email</label>
-          <input id="contact1_email" type="email" />
-        </div>
-
-        <h2 class="span-all">Contact person 2</h2>
-        <div class="field">
-          <label for="contact2_name">Name</label>
-          <input id="contact2_name" />
-        </div>
-        <div class="field">
-          <label for="contact2_number">Contact No.</label>
-          <input id="contact2_number" />
-        </div>
-        <div class="field">
-          <label for="contact2_position">Position</label>
-          <input id="contact2_position" />
-        </div>
-        <div class="field">
-          <label for="contact2_email">Email</label>
-          <input id="contact2_email" type="email" />
+        <p class="field-group-heading span-all">Contact persons</p>
+        <div class="contacts-list" id="contacts-list"></div>
+        <div class="span-all">
+          <button type="button" class="btn-outline" id="add-contact-btn">
+            + Add contact person
+          </button>
+          <p class="fineprint" id="contacts-limit-note"></p>
         </div>
 
         <div class="span-all">
@@ -118,6 +171,7 @@
         guardPage,
         renderNav,
         showMessage,
+        escapeHtml,
       } from "./assets/app.js";
 
       const profile = await guardPage("operator");
@@ -126,25 +180,105 @@
 
       const FIELDS = [
         "company_name",
+        "trade_name",
+        "operator_code",
         "company_owner",
-        "tin_no",
-        "or_serial_number",
         "booking_system_name",
-        "nau",
-        "contact1_name",
-        "contact1_number",
-        "contact1_position",
-        "contact1_email",
-        "contact2_name",
-        "contact2_number",
-        "contact2_position",
-        "contact2_email",
       ];
 
+      const MAX_CONTACTS = 5;
+      // Current contact-person entries, rendered into #contacts-list -
+      // declared here (module-level, before the top-level await load()
+      // a few lines down) so it's not still in its temporal dead zone
+      // when load() populates it, same TDZ-avoidance reason as every
+      // other piece of shared state in this app.
+      let contacts = [];
+      let pendingLogoFile = null;
+      let existingLogoPath = null;
+
+      renderContacts();
       await load();
       document
         .getElementById("profile-form")
         .addEventListener("submit", save);
+      document.getElementById("add-contact-btn").addEventListener("click", () => {
+        if (contacts.length >= MAX_CONTACTS) return;
+        contacts.push({ name: "", position: "", number: "", email: "" });
+        renderContacts();
+      });
+      document.getElementById("logo-input").addEventListener("change", (e) => {
+        pendingLogoFile = e.target.files?.[0] ?? null;
+        document.getElementById("logo-file-name").textContent =
+          pendingLogoFile ? pendingLogoFile.name : "";
+        if (pendingLogoFile) {
+          const preview = document.getElementById("logo-preview");
+          preview.src = URL.createObjectURL(pendingLogoFile);
+          preview.classList.remove("is-empty");
+        }
+      });
+
+      // Reads whatever's currently in the contact-card inputs back into
+      // the `contacts` array before a re-render or a save, so typing
+      // into a card never gets lost when a sibling card is added/removed
+      // (each re-render rebuilds all card markup from scratch).
+      function syncContactsFromInputs() {
+        contacts = contacts.map((_, i) => ({
+          name: document.getElementById(`contact_${i}_name`)?.value.trim() || "",
+          position: document.getElementById(`contact_${i}_position`)?.value.trim() || "",
+          number: document.getElementById(`contact_${i}_number`)?.value.trim() || "",
+          email: document.getElementById(`contact_${i}_email`)?.value.trim() || "",
+        }));
+      }
+
+      function renderContacts() {
+        const host = document.getElementById("contacts-list");
+        host.innerHTML = contacts
+          .map(
+            (c, i) => `
+          <div class="contact-card">
+            <div class="contact-card-head">
+              <h3>Contact person ${i + 1}</h3>
+              <button type="button" class="btn-link danger" data-remove-contact="${i}">Remove</button>
+            </div>
+            <div class="field">
+              <label for="contact_${i}_name">Name</label>
+              <input id="contact_${i}_name" value="${escapeHtml(c.name ?? "")}" />
+            </div>
+            <div class="field">
+              <label for="contact_${i}_position">Position</label>
+              <input id="contact_${i}_position" value="${escapeHtml(c.position ?? "")}" />
+            </div>
+            <div class="field">
+              <label for="contact_${i}_number">Contact No.</label>
+              <input id="contact_${i}_number" value="${escapeHtml(c.number ?? "")}" />
+            </div>
+            <div class="field">
+              <label for="contact_${i}_email">Email</label>
+              <input id="contact_${i}_email" type="email" value="${escapeHtml(c.email ?? "")}" />
+            </div>
+          </div>`
+          )
+          .join("");
+
+        if (contacts.length === 0) {
+          host.innerHTML = `<p class="empty">No contact persons added yet.</p>`;
+        }
+
+        host.querySelectorAll("[data-remove-contact]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            syncContactsFromInputs();
+            contacts.splice(Number(btn.dataset.removeContact), 1);
+            renderContacts();
+          });
+        });
+
+        const addBtn = document.getElementById("add-contact-btn");
+        addBtn.disabled = contacts.length >= MAX_CONTACTS;
+        document.getElementById("contacts-limit-note").textContent =
+          contacts.length >= MAX_CONTACTS
+            ? `Maximum of ${MAX_CONTACTS} contact persons.`
+            : "";
+      }
 
       async function load() {
         const { data, error } = await supabase
@@ -166,16 +300,61 @@
         document.getElementById("has_booking_system").value = String(
           data.has_booking_system ?? false
         );
+
+        contacts = Array.isArray(data.contacts) ? data.contacts : [];
+        renderContacts();
+
+        existingLogoPath = data.logo_path ?? null;
+        if (existingLogoPath) {
+          const { data: signed } = await supabase.storage
+            .from("operator-docs")
+            .createSignedUrl(existingLogoPath, 300);
+          if (signed?.signedUrl) {
+            const preview = document.getElementById("logo-preview");
+            preview.src = signed.signedUrl;
+            preview.classList.remove("is-empty");
+          }
+        }
       }
 
       async function save(event) {
         event.preventDefault();
         showMessage("message", "");
+        syncContactsFromInputs();
+
+        // Same "needs at least a name" rule the old fixed contact1/
+        // contact2 fields implicitly had - an empty card (added, then
+        // left blank) doesn't get saved as a nameless contact.
+        const namedContacts = contacts.filter((c) => c.name);
+        if (namedContacts.length > MAX_CONTACTS) {
+          showMessage("message", `You can add up to ${MAX_CONTACTS} contact persons.`);
+          return;
+        }
+
         const saveBtn = document.getElementById("save-btn");
         saveBtn.disabled = true;
         saveBtn.textContent = "Saving…";
 
-        const values = { operator_id: profile.id };
+        let logoPath = existingLogoPath;
+        if (pendingLogoFile) {
+          const ext = (pendingLogoFile.name.split(".").pop() || "jpg").toLowerCase();
+          const path = `${profile.id}/logo.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from("operator-docs")
+            .upload(path, pendingLogoFile, {
+              contentType: pendingLogoFile.type || "image/jpeg",
+              upsert: true,
+            });
+          if (uploadError) {
+            showMessage("message", `Logo upload failed: ${uploadError.message}`);
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save profile";
+            return;
+          }
+          logoPath = path;
+        }
+
+        const values = { operator_id: profile.id, logo_path: logoPath, contacts: namedContacts };
         for (const field of FIELDS) {
           values[field] = document.getElementById(field).value.trim() || null;
         }
@@ -193,6 +372,10 @@
           showMessage("message", error.message);
           return;
         }
+        existingLogoPath = logoPath;
+        pendingLogoFile = null;
+        contacts = namedContacts;
+        renderContacts();
         showMessage("message", "Profile saved.", "ok");
       }
     </script>

@@ -393,6 +393,15 @@ name/number/position - added when importing the company's real operator
 database, which has emails but the paper form's contact fields don't ask
 for one.
 
+As of migration `0037_operator_profile_redesign.sql` - written but not
+yet applied to the current database, see that section's own note below
+- "Contact person 1/2" becomes an **up to 5** contact list stored as a
+single `contacts` JSONB array instead of fixed column pairs, and TIN
+No./Serial Number (OR)/NAU are dropped in favor of a **Trade Name**,
+**Operator/Trade Code**, and a **logo upload**. "Company name" is
+relabeled "Operator" on the form (the column itself stays
+`company_name`).
+
 ### Route dropdown
 
 A booking's **Route** is picked from `ROUTES` in
