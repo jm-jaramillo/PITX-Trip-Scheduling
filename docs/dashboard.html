@@ -57,6 +57,8 @@
               You'll assign a vehicle's plate number to this trip later, any
               time up to the day of the trip.
             </p>
+            <p class="fineprint hidden" id="slot-occupancy"></p>
+            <p class="hint hidden" id="route-conflict-hint"></p>
             <p class="hint hidden" id="gate-full-hint"></p>
             <p class="inline-error hidden" id="form-error"></p>
             <p class="inline-ok hidden" id="form-ok"></p>
@@ -549,6 +551,109 @@
             document.getElementById("slot").value = btn.dataset.suggestSlot;
             syncSlotPickerSelection("slot-picker", "slot");
             checkGateFullness();
+            checkSlotOccupancy();
+          });
+        });
+      }
+
+      // Lets an operator see who else is already scheduled at the time
+      // they're about to request - other operators' destinations aren't
+      // secret, an airport departures board shows the same thing. Always
+      // informational (the list shows regardless of route); additionally,
+      // if any of those other bookings share this exact route, that's
+      // called out and nearby conflict-free times for this route are
+      // suggested - two buses to the same place at the same minute is
+      // usually a mistake, not a plan, but it's still just a suggestion,
+      // not a block (staff can still approve both).
+      async function checkSlotOccupancy() {
+        const listEl = document.getElementById("slot-occupancy");
+        const hintEl = document.getElementById("route-conflict-hint");
+        const route = document.getElementById("route").value;
+        const bookingDate = document.getElementById("booking_date").value;
+        const slotRaw = document.getElementById("slot").value;
+
+        if (!bookingDate || slotRaw === "") {
+          listEl.className = "fineprint hidden";
+          hintEl.className = "hint hidden";
+          return;
+        }
+        const slot = Number(slotRaw);
+
+        // list_bookings_for_date() (migration 0044), not a direct table
+        // select - a pending booking is otherwise private to its own
+        // operator (bookings_select RLS), and this needs to see other
+        // operators' pending requests too, since flagging a same-route/
+        // same-time clash before either is approved is the whole point.
+        // One call for the whole date (not just this slot) - reused below
+        // to also work out conflict-free alternate slots for this route.
+        const { data } = await supabase.rpc("list_bookings_for_date", {
+          p_date: bookingDate,
+        });
+
+        const rows = data ?? [];
+        const atThisSlot = rows.filter((r) => r.slot === slot);
+
+        if (atThisSlot.length === 0) {
+          listEl.className = "fineprint hidden";
+        } else {
+          listEl.innerHTML =
+            `Also scheduled at ${escapeHtml(formatSlot(slot))}: ` +
+            atThisSlot
+              .map((r) => {
+                const label = `${escapeHtml(r.trade_name || r.operator_name)} → ${escapeHtml(
+                  r.route
+                )}`;
+                return route && r.route === route ? `<strong>${label}</strong>` : label;
+              })
+              .join(", ");
+          listEl.className = "fineprint";
+        }
+
+        const sameRouteHere = route
+          ? atThisSlot.filter((r) => r.route === route)
+          : [];
+
+        if (!route || sameRouteHere.length === 0) {
+          hintEl.className = "hint hidden";
+          return;
+        }
+
+        const takenSlotsForRoute = new Set(
+          rows.filter((r) => r.route === route).map((r) => r.slot)
+        );
+        const candidates = SLOTS.filter((s) => s !== slot)
+          .filter(
+            (s) => slotStartMillis(bookingDate, s) - Date.now() >= BOOKING_LEAD_TIME_MS
+          )
+          .filter((s) => !takenSlotsForRoute.has(s))
+          .sort((a, b) => Math.abs(a - slot) - Math.abs(b - slot))
+          .slice(0, 3);
+
+        hintEl.innerHTML =
+          `${sameRouteHere.length} other operator${
+            sameRouteHere.length === 1 ? "" : "s"
+          } already scheduled to ${escapeHtml(route)} at ${escapeHtml(
+            formatSlot(slot)
+          )} - you can still submit, but a different time avoids departing ` +
+          `alongside them: ` +
+          (candidates.length
+            ? candidates
+                .map(
+                  (s) =>
+                    `<button type="button" class="btn-link" data-suggest-route-slot="${s}">${escapeHtml(
+                      formatSlot(s)
+                    )}</button>`
+                )
+                .join(", ")
+            : "no other time today - try a different date.");
+        hintEl.className = "hint";
+
+        hintEl.querySelectorAll("[data-suggest-route-slot]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            document.getElementById("slot").value = btn.dataset.suggestRouteSlot;
+            syncSlotPickerSelection("slot-picker", "slot");
+            checkGateFullness();
+            checkSlotOccupancy();
           });
         });
       }
@@ -627,21 +732,28 @@
           null,
           routesWithRegisteredVehicle()
         );
-        document.getElementById("route").addEventListener("change", checkGateFullness);
+        document.getElementById("route").addEventListener("change", () => {
+          checkGateFullness();
+          checkSlotOccupancy();
+        });
 
         const dateInput = document.getElementById("booking_date");
         dateInput.min = todayISO();
         dateInput.value = todayISO();
 
         populateSlotOptions();
-        // The set of slots still >= 4 hours out depends on which date is
+        // The set of slots still >= 2 hours out depends on which date is
         // picked, so refresh the list whenever the date changes.
         dateInput.addEventListener("change", () => {
           populateSlotOptions();
           checkGateFullness();
+          checkSlotOccupancy();
         });
 
-        document.getElementById("slot").addEventListener("change", checkGateFullness);
+        document.getElementById("slot").addEventListener("change", () => {
+          checkGateFullness();
+          checkSlotOccupancy();
+        });
 
         document
           .getElementById("no-vehicles-note")
@@ -744,9 +856,9 @@
         });
       }
 
-      // Only offers slots that are still >= 4 hours out for the selected
+      // Only offers slots that are still >= 2 hours out for the selected
       // date - mirrors the same rule enforced server-side (migration
-      // 0009), so operators never see a time they'd just be told to pick
+      // 0039), so operators never see a time they'd just be told to pick
       // again after submitting.
       function populateSlotOptions() {
         const bookingDate = document.getElementById("booking_date").value;

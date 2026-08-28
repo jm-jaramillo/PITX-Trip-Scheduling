@@ -31,6 +31,8 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 | Booking lead time | New requests and material changes (route/date/time) both need at least 2 hours' notice before the scheduled slot (was 4 hours until 20 Aug, #81); setting the plate later is exempt |
 | Booking transfer | An operator may hand off a booked slot to another operator (internal agreement); needs PITX staff approval; schedule shows the previous operator struck through next to the new one |
 | Cancellation | A pending request cancels instantly; an approved booking needs PITX staff approval to cancel (changed 20 Aug, #81) |
+| Same-time visibility | The request form shows other operators' trips at the chosen date/time, flagging a same-route/same-time clash with a different-timeslot suggestion (advisory only) (added 20 Aug, #82) |
+| One vehicle, one slot at a time | A single vehicle can't be booked into two adjacent 15-minute slots on the same date (added 20 Aug, #82) |
 
 ---
 
@@ -2968,6 +2970,55 @@ booking's status, an approved-booking cancellation request → staff
 approve (bay released, badge cleared) and the request/decline/withdraw
 paths, and both `my-schedule.html` views rendering real data with no
 console errors.
+
+---
+
+### 82. Booking-time visibility of other operators' trips; no back-to-back slots for one vehicle (20 Aug)
+
+Two more checks on `dashboard.html`'s request form (migrations `0043`,
+`0044`), both informational-not-blocking except the last:
+
+1. **Other operators' trips at the chosen time are now shown right on the
+   request form.** Whenever a date and time are picked, a line lists every
+   other live booking (pending or approved) at that exact slot -
+   `Also scheduled at 9:00 PM: OperatorX → Route, OperatorY → Route`. If
+   any of them share the currently selected route, that entry is bolded
+   and a second, amber hint calls it out explicitly with nearby
+   conflict-free times to pick instead - the same "suggest a different
+   timeslot" pattern as the existing gate-fullness hint (#78), just keyed
+   on route+time collision rather than bay capacity. Purely advisory:
+   submitting anyway still works.
+
+   This needed a new RPC, not a direct table query
+   (`list_bookings_for_date()`, `0044`): a pending booking is otherwise
+   private to its own operator (`bookings_select` RLS), so a naive
+   `.from("bookings").select()` from one operator's page silently
+   returned nothing for another operator's still-pending requests -
+   caught live during verification (two test operators booking the same
+   route/time; the second saw no hint at all until this was added). The
+   RPC is `security definer` and returns only `slot`/`route`/
+   `operator_name`/`trade_name` - not full booking rows - so it can't be
+   used to browse other operators' bookings beyond what this feature
+   needs.
+
+2. **One vehicle can't be booked into two adjacent 15-minute slots on the
+   same date.** Enforced in `request_booking_change()` and
+   `bookings_insert_own` (`0043`): whenever a plate is being set (at
+   creation, or via "Set plate"/"Change plate"), it's checked against
+   that operator's own other pending/approved bookings for the same
+   plate one slot before or after, same date - the same bus can't be
+   scheduled to depart twice back to back. Scoped to the same calendar
+   date only; a slot 95/slot 0 pair spanning midnight isn't checked
+   against each other. Verified live: setting the same test vehicle on
+   two bookings 15 minutes apart, second one rejected with a clear
+   error; unaffected slots and different vehicles unaffected.
+
+Also confirmed (no change needed): staff's bay-assignment dropdowns
+(`staff.html`'s per-row and bulk approve, `schedule.html`'s inline
+reassign) already excluded a bay entirely once it's taken for that slot,
+rather than just deprioritizing it - `bayChoicesFor()`/`bayReassignHtml()`
+filter taken bays out of the candidate list before splitting it into
+Suggested/Other, so there was nothing to fix there.
 
 ---
 

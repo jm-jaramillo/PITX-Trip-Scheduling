@@ -842,6 +842,40 @@ for those routes). It only fires once both a date and slot are already
 picked; picking a suggested slot re-runs the check immediately, in case
 that slot fills up too.
 
+### Seeing other operators' trips at the same time (20 Aug, #82)
+
+Once a date and time are picked, the request form also shows a line
+listing every *other* live booking (pending or approved) at that exact
+slot - operator and destination, e.g. `Also scheduled at 9:00 PM:
+OperatorX → Route A, OperatorY → Route B`. If any of them share the
+currently selected route, that entry is bolded and a second, amber hint
+calls it out explicitly with nearby conflict-free times, same pattern as
+the gate-fullness hint above. Also advisory only - two operators can
+still both be approved to the same destination at the same time; this
+just surfaces it before either request is even submitted.
+
+This is backed by a dedicated RPC, `list_bookings_for_date(p_date)`, not
+a direct table query - a still-pending booking is otherwise private to
+its own operator (`bookings_select` RLS only opens up once a booking is
+approved, or cancelled after being approved - see "Enforced by the
+database" above), so a plain `.from("bookings").select()` from a
+different operator's page would silently return nothing for it. The RPC
+is `security definer` and returns only `slot`/`route`/`operator_name`/
+`trade_name` for bookings on that date belonging to *other* operators -
+never the caller's own, and never anything beyond those four columns.
+
+### One vehicle can't be booked into two adjacent slots (20 Aug, #82)
+
+Whenever a plate is set or changed - at booking creation (rare now, see
+above) or via **Set plate**/**Change plate**/**Change** - it's checked
+against that operator's own other pending/approved bookings for the same
+plate one 15-minute slot before or after, on the same date. The same bus
+can't be scheduled to depart twice back to back, so the second attempt is
+rejected with a clear error naming the conflict; this is a hard block,
+enforced in `request_booking_change()` and `bookings_insert_own`
+(migration `0043`), not just a hint. Scoped to the same calendar date -
+a slot 95/slot 0 pair spanning midnight isn't checked against each other.
+
 ### A vehicle must be registered for the route it books
 
 A route no longer needs a matching vehicle at booking time - that check
