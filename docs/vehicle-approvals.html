@@ -64,6 +64,7 @@
         renderNav,
         showMessage,
         expiryCell,
+        busTypeLabel,
         escapeHtml,
         downloadCsv,
       } from "./assets/app.js";
@@ -72,9 +73,13 @@
       if (!profile) throw new Error("unauthorised");
       renderNav(profile);
 
-      // Which of the ~19 approval-form columns are shown, persisted across
-      // reloads so staff don't have to re-hide the same columns every visit.
-      const COLUMNS_STORAGE_KEY = "pitx.vehicleApprovals.columns";
+      // Which of the approval-form columns are shown, persisted across
+      // reloads so staff don't have to re-hide the same columns every
+      // visit. Bumped to v2 when the vehicle field set changed (migration
+      // 0035, OR/CR/dates/aircon dropped, several fields added) so a
+      // stored selection referencing a since-removed column key doesn't
+      // silently leave that many fewer columns visible than intended.
+      const COLUMNS_STORAGE_KEY = "pitx.vehicleApprovals.columns.v2";
 
       // Every toggleable column, in table order. `key` doubles as the
       // data-col attribute shared by the <th> and its column's <td>s, so
@@ -85,20 +90,23 @@
         { key: "operator", label: "Operator" },
         { key: "case", label: "Case No." },
         { key: "mv", label: "MV File #" },
-        { key: "or", label: "OR No." },
-        { key: "cr", label: "CR No." },
         { key: "chassis", label: "Chassis No." },
         { key: "franchise", label: "Franchise" },
         { key: "sticker", label: "Sticker No." },
         { key: "cpc", label: "CPC validity" },
+        { key: "cpc_eov", label: "CPC EOV?" },
+        { key: "cpc_eov_validity", label: "EOV validity" },
         { key: "orcr", label: "OR/CR validity" },
         { key: "route", label: "Route" },
-        { key: "bus", label: "Bus No." },
+        { key: "origin", label: "Origin" },
+        { key: "destination", label: "Destination" },
+        { key: "body", label: "Body Number" },
+        { key: "year", label: "Year" },
+        { key: "make", label: "Make" },
+        { key: "bus_type", label: "Bus Type" },
         { key: "seating", label: "Seating" },
-        { key: "seat", label: "Seat" },
-        { key: "aircon", label: "Aircon" },
-        { key: "granted", label: "Date granted" },
-        { key: "expiry", label: "Date expiry" },
+        { key: "seat", label: "Seat configuration" },
+        { key: "remarks", label: "Remarks" },
         { key: "docs", label: "Documents" },
       ];
 
@@ -108,7 +116,7 @@
         "plate",
         "operator",
         "route",
-        "bus",
+        "body",
         "cpc",
         "orcr",
         "docs",
@@ -216,12 +224,6 @@
         });
       }
 
-      function airconLabel(aircon) {
-        if (aircon === true) return "Aircon";
-        if (aircon === false) return "Non-aircon";
-        return "—";
-      }
-
       function operatorLabel(v) {
         return v.profiles?.operator_name || v.profiles?.username || "Operator";
       }
@@ -232,7 +234,7 @@
           .select(
             // vehicles has two FKs into profiles (operator_id, decided_by),
             // so the embed needs the constraint name to disambiguate which.
-            "id, operator_id, plate_no, case_number, mv_file_number, or_number, cr_number, chassis_no, franchise, cpc_validity, orcr_validity, sticker_no, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, supporting_doc_path, supporting_doc_name, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+            "id, operator_id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, source, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
           )
           .eq("status", "pending")
           .order("created_at", { ascending: true });
@@ -293,12 +295,15 @@
                   <th><input type="checkbox" id="row-select-all" /></th>
                   <th data-col="plate">Plate No.</th><th data-col="operator">Operator</th>
                   <th data-col="case">Case No.</th>
-                  <th data-col="mv">MV File #</th><th data-col="or">OR No.</th><th data-col="cr">CR No.</th>
+                  <th data-col="mv">MV File #</th>
                   <th data-col="chassis">Chassis No.</th><th data-col="franchise">Franchise</th><th data-col="sticker">Sticker No.</th>
-                  <th data-col="cpc">CPC validity</th><th data-col="orcr">OR/CR validity</th>
-                  <th data-col="route">Route</th><th data-col="bus">Bus No.</th><th data-col="seating">Seating</th>
-                  <th data-col="seat">Seat</th><th data-col="aircon">Aircon</th><th data-col="granted">Date granted</th>
-                  <th data-col="expiry">Date expiry</th><th data-col="docs">Documents</th><th></th>
+                  <th data-col="cpc">CPC validity</th><th data-col="cpc_eov">CPC EOV?</th><th data-col="cpc_eov_validity">EOV validity</th>
+                  <th data-col="orcr">OR/CR validity</th>
+                  <th data-col="route">Route</th><th data-col="origin">Origin</th><th data-col="destination">Destination</th>
+                  <th data-col="body">Body Number</th><th data-col="year">Year</th><th data-col="make">Make</th>
+                  <th data-col="bus_type">Bus Type</th><th data-col="seating">Seating</th>
+                  <th data-col="seat">Seat configuration</th><th data-col="remarks">Remarks</th>
+                  <th data-col="docs">Documents</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -320,20 +325,23 @@
                     <td data-col="operator" data-label="Operator">${escapeHtml(label)}</td>
                     <td data-col="case" data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
                     <td data-col="mv" data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
-                    <td data-col="or" data-label="OR No.">${escapeHtml(v.or_number ?? "—")}</td>
-                    <td data-col="cr" data-label="CR No.">${escapeHtml(v.cr_number ?? "—")}</td>
                     <td data-col="chassis" data-label="Chassis No.">${escapeHtml(v.chassis_no ?? "—")}</td>
                     <td data-col="franchise" data-label="Franchise">${escapeHtml(v.franchise ?? "—")}</td>
                     <td data-col="sticker" data-label="Sticker No.">${escapeHtml(v.sticker_no ?? "—")}</td>
                     <td data-col="cpc" data-label="CPC validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
+                    <td data-col="cpc_eov" data-label="CPC EOV?">${v.cpc_eov ? "Yes" : "No"}</td>
+                    <td data-col="cpc_eov_validity" data-label="EOV validity">${v.cpc_eov ? expiryCell(v.cpc_eov_validity, escapeHtml) : "—"}</td>
                     <td data-col="orcr" data-label="OR/CR validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
                     <td data-col="route" data-label="Route">${escapeHtml(v.route ?? "—")}</td>
-                    <td data-col="bus" data-label="Bus No.">${escapeHtml(v.bus_number ?? "—")}</td>
+                    <td data-col="origin" data-label="Origin">${escapeHtml(v.origin ?? "—")}</td>
+                    <td data-col="destination" data-label="Destination">${escapeHtml(v.destination ?? "—")}</td>
+                    <td data-col="body" data-label="Body Number">${escapeHtml(v.body_number ?? "—")}</td>
+                    <td data-col="year" data-label="Year">${escapeHtml(v.vehicle_year ?? "—")}</td>
+                    <td data-col="make" data-label="Make">${escapeHtml(v.vehicle_make ?? "—")}</td>
+                    <td data-col="bus_type" data-label="Bus Type">${busTypeLabel(v.bus_type)}</td>
                     <td data-col="seating" data-label="Seating">${v.seating_capacity ?? "—"}</td>
-                    <td data-col="seat" data-label="Seat">${escapeHtml(v.seat_type ?? "—")}</td>
-                    <td data-col="aircon" data-label="Aircon">${airconLabel(v.aircon)}</td>
-                    <td data-col="granted" data-label="Date granted">${escapeHtml(v.date_granted ?? "—")}</td>
-                    <td data-col="expiry" data-label="Date expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
+                    <td data-col="seat" data-label="Seat configuration">${escapeHtml(v.seat_type ?? "—")}</td>
+                    <td data-col="remarks" data-label="Remarks">${escapeHtml(v.remarks ?? "—")}</td>
                     <td data-col="docs" data-label="Documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
                     <td>
                       <div class="row-actions">
@@ -562,20 +570,23 @@
         operator: (v) => operatorLabel(v),
         case: (v) => v.case_number ?? "",
         mv: (v) => v.mv_file_number ?? "",
-        or: (v) => v.or_number ?? "",
-        cr: (v) => v.cr_number ?? "",
         chassis: (v) => v.chassis_no ?? "",
         franchise: (v) => v.franchise ?? "",
         sticker: (v) => v.sticker_no ?? "",
         cpc: (v) => v.cpc_validity ?? "",
+        cpc_eov: (v) => (v.cpc_eov ? "Yes" : "No"),
+        cpc_eov_validity: (v) => v.cpc_eov_validity ?? "",
         orcr: (v) => v.orcr_validity ?? "",
         route: (v) => v.route ?? "",
-        bus: (v) => v.bus_number ?? "",
+        origin: (v) => v.origin ?? "",
+        destination: (v) => v.destination ?? "",
+        body: (v) => v.body_number ?? "",
+        year: (v) => v.vehicle_year ?? "",
+        make: (v) => v.vehicle_make ?? "",
+        bus_type: (v) => busTypeLabel(v.bus_type),
         seating: (v) => v.seating_capacity ?? "",
         seat: (v) => v.seat_type ?? "",
-        aircon: (v) => airconLabel(v.aircon),
-        granted: (v) => v.date_granted ?? "",
-        expiry: (v) => v.date_expiry ?? "",
+        remarks: (v) => v.remarks ?? "",
         docs: () => "",
       };
 

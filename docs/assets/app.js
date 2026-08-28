@@ -611,6 +611,33 @@ export function ltfrbBadge(ltfrbStatus) {
   )}</span>`;
 }
 
+// Bus type replaced the old plain aircon boolean (migration 0035) -
+// shared here rather than duplicated per page, unlike the old
+// airconLabel() it replaces (that one was copy-pasted identically into
+// three separate files).
+const BUS_TYPE_LABELS = {
+  ordinary: "Ordinary",
+  aircon: "Aircon",
+  deluxe: "Deluxe",
+  luxury: "Luxury",
+};
+
+export function busTypeLabel(busType) {
+  return BUS_TYPE_LABELS[busType] ?? "—";
+}
+
+// True once a vehicle's CPC (or, if it has one, its CPC Extension of
+// Validity) has passed - same "past today" rule bookings_insert_own and
+// request_booking_change() enforce server-side (migration 0035); this
+// copy is for UI display only; see also the version of it duplicated
+// (with the same intent) client-side in dashboard.html's booking form.
+export function vehicleCpcExpired(v, todayIso) {
+  const today = todayIso ?? new Date().toISOString().slice(0, 10);
+  const cpcExpired = v.cpc_validity && v.cpc_validity < today;
+  const eovExpired = v.cpc_eov && v.cpc_eov_validity && v.cpc_eov_validity < today;
+  return Boolean(cpcExpired || eovExpired);
+}
+
 // Shared by vehicles.html (operator) and vehicles-database.html (staff)
 // for the "click a row to see the full card" detail dialog - one builder
 // so the field list/order can't drift between the two. `operatorLabel`
@@ -625,23 +652,25 @@ export function vehicleDetailsHtml(v, operatorLabel) {
     ["LTFRB", ltfrbBadge(v.ltfrb_status)],
     ["Case No.", escapeHtml(v.case_number ?? "—")],
     ["MV File #", escapeHtml(v.mv_file_number ?? "—")],
-    ["OR No.", escapeHtml(v.or_number ?? "—")],
-    ["CR No.", escapeHtml(v.cr_number ?? "—")],
     ["Chassis No.", escapeHtml(v.chassis_no ?? "—")],
     ["Franchise", escapeHtml(v.franchise ?? "—")],
     ["Sticker No.", escapeHtml(v.sticker_no ?? "—")],
     ["CPC validity", expiryCell(v.cpc_validity, escapeHtml)],
+    [
+      "CPC Extension of Validity",
+      v.cpc_eov ? expiryCell(v.cpc_eov_validity, escapeHtml) : "No",
+    ],
     ["OR/CR validity", expiryCell(v.orcr_validity, escapeHtml)],
     ["Route", escapeHtml(v.route ?? "—")],
-    ["Bus No.", escapeHtml(v.bus_number ?? "—")],
+    ["Origin", escapeHtml(v.origin ?? "—")],
+    ["Destination", escapeHtml(v.destination ?? "—")],
+    ["Body Number", escapeHtml(v.body_number ?? "—")],
+    ["Year", escapeHtml(v.vehicle_year ?? "—")],
+    ["Make", escapeHtml(v.vehicle_make ?? "—")],
+    ["Bus type", busTypeLabel(v.bus_type)],
     ["Seating capacity", escapeHtml(v.seating_capacity ?? "—")],
-    ["Seat", escapeHtml(v.seat_type ?? "—")],
-    [
-      "Aircon",
-      v.aircon === true ? "Aircon" : v.aircon === false ? "Non-aircon" : "—",
-    ],
-    ["Date granted", escapeHtml(v.date_granted ?? "—")],
-    ["Date expiry", escapeHtml(v.date_expiry ?? "—")],
+    ["Seat configuration", escapeHtml(v.seat_type ?? "—")],
+    ["Remarks", escapeHtml(v.remarks ?? "—")],
     v.rejection_reason ? ["Note", escapeHtml(v.rejection_reason)] : null,
   ].filter(Boolean);
 

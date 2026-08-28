@@ -381,12 +381,20 @@
       // operator registered directly have ltfrb_status = null, which is
       // always eligible (that column only applies to the import).
       async function loadApprovedVehicles() {
+        // A vehicle whose CPC (or, if it has one, its CPC Extension of
+        // Validity) has expired is excluded the same way an
+        // LTFRB-ineligible one is - kept in lockstep with the
+        // bookings_insert_own RLS policy and request_booking_change(),
+        // the actual enforcement (migration 0035).
+        const today = todayISO();
         const { data } = await supabase
           .from("vehicles")
-          .select("plate_no, bus_number, route")
+          .select("plate_no, body_number, route")
           .eq("operator_id", profile.id)
           .eq("status", "approved")
           .or("ltfrb_status.is.null,ltfrb_status.in.(active,ltfrb_verified)")
+          .or(`cpc_validity.is.null,cpc_validity.gte.${today}`)
+          .or(`cpc_eov.eq.false,cpc_eov_validity.is.null,cpc_eov_validity.gte.${today}`)
           .order("plate_no");
         approvedVehicles = data ?? [];
       }
@@ -566,7 +574,7 @@
           `<option value="${escapeHtml(v.plate_no)}"${
             v.plate_no === selected ? " selected" : ""
           }>${escapeHtml(v.plate_no)}${
-            v.bus_number ? ` — Bus No. ${escapeHtml(v.bus_number)}` : ""
+            v.body_number ? ` — Body No. ${escapeHtml(v.body_number)}` : ""
           }</option>`;
 
         const placeholder = `<option value="" disabled${
@@ -989,7 +997,7 @@
                 .map(
                   (v) =>
                     `<option value="${escapeHtml(v.plate_no)}">${escapeHtml(v.plate_no)}${
-                      v.bus_number ? ` — Bus No. ${escapeHtml(v.bus_number)}` : ""
+                      v.body_number ? ` — Body No. ${escapeHtml(v.body_number)}` : ""
                     }</option>`
                 )
                 .join("");

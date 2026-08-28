@@ -52,6 +52,64 @@
       .columns-popover input {
         margin: 0;
       }
+
+      /* Groups fields that belong together within the Add/Edit dialogs -
+         a span-all heading row inside the existing .dialog-grid, rather
+         than a separate grid per group, so the two-column layout still
+         wraps naturally at the dialog's own breakpoint. */
+      .field-group-heading {
+        margin: 8px 0 -6px;
+        padding-top: 14px;
+        border-top: 1px solid var(--divider, #e5e7eb);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--label, #6b7280);
+      }
+      .field-group-heading:first-of-type {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      textarea.remarks-input {
+        width: 100%;
+        min-height: 64px;
+        resize: vertical;
+        font: inherit;
+        padding: 9px 11px;
+        border: 1px solid var(--border, #d7dbe3);
+        border-radius: var(--r-btn, 11px);
+        box-sizing: border-box;
+      }
+
+      /* Batch upload dialog */
+      .batch-drop {
+        display: block;
+        border: 1.5px dashed var(--border, #d7dbe3);
+        border-radius: var(--r-card-sm, 16px);
+        padding: 22px;
+        text-align: center;
+        cursor: pointer;
+        margin-top: 14px;
+      }
+      .batch-preview-wrap {
+        max-height: 320px;
+        overflow: auto;
+        margin-top: 14px;
+        border: 1px solid var(--border, #d7dbe3);
+        border-radius: var(--r-card-sm, 16px);
+      }
+      .batch-preview-wrap table {
+        font-size: 12.5px;
+      }
+      .batch-row-invalid td {
+        background: var(--red-wash, #fdf1f1);
+      }
+      .batch-row-error {
+        color: var(--red-ink, #a3251f);
+        font-size: 11px;
+      }
     </style>
   </head>
   <body>
@@ -63,20 +121,25 @@
           <p class="eyebrow">Provincial Slot Booking &middot; Fleet</p>
           <h1>My vehicles</h1>
           <p class="subtle">
-            Register a vehicle by scanning its LTO OR/CR, or enter the
-            details yourself. Fields follow the PITX/MWM Terminals
-            registration form. You can edit any entry afterward.
+            Register a vehicle by scanning its LTO OR/CR, entering the
+            details yourself, or uploading several at once via CSV. You
+            can edit any entry afterward.
           </p>
         </div>
-        <button type="button" class="btn-primary" id="add-vehicle-btn">
-          + Add vehicle
-        </button>
+        <div style="display: flex; gap: 8px">
+          <button type="button" class="btn-outline" id="batch-upload-btn">
+            Batch upload
+          </button>
+          <button type="button" class="btn-primary" id="add-vehicle-btn">
+            + Add vehicle
+          </button>
+        </div>
       </div>
 
       <div class="toolbar" style="justify-content: space-between; margin-bottom: 20px">
         <div class="field" style="max-width: 360px; margin-bottom: 0">
           <label for="search">Search</label>
-          <input id="search" placeholder="Plate no., route, or bus no.…" />
+          <input id="search" placeholder="Plate no., route, or body no.…" />
         </div>
         <div class="columns-control">
           <button type="button" class="btn-outline" id="columns-toggle">Columns</button>
@@ -107,10 +170,9 @@
         <div id="scan-panel">
           <p class="subtle" style="margin-top: 14px">
             Take a photo of the vehicle's OR/CR, or upload one, to fill in
-            the plate number, expiry, and OR/CR numbers automatically
-            &mdash; nothing leaves your browser to do it. The rest of the
-            form (case no., MV file #, etc.) isn't on an OR/CR, so fill
-            those in yourself.
+            the plate number automatically &mdash; nothing leaves your
+            browser to do it. The rest of the form isn't on an OR/CR, so
+            fill that in yourself.
           </p>
           <label class="upload-drop" id="upload-drop" for="photo-input">
             <span id="upload-drop-text">Tap to take a photo or choose a file</span>
@@ -130,12 +192,14 @@
           </div>
         </div>
 
-        <!-- Shared fields (both modes end up here), matching the paper form -->
+        <!-- Shared fields (both modes end up here) -->
         <div class="dialog-grid" id="fields-panel">
           <div class="field">
             <label for="f_plate_no">Plate No. <span class="req">*</span></label>
             <input id="f_plate_no" required placeholder="e.g. ABC 1234" />
           </div>
+
+          <p class="field-group-heading span-all">Registration &amp; paperwork</p>
           <div class="field">
             <label for="f_case_number">Case No.</label>
             <input id="f_case_number" />
@@ -143,14 +207,6 @@
           <div class="field">
             <label for="f_mv_file_number">MV File #</label>
             <input id="f_mv_file_number" />
-          </div>
-          <div class="field">
-            <label for="f_or_number">OR No.</label>
-            <input id="f_or_number" />
-          </div>
-          <div class="field">
-            <label for="f_cr_number">CR No.</label>
-            <input id="f_cr_number" />
           </div>
           <div class="field">
             <label for="f_chassis_no">Chassis No.</label>
@@ -164,6 +220,8 @@
             <label for="f_sticker_no">Sticker No.</label>
             <input id="f_sticker_no" />
           </div>
+
+          <p class="field-group-heading span-all">CPC validity</p>
           <div class="field">
             <label for="f_cpc_validity">CPC validity</label>
             <input id="f_cpc_validity" type="date" />
@@ -172,8 +230,21 @@
             <label for="f_orcr_validity">OR/CR validity</label>
             <input id="f_orcr_validity" type="date" />
           </div>
+          <div class="field">
+            <label for="f_cpc_eov">CPC Extension of Validity?</label>
+            <select id="f_cpc_eov">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+          <div class="field" id="f_cpc_eov_validity_field">
+            <label for="f_cpc_eov_validity">EOV validity date <span class="req">*</span></label>
+            <input id="f_cpc_eov_validity" type="date" />
+          </div>
+          <p class="fineprint span-all" id="f_cpc_expired_note"></p>
+
+          <p class="field-group-heading span-all">Route</p>
           <div class="field span-all">
-            <label>Route</label>
             <p class="fineprint" style="margin: 0 0 6px">
               Pick region, province, and city/municipality - the route is
               generated from these, not typed freehand, so it can't drift
@@ -194,42 +265,62 @@
             <p class="fineprint" id="f_route_preview"></p>
           </div>
           <div class="field">
-            <label for="f_bus_number">Bus No.</label>
-            <input id="f_bus_number" />
+            <label for="f_origin">Origin</label>
+            <input id="f_origin" placeholder="e.g. PITX" />
+          </div>
+          <div class="field">
+            <label for="f_destination">Destination</label>
+            <input id="f_destination" placeholder="e.g. Legazpi City" />
+          </div>
+
+          <p class="field-group-heading span-all">Vehicle details</p>
+          <div class="field">
+            <label for="f_body_number">Body Number</label>
+            <input id="f_body_number" />
+          </div>
+          <div class="field">
+            <label for="f_vehicle_year">Year</label>
+            <input id="f_vehicle_year" type="number" min="1950" max="2100" placeholder="e.g. 2022" />
+          </div>
+          <div class="field">
+            <label for="f_vehicle_make">Make</label>
+            <input id="f_vehicle_make" placeholder="e.g. Hino, Isuzu" />
+          </div>
+          <div class="field">
+            <label for="f_bus_type">Bus Type</label>
+            <select id="f_bus_type">
+              <option value="">&mdash;</option>
+              <option value="ordinary">Ordinary</option>
+              <option value="aircon">Aircon</option>
+              <option value="deluxe">Deluxe</option>
+              <option value="luxury">Luxury</option>
+            </select>
           </div>
           <div class="field">
             <label for="f_seating_capacity">Seating capacity</label>
             <input id="f_seating_capacity" type="number" min="1" placeholder="e.g. 45" />
           </div>
           <div class="field">
-            <label for="f_seat_type">Seat</label>
+            <label for="f_seat_type">Seat configuration</label>
             <select id="f_seat_type">
               <option value="">&mdash;</option>
+              <option value="1x1">1x1</option>
               <option value="2x2">2x2</option>
               <option value="2x3">2x3</option>
+              <option value="1x3">1x3</option>
             </select>
           </div>
-          <div class="field">
-            <label for="f_aircon">Aircon</label>
-            <select id="f_aircon">
-              <option value="">&mdash;</option>
-              <option value="true">Aircon</option>
-              <option value="false">Non-aircon</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="f_date_granted">Date granted</label>
-            <input id="f_date_granted" type="date" />
-          </div>
-          <div class="field">
-            <label for="f_date_expiry">Date expiry</label>
-            <input id="f_date_expiry" type="date" />
+
+          <p class="field-group-heading span-all">Remarks</p>
+          <div class="field span-all">
+            <label for="f_remarks">Remarks</label>
+            <textarea id="f_remarks" class="remarks-input" placeholder="Anything staff should know about this vehicle"></textarea>
           </div>
         </div>
 
         <p class="fineprint hidden" id="review-note">
-          Plate number, expiry, and OR/CR numbers extracted automatically
-          from the photo &mdash; double-check all of them before saving.
+          Plate number extracted automatically from the photo &mdash;
+          double-check it before saving.
         </p>
 
         <details class="raw-text hidden" id="raw-text-wrap">
@@ -243,6 +334,14 @@
           </label>
           <input type="file" id="f_supporting_doc" accept="image/*,.pdf" />
           <p class="fineprint" id="f_supporting_doc_name"></p>
+        </div>
+
+        <div class="field">
+          <label for="f_seat_layout">
+            Seat configuration layout <span class="fineprint">(optional &mdash; a diagram/photo of the layout)</span>
+          </label>
+          <input type="file" id="f_seat_layout" accept="image/*,.pdf" />
+          <p class="fineprint" id="f_seat_layout_name"></p>
         </div>
 
         <p class="inline-error hidden" id="save-error"></p>
@@ -265,6 +364,8 @@
             <label for="e_plate_no">Plate No. <span class="req">*</span></label>
             <input id="e_plate_no" required />
           </div>
+
+          <p class="field-group-heading span-all">Registration &amp; paperwork</p>
           <div class="field">
             <label for="e_case_number">Case No.</label>
             <input id="e_case_number" />
@@ -272,14 +373,6 @@
           <div class="field">
             <label for="e_mv_file_number">MV File #</label>
             <input id="e_mv_file_number" />
-          </div>
-          <div class="field">
-            <label for="e_or_number">OR No.</label>
-            <input id="e_or_number" />
-          </div>
-          <div class="field">
-            <label for="e_cr_number">CR No.</label>
-            <input id="e_cr_number" />
           </div>
           <div class="field">
             <label for="e_chassis_no">Chassis No.</label>
@@ -293,6 +386,8 @@
             <label for="e_sticker_no">Sticker No.</label>
             <input id="e_sticker_no" />
           </div>
+
+          <p class="field-group-heading span-all">CPC validity</p>
           <div class="field">
             <label for="e_cpc_validity">CPC validity</label>
             <input id="e_cpc_validity" type="date" />
@@ -301,8 +396,21 @@
             <label for="e_orcr_validity">OR/CR validity</label>
             <input id="e_orcr_validity" type="date" />
           </div>
+          <div class="field">
+            <label for="e_cpc_eov">CPC Extension of Validity?</label>
+            <select id="e_cpc_eov">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+          <div class="field" id="e_cpc_eov_validity_field">
+            <label for="e_cpc_eov_validity">EOV validity date <span class="req">*</span></label>
+            <input id="e_cpc_eov_validity" type="date" />
+          </div>
+          <p class="fineprint span-all" id="e_cpc_expired_note"></p>
+
+          <p class="field-group-heading span-all">Route</p>
           <div class="field span-all">
-            <label>Route</label>
             <div style="display: flex; gap: 8px; flex-wrap: wrap">
               <select id="e_region" style="flex: 1; min-width: 140px">
                 <option value="">Loading regions…</option>
@@ -318,36 +426,56 @@
             <p class="fineprint" id="e_route_preview"></p>
           </div>
           <div class="field">
-            <label for="e_bus_number">Bus No.</label>
-            <input id="e_bus_number" />
+            <label for="e_origin">Origin</label>
+            <input id="e_origin" placeholder="e.g. PITX" />
+          </div>
+          <div class="field">
+            <label for="e_destination">Destination</label>
+            <input id="e_destination" placeholder="e.g. Legazpi City" />
+          </div>
+
+          <p class="field-group-heading span-all">Vehicle details</p>
+          <div class="field">
+            <label for="e_body_number">Body Number</label>
+            <input id="e_body_number" />
+          </div>
+          <div class="field">
+            <label for="e_vehicle_year">Year</label>
+            <input id="e_vehicle_year" type="number" min="1950" max="2100" />
+          </div>
+          <div class="field">
+            <label for="e_vehicle_make">Make</label>
+            <input id="e_vehicle_make" />
+          </div>
+          <div class="field">
+            <label for="e_bus_type">Bus Type</label>
+            <select id="e_bus_type">
+              <option value="">&mdash;</option>
+              <option value="ordinary">Ordinary</option>
+              <option value="aircon">Aircon</option>
+              <option value="deluxe">Deluxe</option>
+              <option value="luxury">Luxury</option>
+            </select>
           </div>
           <div class="field">
             <label for="e_seating_capacity">Seating capacity</label>
             <input id="e_seating_capacity" type="number" min="1" />
           </div>
           <div class="field">
-            <label for="e_seat_type">Seat</label>
+            <label for="e_seat_type">Seat configuration</label>
             <select id="e_seat_type">
               <option value="">&mdash;</option>
+              <option value="1x1">1x1</option>
               <option value="2x2">2x2</option>
               <option value="2x3">2x3</option>
+              <option value="1x3">1x3</option>
             </select>
           </div>
-          <div class="field">
-            <label for="e_aircon">Aircon</label>
-            <select id="e_aircon">
-              <option value="">&mdash;</option>
-              <option value="true">Aircon</option>
-              <option value="false">Non-aircon</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="e_date_granted">Date granted</label>
-            <input id="e_date_granted" type="date" />
-          </div>
-          <div class="field">
-            <label for="e_date_expiry">Date expiry</label>
-            <input id="e_date_expiry" type="date" />
+
+          <p class="field-group-heading span-all">Remarks</p>
+          <div class="field span-all">
+            <label for="e_remarks">Remarks</label>
+            <textarea id="e_remarks" class="remarks-input"></textarea>
           </div>
         </div>
 
@@ -356,6 +484,13 @@
           <p class="fineprint hidden" id="e_supporting_doc_current"></p>
           <input type="file" id="e_supporting_doc" accept="image/*,.pdf" />
           <p class="fineprint" id="e_supporting_doc_name"></p>
+        </div>
+
+        <div class="field">
+          <label for="e_seat_layout">Seat configuration layout</label>
+          <p class="fineprint hidden" id="e_seat_layout_current"></p>
+          <input type="file" id="e_seat_layout" accept="image/*,.pdf" />
+          <p class="fineprint" id="e_seat_layout_name"></p>
         </div>
 
         <p class="inline-error hidden" id="edit-error"></p>
@@ -379,6 +514,46 @@
       </div>
     </dialog>
 
+    <!-- ------------------------------------------------- batch dialog -->
+    <dialog id="batch-dialog">
+      <h2 class="dialog-title">Batch upload vehicles</h2>
+      <p class="subtle">
+        Upload a CSV to register several vehicles at once. Each row is
+        submitted as a separate vehicle awaiting PITX staff approval, same
+        as adding one by hand - documents and seat-layout files aren't
+        supported in batch mode, add those afterward via Edit.
+      </p>
+      <p class="fineprint">
+        <button type="button" class="btn-link" id="batch-template-btn">Download CSV template</button>
+      </p>
+
+      <label class="batch-drop" id="batch-drop" for="batch-file-input">
+        <span id="batch-drop-text">Tap to choose a CSV file</span>
+      </label>
+      <input type="file" id="batch-file-input" accept=".csv,text/csv" class="hidden" />
+
+      <p class="inline-error hidden" id="batch-error"></p>
+
+      <div class="hidden" id="batch-preview-section">
+        <p class="fineprint" id="batch-preview-summary"></p>
+        <div class="batch-preview-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Row</th><th>Plate No.</th><th>Route</th><th>Body No.</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="batch-preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn-outline" id="batch-cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="batch-submit" disabled>Upload valid rows</button>
+      </div>
+    </dialog>
+
     <script type="module">
       import {
         supabase,
@@ -388,9 +563,12 @@
         ltfrbBadge,
         expiryCell,
         vehicleDetailsHtml,
+        vehicleCpcExpired,
+        busTypeLabel,
         applyVehicleHighlightFromQuery,
         escapeHtml,
         downloadCsv,
+        todayISO,
         ROUTES,
       } from "./assets/app.js";
       import { extractOrCr } from "./assets/orcr-parser.js";
@@ -402,11 +580,28 @@
       let vehiclesById = new Map();
       let pendingPhotoFile = null;
       let pendingSupportingDocFile = null;
+      let pendingSeatLayoutFile = null;
       let pendingEditSupportingDocFile = null;
+      let pendingEditSeatLayoutFile = null;
       let lastVehicles = [];
       let docUrlById = new Map();
+      let seatLayoutUrlById = new Map();
       let sortKey = null;
       let sortDir = "asc";
+      // Parsed, validated batch-upload rows awaiting confirmation -
+      // declared here (module-level, before the top-level await load()
+      // below) rather than only inside the batch dialog's own handlers,
+      // same TDZ-avoidance reason as every other piece of shared state in
+      // this app.
+      let pendingBatchRows = [];
+
+      // Referenced by loadVehicles() below, which the module-level
+      // `await loadVehicles()` a few dozen lines down calls immediately -
+      // must be declared up here, ahead of that call, or it's still in
+      // its temporal dead zone when loadVehicles() first runs (same class
+      // of bug as #37/#39/#46/#52/#66/#69).
+      const VEHICLE_SELECT_COLUMNS =
+        "id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, source, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, status, ltfrb_status, rejection_reason, revision_count";
 
       /* ------------------------------------------------------- PH geography */
       // Route used to be a free-text field ("e.g. PITX - Batangas") - the
@@ -729,30 +924,34 @@
 
       // Every column the table can show, in on-screen order. `csv` renders
       // the plain-text value for export - separate from the `<td>` markup
-      // below since a couple columns (status/LTFRB badges, aircon, the
-      // document link) render as HTML on screen but should be plain text
-      // in the exported file. No Operator column here (this list is
-      // already scoped to one operator).
+      // below since a couple columns (status/LTFRB badges, the document
+      // link) render as HTML on screen but should be plain text in the
+      // exported file. No Operator column here (this list is already
+      // scoped to one operator). No LTFRB column here either - that's
+      // fleet-eligibility metadata staff track, not something an operator
+      // fills in on the registration form.
       const COLUMNS = [
         { key: "plate_no", label: "Plate No.", csv: (v) => v.plate_no ?? "" },
         { key: "case_number", label: "Case No.", csv: (v) => v.case_number ?? "" },
         { key: "mv_file_number", label: "MV File #", csv: (v) => v.mv_file_number ?? "" },
-        { key: "or_number", label: "OR No.", csv: (v) => v.or_number ?? "" },
-        { key: "cr_number", label: "CR No.", csv: (v) => v.cr_number ?? "" },
         { key: "chassis_no", label: "Chassis No.", csv: (v) => v.chassis_no ?? "" },
         { key: "franchise", label: "Franchise", csv: (v) => v.franchise ?? "" },
         { key: "sticker_no", label: "Sticker No.", csv: (v) => v.sticker_no ?? "" },
         { key: "cpc_validity", label: "CPC validity", csv: (v) => v.cpc_validity ?? "" },
+        { key: "cpc_eov", label: "CPC EOV?", csv: (v) => (v.cpc_eov ? "Yes" : "No") },
+        { key: "cpc_eov_validity", label: "EOV validity", csv: (v) => v.cpc_eov_validity ?? "" },
         { key: "orcr_validity", label: "OR/CR validity", csv: (v) => v.orcr_validity ?? "" },
         { key: "route", label: "Route", csv: (v) => v.route ?? "" },
-        { key: "bus_number", label: "Bus No.", csv: (v) => v.bus_number ?? "" },
+        { key: "origin", label: "Origin", csv: (v) => v.origin ?? "" },
+        { key: "destination", label: "Destination", csv: (v) => v.destination ?? "" },
+        { key: "body_number", label: "Body Number", csv: (v) => v.body_number ?? "" },
+        { key: "vehicle_year", label: "Year", csv: (v) => v.vehicle_year ?? "" },
+        { key: "vehicle_make", label: "Make", csv: (v) => v.vehicle_make ?? "" },
+        { key: "bus_type", label: "Bus Type", csv: (v) => busTypeLabel(v.bus_type) },
         { key: "seating_capacity", label: "Seating capacity", csv: (v) => v.seating_capacity ?? "" },
-        { key: "seat_type", label: "Seat", csv: (v) => v.seat_type ?? "" },
-        { key: "aircon", label: "Aircon", csv: (v) => airconLabel(v.aircon) },
-        { key: "date_granted", label: "Date granted", csv: (v) => v.date_granted ?? "" },
-        { key: "date_expiry", label: "Date expiry", csv: (v) => v.date_expiry ?? "" },
+        { key: "seat_type", label: "Seat configuration", csv: (v) => v.seat_type ?? "" },
+        { key: "remarks", label: "Remarks", csv: (v) => v.remarks ?? "" },
         { key: "status", label: "Status", csv: (v) => v.status ?? "" },
-        { key: "ltfrb", label: "LTFRB", csv: (v) => v.ltfrb_status ?? "" },
         { key: "document", label: "Document", csv: (v) => v.supporting_doc_name ?? "" },
         { key: "note", label: "Note", csv: (v) => v.rejection_reason ?? "" },
       ];
@@ -760,15 +959,19 @@
       // Default subset shown on first visit - the rest stay one click away
       // via the Columns popover. Whatever this operator picks after that
       // persists in localStorage under this key, so it survives a reload.
-      const COLUMNS_STORAGE_KEY = "pitx.myVehicles.columns";
+      // Bumped from the old key (below) since the column set changed
+      // enough that a stored selection from before this redesign could
+      // reference columns (or_number, ltfrb, aircon, date_expiry, ...)
+      // that no longer exist.
+      const COLUMNS_STORAGE_KEY = "pitx.myVehicles.columns.v2";
       const DEFAULT_VISIBLE_COLUMNS = [
         "plate_no",
         "route",
-        "bus_number",
+        "body_number",
+        "bus_type",
         "status",
         "cpc_validity",
         "orcr_validity",
-        "ltfrb",
       ];
       let visibleColumns = loadVisibleColumns();
 
@@ -793,6 +996,7 @@
       initEditDialog();
       initDetailsDialog();
       initColumnsPopover();
+      initBatchDialog();
       initGeoSelects("f");
       initGeoSelects("e");
       document.getElementById("search").addEventListener("input", renderVehicleTable);
@@ -857,8 +1061,9 @@
       }
 
       // Uploads a file into this operator's own vehicle-docs folder and
-      // returns its storage path - shared by both the OR/CR photo and the
-      // supporting-document upload, add and edit alike.
+      // returns its storage path - shared by the OR/CR photo, the
+      // supporting-document upload, and the seat-layout upload, add and
+      // edit alike.
       async function uploadVehicleDoc(file, subfolder) {
         const ext = (file.name.split(".").pop() || "bin").toLowerCase();
         const path = `${profile.id}/${subfolder}/${crypto.randomUUID()}.${ext}`;
@@ -867,12 +1072,6 @@
           .upload(path, file, { contentType: file.type || "application/octet-stream" });
         if (error) throw error;
         return path;
-      }
-
-      function airconLabel(aircon) {
-        if (aircon === true) return "Aircon";
-        if (aircon === false) return "Non-aircon";
-        return "—";
       }
 
       // Plate No., CPC validity, OR/CR validity are sortable - click a
@@ -916,7 +1115,7 @@
         let rows = lastVehicles;
         if (query) {
           rows = rows.filter((v) =>
-            [v.plate_no, v.route, v.bus_number]
+            [v.plate_no, v.route, v.body_number]
               .filter(Boolean)
               .some((s) => s.toLowerCase().includes(query))
           );
@@ -930,9 +1129,7 @@
       async function loadVehicles() {
         const { data, error } = await supabase
           .from("vehicles")
-          .select(
-            "id, plate_no, case_number, mv_file_number, or_number, cr_number, chassis_no, franchise, cpc_validity, orcr_validity, sticker_no, route, bus_number, seating_capacity, seat_type, aircon, date_granted, date_expiry, source, photo_path, supporting_doc_path, supporting_doc_name, status, ltfrb_status, rejection_reason, revision_count"
-          )
+          .select(VEHICLE_SELECT_COLUMNS)
           .eq("operator_id", profile.id)
           .order("created_at", { ascending: false });
 
@@ -953,17 +1150,30 @@
         // from the list - same pattern as vehicle-approvals.html's photo
         // links. Keyed by vehicle id (not array index) so re-sorting
         // afterward doesn't need to refetch these.
-        const urls = await Promise.all(
-          lastVehicles.map((v) =>
-            v.supporting_doc_path
-              ? supabase.storage
-                  .from("vehicle-docs")
-                  .createSignedUrl(v.supporting_doc_path, 300)
-                  .then((r) => r.data?.signedUrl ?? null)
-              : Promise.resolve(null)
-          )
-        );
-        docUrlById = new Map(lastVehicles.map((v, i) => [v.id, urls[i]]));
+        const [docUrls, seatLayoutUrls] = await Promise.all([
+          Promise.all(
+            lastVehicles.map((v) =>
+              v.supporting_doc_path
+                ? supabase.storage
+                    .from("vehicle-docs")
+                    .createSignedUrl(v.supporting_doc_path, 300)
+                    .then((r) => r.data?.signedUrl ?? null)
+                : Promise.resolve(null)
+            )
+          ),
+          Promise.all(
+            lastVehicles.map((v) =>
+              v.seat_layout_path
+                ? supabase.storage
+                    .from("vehicle-docs")
+                    .createSignedUrl(v.seat_layout_path, 300)
+                    .then((r) => r.data?.signedUrl ?? null)
+                : Promise.resolve(null)
+            )
+          ),
+        ]);
+        docUrlById = new Map(lastVehicles.map((v, i) => [v.id, docUrls[i]]));
+        seatLayoutUrlById = new Map(lastVehicles.map((v, i) => [v.id, seatLayoutUrls[i]]));
 
         renderVehicleTable();
       }
@@ -979,11 +1189,15 @@
           return;
         }
 
-        // Approved vehicles from the LTFRB masterlist import can still be
-        // excluded from the booking form if their LTFRB status is inactive
-        // or no_record (see dashboard.html's loadApprovedVehicles) - flag
-        // that here so it doesn't look like an approved vehicle vanished.
-        const hasExcluded = data.some(
+        // An approved vehicle whose CPC (or CPC-EOV) has expired can't be
+        // used to book a slot until its validity is updated - flag that
+        // here so it doesn't look like an approved vehicle vanished from
+        // the booking form's plate list (mirrors the LTFRB-ineligible
+        // hint that already existed for masterlist-imported vehicles).
+        const hasExpiredCpc = data.some(
+          (v) => v.status === "approved" && vehicleCpcExpired(v, todayISO())
+        );
+        const hasExcludedLtfrb = data.some(
           (v) =>
             v.status === "approved" &&
             (v.ltfrb_status === "inactive" || v.ltfrb_status === "no_record")
@@ -991,11 +1205,19 @@
 
         host.innerHTML = `
           ${
-            hasExcluded
+            hasExcludedLtfrb
               ? `<p class="hint">One or more approved vehicles below are marked
                   <strong>Inactive</strong> or <strong>No Record</strong> at LTFRB and
                   won't appear in the booking form's plate list until that's
                   resolved - contact PITX staff if this looks wrong.</p>`
+              : ""
+          }
+          ${
+            hasExpiredCpc
+              ? `<p class="hint">One or more approved vehicles below have an
+                  <strong>expired CPC</strong> (or CPC Extension of Validity) and
+                  won't appear in the booking form's plate list until it's
+                  renewed and updated here.</p>`
               : ""
           }
           <div class="table-wrap">
@@ -1003,12 +1225,14 @@
               <thead>
                 <tr>
                   ${sortTh("Plate No.", "plate_no")}<th data-col="case_number">Case No.</th><th data-col="mv_file_number">MV File #</th>
-                  <th data-col="or_number">OR No.</th><th data-col="cr_number">CR No.</th>
                   <th data-col="chassis_no">Chassis No.</th><th data-col="franchise">Franchise</th><th data-col="sticker_no">Sticker No.</th>
-                  ${sortTh("CPC validity", "cpc_validity")}${sortTh("OR/CR validity", "orcr_validity")}
-                  <th data-col="route">Route</th><th data-col="bus_number">Bus No.</th><th data-col="seating_capacity">Seating capacity</th>
-                  <th data-col="seat_type">Seat</th><th data-col="aircon">Aircon</th><th data-col="date_granted">Date granted</th>
-                  <th data-col="date_expiry">Date expiry</th><th data-col="status">Status</th><th data-col="ltfrb">LTFRB</th>
+                  ${sortTh("CPC validity", "cpc_validity")}<th data-col="cpc_eov">CPC EOV?</th><th data-col="cpc_eov_validity">EOV validity</th>
+                  ${sortTh("OR/CR validity", "orcr_validity")}
+                  <th data-col="route">Route</th><th data-col="origin">Origin</th><th data-col="destination">Destination</th>
+                  <th data-col="body_number">Body Number</th><th data-col="vehicle_year">Year</th><th data-col="vehicle_make">Make</th>
+                  <th data-col="bus_type">Bus Type</th><th data-col="seating_capacity">Seating capacity</th>
+                  <th data-col="seat_type">Seat configuration</th><th data-col="remarks">Remarks</th>
+                  <th data-col="status">Status</th>
                   <th data-col="document">Document</th><th data-col="note">Note</th><th></th>
                 </tr>
               </thead>
@@ -1024,24 +1248,26 @@
                     }</td>
                     <td data-label="Case No." data-col="case_number">${escapeHtml(v.case_number ?? "—")}</td>
                     <td data-label="MV File #" data-col="mv_file_number">${escapeHtml(v.mv_file_number ?? "—")}</td>
-                    <td data-label="OR No." data-col="or_number">${escapeHtml(v.or_number ?? "—")}</td>
-                    <td data-label="CR No." data-col="cr_number">${escapeHtml(v.cr_number ?? "—")}</td>
                     <td data-label="Chassis No." data-col="chassis_no">${escapeHtml(v.chassis_no ?? "—")}</td>
                     <td data-label="Franchise" data-col="franchise">${escapeHtml(v.franchise ?? "—")}</td>
                     <td data-label="Sticker No." data-col="sticker_no">${escapeHtml(v.sticker_no ?? "—")}</td>
                     <td data-label="CPC validity" data-col="cpc_validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
+                    <td data-label="CPC EOV?" data-col="cpc_eov">${v.cpc_eov ? "Yes" : "No"}</td>
+                    <td data-label="EOV validity" data-col="cpc_eov_validity">${v.cpc_eov ? expiryCell(v.cpc_eov_validity, escapeHtml) : "—"}</td>
                     <td data-label="OR/CR validity" data-col="orcr_validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
                     <td data-label="Route" data-col="route">${escapeHtml(v.route ?? "—")}</td>
-                    <td data-label="Bus No." data-col="bus_number">${escapeHtml(v.bus_number ?? "—")}</td>
+                    <td data-label="Origin" data-col="origin">${escapeHtml(v.origin ?? "—")}</td>
+                    <td data-label="Destination" data-col="destination">${escapeHtml(v.destination ?? "—")}</td>
+                    <td data-label="Body Number" data-col="body_number">${escapeHtml(v.body_number ?? "—")}</td>
+                    <td data-label="Year" data-col="vehicle_year">${escapeHtml(v.vehicle_year ?? "—")}</td>
+                    <td data-label="Make" data-col="vehicle_make">${escapeHtml(v.vehicle_make ?? "—")}</td>
+                    <td data-label="Bus Type" data-col="bus_type">${busTypeLabel(v.bus_type)}</td>
                     <td data-label="Seating capacity" data-col="seating_capacity">${v.seating_capacity ?? "—"}</td>
-                    <td data-label="Seat" data-col="seat_type">${escapeHtml(v.seat_type ?? "—")}</td>
-                    <td data-label="Aircon" data-col="aircon">${airconLabel(v.aircon)}</td>
-                    <td data-label="Date granted" data-col="date_granted">${escapeHtml(v.date_granted ?? "—")}</td>
-                    <td data-label="Date expiry" data-col="date_expiry">${escapeHtml(v.date_expiry ?? "—")}</td>
+                    <td data-label="Seat configuration" data-col="seat_type">${escapeHtml(v.seat_type ?? "—")}</td>
+                    <td data-label="Remarks" data-col="remarks">${escapeHtml(v.remarks ?? "—")}</td>
                     <td data-label="Status" data-col="status"><span class="badge badge-${escapeHtml(
                       v.status
                     )}">${escapeHtml(v.status)}</span></td>
-                    <td data-label="LTFRB" data-col="ltfrb">${ltfrbBadge(v.ltfrb_status)}</td>
                     <td data-label="Document" data-col="document">${
                       docUrlById.get(v.id)
                         ? `<a href="${docUrlById.get(v.id)}" target="_blank" rel="noopener">${escapeHtml(
@@ -1090,6 +1316,23 @@
 
       /* --------------------------------------------------- add dialog */
 
+      // Shows/hides + requires the EOV validity date field based on the
+      // "CPC Extension of Validity?" select - shared logic for both the
+      // Add (`f_`) and Edit (`e_`) dialogs.
+      function wireCpcEovToggle(prefix) {
+        const eovSelect = document.getElementById(`${prefix}_cpc_eov`);
+        const eovField = document.getElementById(`${prefix}_cpc_eov_validity_field`);
+        const eovInput = document.getElementById(`${prefix}_cpc_eov_validity`);
+        const update = () => {
+          const isYes = eovSelect.value === "true";
+          eovField.classList.toggle("hidden", !isYes);
+          eovInput.required = isYes;
+          if (!isYes) eovInput.value = "";
+        };
+        eovSelect.addEventListener("change", update);
+        update();
+      }
+
       function initAddDialog() {
         const dialog = document.getElementById("add-dialog");
         const scanTab = document.getElementById("mode-scan");
@@ -1098,6 +1341,8 @@
         const photoInput = document.getElementById("photo-input");
         const dropText = document.getElementById("upload-drop-text");
         const preview = document.getElementById("photo-preview");
+
+        wireCpcEovToggle("f");
 
         document.getElementById("add-vehicle-btn").addEventListener("click", () => {
           resetAddForm();
@@ -1142,6 +1387,14 @@
           });
 
         document
+          .getElementById("f_seat_layout")
+          .addEventListener("change", (e) => {
+            pendingSeatLayoutFile = e.target.files?.[0] ?? null;
+            document.getElementById("f_seat_layout_name").textContent =
+              pendingSeatLayoutFile ? pendingSeatLayoutFile.name : "";
+          });
+
+        document
           .getElementById("add-form")
           .addEventListener("submit", saveNewVehicle);
       }
@@ -1149,6 +1402,7 @@
       function resetAddForm() {
         pendingPhotoFile = null;
         pendingSupportingDocFile = null;
+        pendingSeatLayoutFile = null;
         document.getElementById("mode-scan").classList.add("is-active");
         document.getElementById("mode-manual").classList.remove("is-active");
         document.getElementById("scan-panel").classList.remove("hidden");
@@ -1163,24 +1417,30 @@
         document.getElementById("save-error").className = "inline-error hidden";
         document.getElementById("f_supporting_doc").value = "";
         document.getElementById("f_supporting_doc_name").textContent = "";
+        document.getElementById("f_seat_layout").value = "";
+        document.getElementById("f_seat_layout_name").textContent = "";
+        document.getElementById("f_cpc_eov").value = "false";
+        document.getElementById("f_cpc_eov").dispatchEvent(new Event("change"));
         for (const id of [
           "f_plate_no",
           "f_case_number",
           "f_mv_file_number",
-          "f_or_number",
-          "f_cr_number",
           "f_chassis_no",
           "f_franchise",
           "f_sticker_no",
           "f_cpc_validity",
           "f_orcr_validity",
+          "f_cpc_eov_validity",
           "f_route",
-          "f_bus_number",
+          "f_origin",
+          "f_destination",
+          "f_body_number",
+          "f_vehicle_year",
+          "f_vehicle_make",
+          "f_bus_type",
           "f_seating_capacity",
           "f_seat_type",
-          "f_aircon",
-          "f_date_granted",
-          "f_date_expiry",
+          "f_remarks",
         ]) {
           document.getElementById(id).value = "";
         }
@@ -1199,10 +1459,11 @@
             if (progress) statusText.textContent = progress;
           });
 
+          // Only the plate number feeds into the form now - OR/CR numbers
+          // and expiry aren't fields on this form anymore (migration
+          // 0035), even though the scanner still extracts guesses for
+          // them internally.
           if (guesses.plate_no) document.getElementById("f_plate_no").value = guesses.plate_no;
-          if (guesses.expiry) document.getElementById("f_date_expiry").value = guesses.expiry;
-          if (guesses.or_number) document.getElementById("f_or_number").value = guesses.or_number;
-          if (guesses.cr_number) document.getElementById("f_cr_number").value = guesses.cr_number;
 
           document.getElementById("review-note").className = "fineprint";
           const rawWrap = document.getElementById("raw-text-wrap");
@@ -1220,10 +1481,23 @@
         }
       }
 
-      function readAirconValue(selectId) {
-        const raw = document.getElementById(selectId).value;
-        if (raw === "true") return true;
-        if (raw === "false") return false;
+      // Validates the shared CPC/seat/bus-type rules a single manual entry
+      // must follow - reused by saveNewVehicle(), saveEdit(), and the
+      // batch-upload row validator, so the three entry paths can never
+      // drift into accepting different data.
+      function validateVehicleFields({ seatingCapacity, seatType, busType, cpcEov, cpcEovValidity }) {
+        if (seatingCapacity != null && seatingCapacity <= 0) {
+          return "Seating capacity must be positive.";
+        }
+        if (seatType && !["1x1", "2x2", "2x3", "1x3"].includes(seatType)) {
+          return "Seat configuration must be 1x1, 2x2, 2x3, or 1x3.";
+        }
+        if (busType && !["ordinary", "aircon", "deluxe", "luxury"].includes(busType)) {
+          return "Bus type must be Ordinary, Aircon, Deluxe, or Luxury.";
+        }
+        if (cpcEov && !cpcEovValidity) {
+          return "CPC Extension of Validity date is required when the extension is marked yes.";
+        }
         return null;
       }
 
@@ -1241,8 +1515,17 @@
         }
 
         const seatingRaw = document.getElementById("f_seating_capacity").value;
-        if (seatingRaw && Number(seatingRaw) <= 0) {
-          errorEl.textContent = "Seating capacity must be positive.";
+        const cpcEov = document.getElementById("f_cpc_eov").value === "true";
+        const cpcEovValidity = document.getElementById("f_cpc_eov_validity").value || null;
+        const validationError = validateVehicleFields({
+          seatingCapacity: seatingRaw ? Number(seatingRaw) : null,
+          seatType: document.getElementById("f_seat_type").value || null,
+          busType: document.getElementById("f_bus_type").value || null,
+          cpcEov,
+          cpcEovValidity,
+        });
+        if (validationError) {
+          errorEl.textContent = validationError;
           errorEl.className = "inline-error";
           return;
         }
@@ -1281,29 +1564,49 @@
           }
         }
 
+        let seatLayoutPath = null;
+        if (pendingSeatLayoutFile) {
+          try {
+            seatLayoutPath = await uploadVehicleDoc(pendingSeatLayoutFile, "seat-layout");
+          } catch (uploadError) {
+            errorEl.textContent = `Seat layout upload failed: ${uploadError.message}`;
+            errorEl.className = "inline-error";
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save vehicle";
+            return;
+          }
+        }
+
+        const yearRaw = document.getElementById("f_vehicle_year").value;
+
         const { error } = await supabase.from("vehicles").insert({
           operator_id: profile.id,
           plate_no: plateNo,
           case_number: document.getElementById("f_case_number").value.trim() || null,
           mv_file_number:
             document.getElementById("f_mv_file_number").value.trim() || null,
-          or_number: document.getElementById("f_or_number").value.trim() || null,
-          cr_number: document.getElementById("f_cr_number").value.trim() || null,
           chassis_no: document.getElementById("f_chassis_no").value.trim() || null,
           franchise: document.getElementById("f_franchise").value.trim() || null,
           sticker_no: document.getElementById("f_sticker_no").value.trim() || null,
           cpc_validity: document.getElementById("f_cpc_validity").value || null,
+          cpc_eov: cpcEov,
+          cpc_eov_validity: cpcEov ? cpcEovValidity : null,
           orcr_validity: document.getElementById("f_orcr_validity").value || null,
           route: document.getElementById("f_route").value.trim() || null,
-          bus_number: document.getElementById("f_bus_number").value.trim() || null,
+          origin: document.getElementById("f_origin").value.trim() || null,
+          destination: document.getElementById("f_destination").value.trim() || null,
+          body_number: document.getElementById("f_body_number").value.trim() || null,
+          vehicle_year: yearRaw ? Number(yearRaw) : null,
+          vehicle_make: document.getElementById("f_vehicle_make").value.trim() || null,
+          bus_type: document.getElementById("f_bus_type").value || null,
           seating_capacity: seatingRaw ? Number(seatingRaw) : null,
           seat_type: document.getElementById("f_seat_type").value || null,
-          aircon: readAirconValue("f_aircon"),
-          date_granted: document.getElementById("f_date_granted").value || null,
-          date_expiry: document.getElementById("f_date_expiry").value || null,
+          remarks: document.getElementById("f_remarks").value.trim() || null,
           photo_path: photoPath,
           supporting_doc_path: supportingDocPath,
           supporting_doc_name: pendingSupportingDocFile?.name ?? null,
+          seat_layout_path: seatLayoutPath,
+          seat_layout_name: pendingSeatLayoutFile?.name ?? null,
           source: pendingPhotoFile ? "scanned" : "manual",
           status: "pending",
         });
@@ -1360,14 +1663,25 @@
             );
           }
         }
+        if (v.seat_layout_path) {
+          const { data } = await supabase.storage.from("vehicle-docs").createSignedUrl(v.seat_layout_path, 300);
+          if (data?.signedUrl) {
+            links.push(
+              `<a href="${data.signedUrl}" target="_blank" rel="noopener">${escapeHtml(
+                v.seat_layout_name || "Seat configuration layout"
+              )}</a>`
+            );
+          }
+        }
         const docsEl = document.getElementById("details-documents");
-        if (docsEl) docsEl.innerHTML = links.length ? links.join("") : "—";
+        if (docsEl) docsEl.innerHTML = links.length ? links.join(" &middot; ") : "—";
       }
 
       /* -------------------------------------------------- edit dialog */
 
       function initEditDialog() {
         const dialog = document.getElementById("edit-dialog");
+        wireCpcEovToggle("e");
         document
           .getElementById("edit-cancel")
           .addEventListener("click", () => dialog.close());
@@ -1383,6 +1697,13 @@
             pendingEditSupportingDocFile = e.target.files?.[0] ?? null;
             document.getElementById("e_supporting_doc_name").textContent =
               pendingEditSupportingDocFile ? pendingEditSupportingDocFile.name : "";
+          });
+        document
+          .getElementById("e_seat_layout")
+          .addEventListener("change", (e) => {
+            pendingEditSeatLayoutFile = e.target.files?.[0] ?? null;
+            document.getElementById("e_seat_layout_name").textContent =
+              pendingEditSeatLayoutFile ? pendingEditSeatLayoutFile.name : "";
           });
       }
 
@@ -1412,42 +1733,66 @@
           currentDocEl.classList.add("hidden");
         }
 
+        pendingEditSeatLayoutFile = null;
+        document.getElementById("e_seat_layout").value = "";
+        document.getElementById("e_seat_layout_name").textContent = "";
+        const currentLayoutEl = document.getElementById("e_seat_layout_current");
+        if (v.seat_layout_path) {
+          const { data } = await supabase.storage
+            .from("vehicle-docs")
+            .createSignedUrl(v.seat_layout_path, 300);
+          currentLayoutEl.innerHTML = data?.signedUrl
+            ? `Current: <a href="${data.signedUrl}" target="_blank" rel="noopener">${escapeHtml(
+                v.seat_layout_name || "view layout"
+              )}</a> - choose a file below to replace it.`
+            : "";
+          currentLayoutEl.classList.toggle("hidden", !data?.signedUrl);
+        } else {
+          currentLayoutEl.textContent = "";
+          currentLayoutEl.classList.add("hidden");
+        }
+
         document.getElementById("e_plate_no").value = v.plate_no;
         document.getElementById("e_case_number").value = v.case_number ?? "";
         document.getElementById("e_mv_file_number").value = v.mv_file_number ?? "";
-        document.getElementById("e_or_number").value = v.or_number ?? "";
-        document.getElementById("e_cr_number").value = v.cr_number ?? "";
         document.getElementById("e_chassis_no").value = v.chassis_no ?? "";
         document.getElementById("e_franchise").value = v.franchise ?? "";
         document.getElementById("e_sticker_no").value = v.sticker_no ?? "";
         document.getElementById("e_cpc_validity").value = v.cpc_validity ?? "";
         document.getElementById("e_orcr_validity").value = v.orcr_validity ?? "";
+        document.getElementById("e_cpc_eov").value = v.cpc_eov ? "true" : "false";
+        document.getElementById("e_cpc_eov").dispatchEvent(new Event("change"));
+        document.getElementById("e_cpc_eov_validity").value = v.cpc_eov_validity ?? "";
         // Pre-selects Region/Province/City from the existing route via
         // reverse lookup, or leaves them blank (route left untouched) if
         // it's old free-text data that doesn't decompose cleanly - see
         // populateGeoForEdit()'s own comment.
         await populateGeoForEdit(v.route ?? "");
-        document.getElementById("e_bus_number").value = v.bus_number ?? "";
+        document.getElementById("e_origin").value = v.origin ?? "";
+        document.getElementById("e_destination").value = v.destination ?? "";
+        document.getElementById("e_body_number").value = v.body_number ?? "";
+        document.getElementById("e_vehicle_year").value = v.vehicle_year ?? "";
+        document.getElementById("e_vehicle_make").value = v.vehicle_make ?? "";
+        document.getElementById("e_bus_type").value = v.bus_type ?? "";
         document.getElementById("e_seating_capacity").value = v.seating_capacity ?? "";
         document.getElementById("e_seat_type").value = v.seat_type ?? "";
-        document.getElementById("e_aircon").value =
-          v.aircon === true ? "true" : v.aircon === false ? "false" : "";
-        document.getElementById("e_date_granted").value = v.date_granted ?? "";
-        document.getElementById("e_date_expiry").value = v.date_expiry ?? "";
+        document.getElementById("e_remarks").value = v.remarks ?? "";
 
         const origin =
           v.source === "scanned"
             ? "Originally registered by scanning an OR/CR photo."
-            : "Originally registered manually.";
+            : v.source === "batch_import"
+              ? "Originally registered via batch upload."
+              : "Originally registered manually.";
         // Matches request_vehicle_change()'s own material/cosmetic split
-        // (migration 0034) - only changing plate, route, or an
-        // OR/CR-verified field actually sends an approved vehicle back
-        // to pending; fixing a typo in, say, Sticker No. doesn't cost
-        // its approval. Said explicitly so operators aren't scared off
-        // making a minor correction.
+        // (migration 0035) - only changing plate, route, or a
+        // CPC/franchise-verified field actually sends an approved
+        // vehicle back to pending; fixing a typo in, say, Sticker No.
+        // doesn't cost its approval. Said explicitly so operators aren't
+        // scared off making a minor correction.
         document.getElementById("edit-context").textContent =
           v.status === "approved"
-            ? `${origin} This vehicle is approved. Changing its plate, route, or any OR/CR-verified detail (case/MV file/OR/CR/chassis numbers, franchise, CPC or OR/CR validity) sends it back to PITX staff for re-approval and drops it from the booking form's plate list until then - other fields (bus no., seating, seat type, aircon, sticker no.) can be corrected without affecting its approval.`
+            ? `${origin} This vehicle is approved. Changing its plate, route, or any CPC/franchise-verified detail (case/MV file/chassis numbers, franchise, CPC or OR/CR validity, CPC Extension of Validity) sends it back to PITX staff for re-approval and drops it from the booking form's plate list until then - other fields (body no., seating, seat configuration, bus type, year/make, origin/destination, remarks, sticker no.) can be corrected without affecting its approval.`
             : origin;
         document.getElementById("edit-error").className = "inline-error hidden";
 
@@ -1468,8 +1813,17 @@
         }
 
         const seatingRaw = document.getElementById("e_seating_capacity").value;
-        if (seatingRaw && Number(seatingRaw) <= 0) {
-          errorEl.textContent = "Seating capacity must be positive.";
+        const cpcEov = document.getElementById("e_cpc_eov").value === "true";
+        const cpcEovValidity = document.getElementById("e_cpc_eov_validity").value || null;
+        const validationError = validateVehicleFields({
+          seatingCapacity: seatingRaw ? Number(seatingRaw) : null,
+          seatType: document.getElementById("e_seat_type").value || null,
+          busType: document.getElementById("e_bus_type").value || null,
+          cpcEov,
+          cpcEovValidity,
+        });
+        if (validationError) {
+          errorEl.textContent = validationError;
           errorEl.className = "inline-error";
           return;
         }
@@ -1477,9 +1831,10 @@
         saveBtn.disabled = true;
         saveBtn.textContent = "Saving…";
 
-        // Keep the existing supporting document unless a new one was
-        // chosen - request_vehicle_change() sets exactly what it's given,
-        // so the current path/name have to be passed through explicitly.
+        // Keep the existing supporting document/seat layout unless a new
+        // one was chosen - request_vehicle_change() sets exactly what
+        // it's given, so the current path/name have to be passed through
+        // explicitly.
         const existing = vehiclesById.get(editingId);
         let supportingDocPath = existing?.supporting_doc_path ?? null;
         let supportingDocName = existing?.supporting_doc_name ?? null;
@@ -1499,6 +1854,23 @@
           }
         }
 
+        let seatLayoutPath = existing?.seat_layout_path ?? null;
+        let seatLayoutName = existing?.seat_layout_name ?? null;
+        if (pendingEditSeatLayoutFile) {
+          try {
+            seatLayoutPath = await uploadVehicleDoc(pendingEditSeatLayoutFile, "seat-layout");
+            seatLayoutName = pendingEditSeatLayoutFile.name;
+          } catch (uploadError) {
+            errorEl.textContent = `Seat layout upload failed: ${uploadError.message}`;
+            errorEl.className = "inline-error";
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save changes";
+            return;
+          }
+        }
+
+        const yearRaw = document.getElementById("e_vehicle_year").value;
+
         // Goes through request_vehicle_change() rather than a direct
         // UPDATE: it owns the pending/approved transition server-side so
         // the client can't set status itself (see migration 0005).
@@ -1507,15 +1879,18 @@
           p_plate_no: plateNo,
           p_case_number: document.getElementById("e_case_number").value.trim(),
           p_mv_file_number: document.getElementById("e_mv_file_number").value.trim(),
-          p_or_number: document.getElementById("e_or_number").value.trim(),
-          p_cr_number: document.getElementById("e_cr_number").value.trim(),
           p_route: document.getElementById("e_route").value.trim(),
-          p_bus_number: document.getElementById("e_bus_number").value.trim(),
+          p_body_number: document.getElementById("e_body_number").value.trim(),
           p_seating_capacity: seatingRaw ? Number(seatingRaw) : null,
           p_seat_type: document.getElementById("e_seat_type").value || null,
-          p_aircon: readAirconValue("e_aircon"),
-          p_date_granted: document.getElementById("e_date_granted").value || null,
-          p_date_expiry: document.getElementById("e_date_expiry").value || null,
+          p_bus_type: document.getElementById("e_bus_type").value || null,
+          p_cpc_eov: cpcEov,
+          p_cpc_eov_validity: cpcEov ? cpcEovValidity : null,
+          p_vehicle_year: yearRaw ? Number(yearRaw) : null,
+          p_vehicle_make: document.getElementById("e_vehicle_make").value.trim(),
+          p_origin: document.getElementById("e_origin").value.trim(),
+          p_destination: document.getElementById("e_destination").value.trim(),
+          p_remarks: document.getElementById("e_remarks").value.trim(),
           p_supporting_doc_path: supportingDocPath,
           p_supporting_doc_name: supportingDocName,
           p_chassis_no: document.getElementById("e_chassis_no").value.trim(),
@@ -1537,6 +1912,19 @@
           return;
         }
 
+        // Seat layout isn't a request_vehicle_change() param (that RPC's
+        // signature already covers 22 fields) - saved with a follow-up
+        // direct update instead, gated by the same operator-owns-row RLS
+        // policy used for reads. Purely cosmetic (a diagram/photo, not a
+        // paperwork field), so it never needs to touch approval status.
+        if (seatLayoutPath !== (existing?.seat_layout_path ?? null)) {
+          await supabase
+            .from("vehicles")
+            .update({ seat_layout_path: seatLayoutPath, seat_layout_name: seatLayoutName })
+            .eq("id", editingId)
+            .eq("operator_id", profile.id);
+        }
+
         document.getElementById("edit-dialog").close();
         await loadVehicles();
       }
@@ -1552,6 +1940,249 @@
           .eq("operator_id", profile.id);
 
         document.getElementById("edit-dialog").close();
+        await loadVehicles();
+      }
+
+      /* ------------------------------------------------- batch upload */
+      // A CSV row per vehicle, submitted the same way saveNewVehicle()
+      // submits one - status 'pending', no documents (those still need a
+      // human to attach afterward via Edit). Kept intentionally simple:
+      // a small hand-rolled CSV parser (quoted fields with embedded
+      // commas only), not a full RFC 4180 implementation, since this
+      // app has no build step to pull in a parsing library for it.
+
+      const BATCH_HEADERS = [
+        "plate_no", "route", "origin", "destination", "case_number",
+        "mv_file_number", "chassis_no", "franchise", "sticker_no",
+        "cpc_validity", "cpc_eov", "cpc_eov_validity", "orcr_validity",
+        "body_number", "vehicle_year", "vehicle_make", "bus_type",
+        "seating_capacity", "seat_type", "remarks",
+      ];
+
+      function parseCsv(text) {
+        const rows = [];
+        let row = [];
+        let field = "";
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+          const c = text[i];
+          if (inQuotes) {
+            if (c === '"' && text[i + 1] === '"') {
+              field += '"';
+              i++;
+            } else if (c === '"') {
+              inQuotes = false;
+            } else {
+              field += c;
+            }
+          } else if (c === '"') {
+            inQuotes = true;
+          } else if (c === ",") {
+            row.push(field);
+            field = "";
+          } else if (c === "\n" || c === "\r") {
+            if (c === "\r" && text[i + 1] === "\n") i++;
+            row.push(field);
+            rows.push(row);
+            row = [];
+            field = "";
+          } else {
+            field += c;
+          }
+        }
+        if (field.length || row.length) {
+          row.push(field);
+          rows.push(row);
+        }
+        return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+      }
+
+      function initBatchDialog() {
+        const dialog = document.getElementById("batch-dialog");
+        const fileInput = document.getElementById("batch-file-input");
+
+        document.getElementById("batch-upload-btn").addEventListener("click", () => {
+          resetBatchDialog();
+          dialog.showModal();
+        });
+        document.getElementById("batch-cancel").addEventListener("click", () => dialog.close());
+        document.getElementById("batch-template-btn").addEventListener("click", () => {
+          downloadCsv("vehicle-batch-template.csv", BATCH_HEADERS, [
+            [
+              "ABC1234", "Legazpi City, Albay", "PITX", "Legazpi City", "", "",
+              "", "", "", "", "no", "", "", "", "", "", "aircon", "45", "2x2", "",
+            ],
+          ]);
+        });
+        fileInput.addEventListener("change", async () => {
+          const file = fileInput.files?.[0];
+          if (!file) return;
+          document.getElementById("batch-drop-text").textContent = file.name;
+          await handleBatchFile(file);
+        });
+        document.getElementById("batch-submit").addEventListener("click", submitBatch);
+      }
+
+      function resetBatchDialog() {
+        pendingBatchRows = [];
+        document.getElementById("batch-file-input").value = "";
+        document.getElementById("batch-drop-text").textContent = "Tap to choose a CSV file";
+        document.getElementById("batch-error").className = "inline-error hidden";
+        document.getElementById("batch-preview-section").classList.add("hidden");
+        document.getElementById("batch-preview-body").innerHTML = "";
+        document.getElementById("batch-submit").disabled = true;
+      }
+
+      function batchRowToPayload(cells) {
+        const get = (key) => {
+          const idx = BATCH_HEADERS.indexOf(key);
+          return idx >= 0 ? (cells[idx] ?? "").trim() : "";
+        };
+        const plateNo = get("plate_no");
+        const seatingRaw = get("seating_capacity");
+        const seatingCapacity = seatingRaw ? Number(seatingRaw) : null;
+        const seatType = get("seat_type") || null;
+        const busType = get("bus_type") || null;
+        const cpcEov = /^y(es)?$/i.test(get("cpc_eov"));
+        const cpcEovValidity = get("cpc_eov_validity") || null;
+        const yearRaw = get("vehicle_year");
+
+        const errors = [];
+        if (!plateNo) errors.push("Plate No. is required");
+        if (seatingRaw && (Number.isNaN(seatingCapacity) || seatingCapacity <= 0)) {
+          errors.push("Seating capacity must be a positive number");
+        }
+        const fieldError = validateVehicleFields({
+          seatingCapacity,
+          seatType,
+          busType,
+          cpcEov,
+          cpcEovValidity,
+        });
+        if (fieldError) errors.push(fieldError);
+        if (yearRaw && Number.isNaN(Number(yearRaw))) errors.push("Year must be a number");
+
+        const route = get("route") || null;
+        if (route && !ROUTES.includes(route)) {
+          // Non-blocking, same treatment as the Region/Province/City
+          // picker's own preview - not one of PITX's 91 served routes
+          // yet, but still a valid registration for staff to review.
+        }
+
+        return {
+          errors,
+          payload: {
+            operator_id: profile.id,
+            plate_no: plateNo,
+            route,
+            origin: get("origin") || null,
+            destination: get("destination") || null,
+            case_number: get("case_number") || null,
+            mv_file_number: get("mv_file_number") || null,
+            chassis_no: get("chassis_no") || null,
+            franchise: get("franchise") || null,
+            sticker_no: get("sticker_no") || null,
+            cpc_validity: get("cpc_validity") || null,
+            cpc_eov: cpcEov,
+            cpc_eov_validity: cpcEov ? cpcEovValidity : null,
+            orcr_validity: get("orcr_validity") || null,
+            body_number: get("body_number") || null,
+            vehicle_year: yearRaw ? Number(yearRaw) : null,
+            vehicle_make: get("vehicle_make") || null,
+            bus_type: busType,
+            seating_capacity: seatingCapacity,
+            seat_type: seatType,
+            remarks: get("remarks") || null,
+            source: "batch_import",
+            status: "pending",
+          },
+        };
+      }
+
+      async function handleBatchFile(file) {
+        const errorEl = document.getElementById("batch-error");
+        errorEl.className = "inline-error hidden";
+        document.getElementById("batch-submit").disabled = true;
+
+        let text;
+        try {
+          text = await file.text();
+        } catch (err) {
+          errorEl.textContent = `Couldn't read the file: ${err.message}`;
+          errorEl.className = "inline-error";
+          return;
+        }
+
+        const rows = parseCsv(text);
+        if (rows.length < 2) {
+          errorEl.textContent = "That CSV has no data rows below the header.";
+          errorEl.className = "inline-error";
+          return;
+        }
+
+        const dataRows = rows.slice(1);
+        pendingBatchRows = dataRows.map((cells, i) => ({
+          rowNumber: i + 2, // +1 for header, +1 for 1-based
+          ...batchRowToPayload(cells),
+        }));
+
+        const validCount = pendingBatchRows.filter((r) => r.errors.length === 0).length;
+        document.getElementById("batch-preview-summary").textContent =
+          `${pendingBatchRows.length} row${pendingBatchRows.length === 1 ? "" : "s"} found - ` +
+          `${validCount} valid, ${pendingBatchRows.length - validCount} with errors.`;
+
+        document.getElementById("batch-preview-body").innerHTML = pendingBatchRows
+          .map(
+            (r) => `
+          <tr class="${r.errors.length ? "batch-row-invalid" : ""}">
+            <td>${r.rowNumber}</td>
+            <td>${escapeHtml(r.payload.plate_no || "—")}</td>
+            <td>${escapeHtml(r.payload.route || "—")}</td>
+            <td>${escapeHtml(r.payload.body_number || "—")}</td>
+            <td>${
+              r.errors.length
+                ? `<span class="batch-row-error">${escapeHtml(r.errors.join("; "))}</span>`
+                : "Ready"
+            }</td>
+          </tr>`
+          )
+          .join("");
+
+        document.getElementById("batch-preview-section").classList.remove("hidden");
+        document.getElementById("batch-submit").disabled = validCount === 0;
+      }
+
+      async function submitBatch() {
+        const validRows = pendingBatchRows.filter((r) => r.errors.length === 0);
+        if (validRows.length === 0) return;
+
+        const submitBtn = document.getElementById("batch-submit");
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Uploading…";
+
+        const { error } = await supabase
+          .from("vehicles")
+          .insert(validRows.map((r) => r.payload));
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Upload valid rows";
+
+        const errorEl = document.getElementById("batch-error");
+        if (error) {
+          errorEl.textContent =
+            error.code === "23505"
+              ? "One of these plate numbers is already registered to your account - remove the duplicate row and try again."
+              : error.message;
+          errorEl.className = "inline-error";
+          return;
+        }
+
+        document.getElementById("batch-dialog").close();
+        showMessage(
+          "page-message",
+          `${validRows.length} vehicle${validRows.length === 1 ? "" : "s"} submitted for PITX staff approval.`,
+          "ok"
+        );
         await loadVehicles();
       }
     </script>

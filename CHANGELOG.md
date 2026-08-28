@@ -2477,16 +2477,109 @@ instead of undercounting.
 
 ---
 
+### 72. Vehicle registration redesign: batch upload, CPC-based eligibility, regrouped fields (20 Aug)
+
+A full rework of the operator's vehicle registration record and form
+(`vehicles.html`), migration `0035_vehicle_registration_redesign.sql`:
+
+**Batch upload.** A new "Batch upload" button next to "+ Add vehicle"
+opens a CSV import dialog - download a template, upload a filled-in
+CSV, preview each row's validation result inline (plate required,
+seating/seat-configuration/bus-type rules, CPC-EOV needing a date),
+then submit only the valid rows. Each becomes a normal pending vehicle
+(`source: 'batch_import'`) - documents and seat-layout files aren't
+supported per-row in a CSV, added afterward via Edit like any other
+vehicle.
+
+**Removed:** OR No., CR No., Date granted, and Date expiry - dropped
+from the table entirely (superseded by the CPC/franchise fields already
+tracked separately: case/MV file/chassis/franchise/sticker numbers, CPC
+validity, OR/CR validity). The LTFRB column is gone from both
+`vehicles.html`'s own table and staff's `vehicles-database.html`
+summary table - LTFRB eligibility is still tracked and enforced
+exactly as before, just no longer a column on either summary table
+(still shown on a vehicle's detail card).
+
+**Renamed:** Bus No. -> Body Number, everywhere the column appears
+(operator's table, staff's approval queue and fleet database, the
+booking form's plate dropdown, the transfer dialog).
+
+**Modified:** the old plain Aircon yes/no became a **Bus Type**
+category - Ordinary, Aircon, Deluxe, or Luxury. Seat configuration
+widened from 2x2/2x3 to also allow 1x1/1x3.
+
+**Added:**
+- **CPC Extension of Validity?** - a yes/no field; picking "yes" reveals
+  a required EOV validity date.
+- **A vehicle can no longer book a slot once its CPC (or, if it has
+  one, its CPC-EOV) has expired** - enforced the same way the existing
+  LTFRB-eligibility rule is: server-side in the `bookings_insert_own`
+  RLS policy and `request_booking_change()`, mirrored client-side in
+  dashboard.html's plate dropdown for immediate feedback, and
+  RLS-verified by attempting a raw insert that bypasses the dropdown
+  entirely (rejected with `42501` for an expired vehicle, accepted for
+  a current one).
+- **Seat configuration layout** upload (diagram/photo of the seating
+  plan) - optional, cosmetic, stored the same way the existing
+  supporting-document upload is.
+- **Year and Make**, **Origin and Destination**, and a free-text
+  **Remarks** field.
+
+**Grouped fields that belong together**, in both the Add and Edit
+dialogs: Registration & Paperwork (case/MV file/chassis/franchise/
+sticker numbers) - CPC Validity (CPC/OR-CR validity dates, the new EOV
+toggle) - Route (the existing Region/Province/City picker, plus Origin/
+Destination) - Vehicle Details (Body Number, Year, Make, Bus Type,
+Seating capacity, Seat configuration) - Remarks.
+
+`request_vehicle_change()`'s material/cosmetic split (migration 0034)
+carries over with the new field set: plate, route, and any
+CPC/franchise-verified field (case/MV file/chassis numbers, franchise,
+CPC or OR/CR validity, CPC-EOV) still sends an approved vehicle back to
+pending; body number, seating, seat configuration, bus type, year/make,
+origin/destination, remarks, sticker no., and the supporting doc/seat
+layout don't.
+
+Staff's `vehicle-approvals.html` and `vehicles-database.html` were
+updated in lockstep (columns, CSV export, select queries) since they
+read the same table - otherwise they'd have broken outright selecting
+columns migration 0035 dropped.
+
+**Bug caught during verification**: the new field list was first wired
+up with `VEHICLE_SELECT_COLUMNS` declared *after* the module's
+top-level `await loadVehicles()` call - the exact TDZ bug pattern this
+codebase has hit repeatedly (#37/#39/#46/#52/#66/#69), caught
+immediately via the browser console before it shipped and fixed by
+moving the declaration into the existing early-state block.
+
+Verified live end to end: manual registration through the full
+regrouped dialog (region/province/city cascading correctly, CPC-EOV
+toggle revealing its date field), a hand-rolled CSV parsed and
+validated correctly (a deliberately malformed row was rejected with
+specific per-field errors, a valid row inserted with `source:
+'batch_import'`), an expired-CPC vehicle correctly excluded from the
+booking dropdown *and* rejected by RLS on a direct insert attempt
+bypassing the dropdown, a valid vehicle's booking accepted, a
+cosmetic-only edit (body number/year/make/remarks) leaving an approved
+vehicle approved, and a route change correctly reverting one to
+pending. Staff's approval queue and fleet database both render
+correctly against the new schema.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
-serial number, booking system, two contacts); register vehicles (scan or
-manual entry) with fields matching the PITX/MWM Terminals paper form
-exactly (Case No., MV File #, Route, Bus No., Seating capacity, Seat type,
-Aircon, Date granted, Date expiry); request a 30-minute slot by picking a
-plate from their *approved* vehicles; see status, assigned bay, and any
-rejection note; filter their own requests by status; change a booking or a
-vehicle (back to staff for approval either way); cancel a pending booking.
+serial number, booking system, two contacts); register vehicles one at a
+time (scan or manual entry) or several at once via CSV batch upload, with
+fields grouped by what they describe (Registration & Paperwork; CPC
+Validity, including an optional CPC Extension of Validity; Route, Origin,
+and Destination; Body Number, Year, Make, Bus Type, Seating capacity, and
+Seat configuration; Remarks); request a 30-minute slot by picking a plate
+from their *approved*, CPC-current vehicles; see status, assigned bay, and
+any rejection note; filter their own requests by status; change a booking
+or a vehicle (back to staff for approval either way); cancel a pending
+booking.
 
 **PITX staff** — approve or reject vehicle registrations and booking
 requests (assigning an available bay on approval); view a day-by-day

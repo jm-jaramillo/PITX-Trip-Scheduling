@@ -352,9 +352,12 @@ browsing the whole fleet rather than only the pending queue.
 click a column header to sort by it, click again to flip direction
 (ascending shows a &#9650;, descending &#9660;). A null validity date
 always sorts last regardless of direction, so an empty CPC/OR-CR column
-doesn't jump to the top on descending sort. **Status** and **LTFRB** sit
-immediately to the right of **Operator**, ahead of the rest of the
-fields, since those two are what staff scan for first. Client-side only
+doesn't jump to the top on descending sort. **Status** sits immediately
+to the right of **Operator**, ahead of the rest of the fields, since
+that's what staff scan for first. (LTFRB is no longer a column on this
+table - migration 0035 dropped it from both this page and **My
+vehicles**' own table; it's still shown on a vehicle's detail card.)
+Client-side only
 - no query changes, since the whole fleet is already loaded into memory
 (see the pagination note above) and re-sorting it is instant either way.
 
@@ -473,33 +476,49 @@ matched something in the spreadsheet, so no account was left with a
 
 ## Vehicle registration
 
-Operators register vehicles from **My vehicles**, either by scanning a photo
-of the LTO OR/CR or entering the details by hand. Every field stays
-editable afterward regardless of how it was first entered.
+Operators register vehicles from **My vehicles**, one at a time (scanning
+a photo of the LTO OR/CR, or entering the details by hand) or several at
+once via **Batch upload** (a CSV template, previewed and validated row by
+row before submitting). Every field stays editable afterward regardless of
+how it was first entered.
 
-The vehicle fields match the PITX/MWM Terminals paper registration form,
-plus per-vehicle OR No. and CR No. (migration `0015_vehicle_or_cr_numbers.sql`)
-and five more from the LTFRB masterlist - Chassis No., Franchise, Sticker
-No., CPC validity, and OR/CR validity (migration
-`0023_vehicle_document_fields.sql`): Plate No., Case No., MV File #, OR
-No., CR No., Chassis No., Franchise, Sticker No., CPC validity, OR/CR
-validity, Route, Bus No., Seating capacity, Seat type (2x2/2x3),
-Aircon/Non-aircon, Date granted, and Date expiry. (The form's
-company-level fields - name, owner, TIN, OR serial number, booking
-system, NAU, two contacts - live separately on **Operator profile**, one
-row per operator account, editable any time with no approval step; that
-OR serial number is the *company's*, distinct from each vehicle's own OR
-No. here.)
+As of migration `0035_vehicle_registration_redesign.sql`, the fields are
+grouped by what they describe rather than laid out as one long list:
+
+| Group | Fields |
+|---|---|
+| (top-level) | Plate No. |
+| Registration & Paperwork | Case No., MV File #, Chassis No., Franchise, Sticker No. |
+| CPC Validity | CPC validity, OR/CR validity, CPC Extension of Validity? (if yes, its own validity date) |
+| Route | Region/Province/City picker (see below), Origin, Destination |
+| Vehicle Details | Body Number, Year, Make, Bus Type (Ordinary/Aircon/Deluxe/Luxury), Seating capacity, Seat configuration (1x1/2x2/2x3/1x3) |
+| Remarks | free text |
+
+Earlier revisions of this form also had OR No., CR No., Date granted, and
+Date expiry (added in `0015_vehicle_or_cr_numbers.sql`/
+`0008_official_form_fields.sql`) and a plain Aircon yes/no in place of Bus
+Type - migration 0035 dropped the first four (superseded by the CPC/
+franchise fields above) and replaced Aircon with the Bus Type category. A
+supporting document (franchise/CPC, insurance, etc.) and a seat
+configuration layout diagram/photo can both be attached, optionally.
+(The form's company-level fields - name, owner, TIN, OR serial number,
+booking system, NAU, two contacts - live separately on **Operator
+profile**, one row per operator account, editable any time with no
+approval step.)
 
 `Franchise` is the franchise's own number/description (e.g. "Batangas
 City - Pasay City, SLEX") - distinct from `Route`, which is the short
-operating-route text. `CPC validity` and `OR/CR validity` are separate
-from the pre-existing generic `Date expiry` field (whatever that was
-already tracking is untouched) - they're what `sync_expiry_notifications()`
-watches for the 30-day expiry warning, see **Notifications** below. A
-validity date within 30 days (or already past) renders in amber/red on
-every vehicle table (**My vehicles**, **Vehicle approvals**, **Vehicles**)
-via the shared `expiryCell()` helper in `app.js`.
+operating-route text, and from `Origin`/`Destination`, which describe the
+trip in plain terms. `CPC validity`, `OR/CR validity`, and (when the
+vehicle has one) `CPC Extension of Validity` are what
+`sync_expiry_notifications()` watches for the 30-day expiry warning, see
+**Notifications** below. A validity date within 30 days (or already past)
+renders in amber/red on every vehicle table (**My vehicles**, **Vehicle
+approvals**, **Vehicles**) via the shared `expiryCell()` helper in
+`app.js`. Once a vehicle's CPC (or its CPC-EOV) has actually expired, it
+can no longer be used to book a slot - enforced the same way as the
+existing LTFRB-eligibility rule, in the `bookings_insert_own` RLS policy
+and `request_booking_change()`, not just the UI.
 
 Registrations need PITX staff approval (**Vehicle approvals**), the same
 shape as bookings:
@@ -507,16 +526,18 @@ shape as bookings:
 | Vehicle was | After the operator edits it |
 |---|---|
 | Pending | stays pending, new details |
-| **Approved** | **reverts to pending** - and stops appearing in the booking form until re-approved |
+| **Approved**, only a cosmetic field changed (body number, seating, seat configuration, bus type, year/make, origin/destination, remarks, sticker no., supporting doc) | **stays approved** |
+| **Approved**, a material field changed (plate, route, case/MV file/chassis numbers, franchise, CPC or OR/CR validity, CPC-EOV) | **reverts to pending** - and stops appearing in the booking form until re-approved |
 
 The booking form's Plate No. field is a dropdown sourced from the
-operator's *approved* vehicles only - there's no free-text plate entry at
-booking time. An operator with no approved vehicle sees a message pointing
-them to **My vehicles** instead, with the request button disabled.
+operator's *approved*, CPC-current vehicles only - there's no free-text
+plate entry at booking time. An operator with no eligible vehicle sees a
+message pointing them to **My vehicles** instead, with the request button
+disabled.
 
-The plate number, expiry date, and OR/CR numbers are extracted from a
-scanned photo; the rest of the form (case no., MV file #, etc.) isn't
-printed on an OR/CR, so it's always typed in. Text extraction runs
+The plate number is extracted from a scanned photo; the rest of the form
+isn't printed on an OR/CR, so it's always typed in (or filled via batch
+CSV). Text extraction runs
 entirely in the browser via
 [Tesseract.js](https://github.com/naptha/tesseract.js) - no server, no API
 key, no per-scan cost. The trade-off: it's raw OCR with no understanding of
