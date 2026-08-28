@@ -199,6 +199,48 @@
             <input id="f_plate_no" required placeholder="e.g. ABC 1234" />
           </div>
 
+          <p class="field-group-heading span-all">Vehicle details</p>
+          <div class="field">
+            <label for="f_mv_file_number">MV File #</label>
+            <input id="f_mv_file_number" />
+          </div>
+          <div class="field">
+            <label for="f_chassis_no">Chassis No.</label>
+            <input id="f_chassis_no" />
+          </div>
+          <div class="field">
+            <label for="f_vehicle_year">Year</label>
+            <input id="f_vehicle_year" type="number" min="1950" max="2100" placeholder="e.g. 2022" />
+          </div>
+          <div class="field">
+            <label for="f_vehicle_make">Make</label>
+            <input id="f_vehicle_make" placeholder="e.g. Hino, Isuzu" />
+          </div>
+          <div class="field">
+            <label for="f_bus_type">Bus Type</label>
+            <select id="f_bus_type">
+              <option value="">&mdash;</option>
+              <option value="ordinary">Ordinary</option>
+              <option value="aircon">Aircon</option>
+              <option value="deluxe">Deluxe</option>
+              <option value="luxury">Luxury</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f_seating_capacity">Seating capacity</label>
+            <input id="f_seating_capacity" type="number" min="1" placeholder="e.g. 45" />
+          </div>
+          <div class="field">
+            <label for="f_seat_type">Seat configuration</label>
+            <select id="f_seat_type">
+              <option value="">&mdash;</option>
+              <option value="1x1">1x1</option>
+              <option value="2x2">2x2</option>
+              <option value="2x3">2x3</option>
+              <option value="1x3">1x3</option>
+            </select>
+          </div>
+
           <p class="field-group-heading span-all">LTFRB Franchise Details</p>
           <div class="field">
             <label for="f_case_number">Case No.</label>
@@ -265,48 +307,6 @@
             <input id="f_destination" placeholder="e.g. Legazpi City" />
           </div>
 
-          <p class="field-group-heading span-all">Vehicle details</p>
-          <div class="field">
-            <label for="f_mv_file_number">MV File #</label>
-            <input id="f_mv_file_number" />
-          </div>
-          <div class="field">
-            <label for="f_chassis_no">Chassis No.</label>
-            <input id="f_chassis_no" />
-          </div>
-          <div class="field">
-            <label for="f_vehicle_year">Year</label>
-            <input id="f_vehicle_year" type="number" min="1950" max="2100" placeholder="e.g. 2022" />
-          </div>
-          <div class="field">
-            <label for="f_vehicle_make">Make</label>
-            <input id="f_vehicle_make" placeholder="e.g. Hino, Isuzu" />
-          </div>
-          <div class="field">
-            <label for="f_bus_type">Bus Type</label>
-            <select id="f_bus_type">
-              <option value="">&mdash;</option>
-              <option value="ordinary">Ordinary</option>
-              <option value="aircon">Aircon</option>
-              <option value="deluxe">Deluxe</option>
-              <option value="luxury">Luxury</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="f_seating_capacity">Seating capacity</label>
-            <input id="f_seating_capacity" type="number" min="1" placeholder="e.g. 45" />
-          </div>
-          <div class="field">
-            <label for="f_seat_type">Seat configuration</label>
-            <select id="f_seat_type">
-              <option value="">&mdash;</option>
-              <option value="1x1">1x1</option>
-              <option value="2x2">2x2</option>
-              <option value="2x3">2x3</option>
-              <option value="1x3">1x3</option>
-            </select>
-          </div>
-
           <p class="field-group-heading span-all">Remarks</p>
           <div class="field span-all">
             <textarea id="f_remarks" class="remarks-input"></textarea>
@@ -358,6 +358,48 @@
           <div class="field">
             <label for="e_plate_no">Plate No. <span class="req">*</span></label>
             <input id="e_plate_no" required />
+          </div>
+
+          <p class="field-group-heading span-all">Vehicle details</p>
+          <div class="field">
+            <label for="e_mv_file_number">MV File #</label>
+            <input id="e_mv_file_number" />
+          </div>
+          <div class="field">
+            <label for="e_chassis_no">Chassis No.</label>
+            <input id="e_chassis_no" />
+          </div>
+          <div class="field">
+            <label for="e_vehicle_year">Year</label>
+            <input id="e_vehicle_year" type="number" min="1950" max="2100" />
+          </div>
+          <div class="field">
+            <label for="e_vehicle_make">Make</label>
+            <input id="e_vehicle_make" />
+          </div>
+          <div class="field">
+            <label for="e_bus_type">Bus Type</label>
+            <select id="e_bus_type">
+              <option value="">&mdash;</option>
+              <option value="ordinary">Ordinary</option>
+              <option value="aircon">Aircon</option>
+              <option value="deluxe">Deluxe</option>
+              <option value="luxury">Luxury</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="e_seating_capacity">Seating capacity</label>
+            <input id="e_seating_capacity" type="number" min="1" />
+          </div>
+          <div class="field">
+            <label for="e_seat_type">Seat configuration</label>
+            <select id="e_seat_type">
+              <option value="">&mdash;</option>
+              <option value="1x1">1x1</option>
+              <option value="2x2">2x2</option>
+              <option value="2x3">2x3</option>
+              <option value="1x3">1x3</option>
+            </select>
           </div>
 
           <p class="field-group-heading span-all">LTFRB Franchise Details</p>
@@ -419,48 +461,6 @@
           <div class="field">
             <label for="e_destination">Destination</label>
             <input id="e_destination" placeholder="e.g. Legazpi City" />
-          </div>
-
-          <p class="field-group-heading span-all">Vehicle details</p>
-          <div class="field">
-            <label for="e_mv_file_number">MV File #</label>
-            <input id="e_mv_file_number" />
-          </div>
-          <div class="field">
-            <label for="e_chassis_no">Chassis No.</label>
-            <input id="e_chassis_no" />
-          </div>
-          <div class="field">
-            <label for="e_vehicle_year">Year</label>
-            <input id="e_vehicle_year" type="number" min="1950" max="2100" />
-          </div>
-          <div class="field">
-            <label for="e_vehicle_make">Make</label>
-            <input id="e_vehicle_make" />
-          </div>
-          <div class="field">
-            <label for="e_bus_type">Bus Type</label>
-            <select id="e_bus_type">
-              <option value="">&mdash;</option>
-              <option value="ordinary">Ordinary</option>
-              <option value="aircon">Aircon</option>
-              <option value="deluxe">Deluxe</option>
-              <option value="luxury">Luxury</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="e_seating_capacity">Seating capacity</label>
-            <input id="e_seating_capacity" type="number" min="1" />
-          </div>
-          <div class="field">
-            <label for="e_seat_type">Seat configuration</label>
-            <select id="e_seat_type">
-              <option value="">&mdash;</option>
-              <option value="1x1">1x1</option>
-              <option value="2x2">2x2</option>
-              <option value="2x3">2x3</option>
-              <option value="1x3">1x3</option>
-            </select>
           </div>
 
           <p class="field-group-heading span-all">Remarks</p>

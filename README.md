@@ -490,8 +490,8 @@ long list:
 | Group | Fields |
 |---|---|
 | (top-level) | Plate No. |
-| LTFRB Franchise Details | Case No., Franchise, Sticker No., Body Number, CPC validity, OR/CR validity, CPC Extension of Validity? (if yes, its own validity date), the Region/Province/City route picker (see below), Origin, Destination |
 | Vehicle Details | MV File #, Chassis No., Year, Make, Bus Type (Ordinary/Aircon/Deluxe/Luxury), Seating capacity, Seat configuration (1x1/2x2/2x3/1x3) |
+| LTFRB Franchise Details | Case No., Franchise, Sticker No., Body Number, CPC validity, OR/CR validity, CPC Extension of Validity? (if yes, its own validity date), the Region/Province/City route picker (see below), Origin, Destination |
 | Remarks | free text |
 
 Case No., Franchise, Sticker No., CPC/OR-CR validity, and the route

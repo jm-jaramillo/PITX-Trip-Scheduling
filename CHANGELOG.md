@@ -2593,6 +2593,17 @@ placeholder text.
 
 ---
 
+### 74. Vehicle registration: Vehicle details before LTFRB Franchise Details (20 Aug)
+
+Swapped the two groups' order in both the Add and Edit dialogs - Vehicle
+details now comes first, LTFRB Franchise Details second, Remarks last.
+Purely a display-order change (no field moved between groups, no ids
+changed); verified live that both dialogs render the groups in the new
+order with the section-divider styling following whichever heading is
+now first.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR
