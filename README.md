@@ -1,12 +1,12 @@
-# PITX Bus Bay Booking
+# PITX Trip Scheduling
 
-Provincial bus operators request a 30-minute bus bay slot; PITX staff review
+Provincial bus operators request a 15-minute trip slot; PITX staff review
 and approve/reject each request, assigning a specific bay on approval.
 
 - **Operators** submit a request: Route (picked from the fixed list of
   PITX-served provincial routes), Plate No. (picked from their
-  approved vehicles), Date, and a 30-minute time slot (12:00-12:30 AM,
-  12:30-1:00 AM, ... 48 slots a day, the terminal runs 24/7) - the Operator
+  approved vehicles), Date, and a 15-minute time slot (12:00-12:15 AM,
+  12:15-12:30 AM, ... 96 slots a day, the terminal runs 24/7) - the Operator
   name isn't a form field, it's whatever's on the account (`profiles.operator_name`).
   They can filter their own request list by status (All / Approved / Pending
   / Declined), cancel a request while it's still pending, hand an
@@ -14,7 +14,7 @@ and approve/reject each request, assigning a specific bay on approval.
   and see their own approved slots with bay assignments on **My schedule**.
 - **PITX staff** see every pending request, approve it (picking one of the
   bays not already taken for that slot) or reject it with an optional note,
-  view a day-by-day schedule broken into 30-minute slots, manage the bay
+  view a day-by-day schedule broken into 15-minute slots, manage the bay
   list, browse every operator's company profile, and create or delete
   login accounts (there is no self-signup).
 
@@ -734,16 +734,23 @@ than the request-management table on **My requests**.
 
 ## How capacity works
 
-Operators don't pick a specific bay - just a date and a 30-minute slot.
+Operators don't pick a specific bay - just a date and a 15-minute slot.
 When staff approve a request they assign one of the bays not already taken
 for that slot, so the number of **active bays is the cap** on approvals per
 slot. A unique index enforces this in the database, so two staff approving
 at once can't double-book a bay. The **Bays** page controls the active
 count; the **Schedule** page shows approved-vs-capacity per slot for any
-day (48 slots) in Day view, or as a 7-day occupancy heat grid in Week
+day (96 slots) in Day view, or as a 7-day occupancy heat grid in Week
 view - each cell is a fill count colour-graded by how full the slot is,
 click one to expand its actual bookings (with trip numbers); an Hourly
-toggle collapses the 48 half-hour rows to 24 for a coarser first look.
+toggle collapses the 96 quarter-hour rows to 24 for a coarser first look.
+
+Slots were 30 minutes (48/day) before migration
+`0038_fifteen_minute_slots.sql` - like `0037`, prepared but **not yet
+applied to the current live database** ahead of a planned clean-slate
+database upload (see CHANGELOG #78). Apply it together with the
+matching `docs/assets/app.js` deploy, never one without the other - the
+client and server's slot-to-clock-time math must always agree.
 
 ### Gates and route-based bay suggestions
 
@@ -1053,7 +1060,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   vehicle-approvals.html     Staff: pending vehicle queue (search, bulk actions, columns, CSV, decided log)
   vehicles-database.html     Staff: every registered vehicle, any status, searchable, column toggle, CSV export
   transfer-approvals.html    Staff: pending booking-transfer queue (search, bulk actions, decided log)
-  schedule.html              Staff: 30-minute-slot capacity grid (Day/Week views, CSV export)
+  schedule.html              Staff: 15-minute-slot capacity grid (Day/Week views, CSV export)
   bays.html                  Staff: manage the bay list (add, rename, activate/deactivate)
   operator-profiles.html     Staff: read-only view of every operator's company profile (sortable, CSV export)
   accounts.html              Staff: create/delete/reset-password logins (via Edge Functions)

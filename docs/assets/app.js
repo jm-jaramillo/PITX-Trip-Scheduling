@@ -249,9 +249,11 @@ export function gateForRoute(route) {
 
 /* ------------------------------------------------------------------ time */
 
-// 48 half-hour slots per day. Slot N covers [N*30, N*30+30) minutes past
-// midnight - slot 0 is 12:00-12:30 AM, slot 47 is 11:30 PM-12:00 AM.
-export const SLOTS = Array.from({ length: 48 }, (_, i) => i);
+// 96 quarter-hour slots per day. Slot N covers [N*15, N*15+15) minutes
+// past midnight - slot 0 is 12:00-12:15 AM, slot 95 is 11:45 PM-12:00 AM.
+// (Was 48 half-hour slots before #78 - see that entry for the
+// migration that widened the database side of this to match.)
+export const SLOTS = Array.from({ length: 96 }, (_, i) => i);
 
 function formatClock(totalMinutes) {
   const hour24 = Math.floor(totalMinutes / 60) % 24;
@@ -262,9 +264,17 @@ function formatClock(totalMinutes) {
 }
 
 export function formatSlot(slot) {
-  const start = slot * 30;
-  const end = start + 30;
+  const start = slot * 15;
+  const end = start + 15;
   return `${formatClock(start)} – ${formatClock(end % (24 * 60))}`;
+}
+
+// Just the slot's start time ("9:00 AM"), no range - used by the
+// hourly mini-card slot picker (dashboard.html), where the range is
+// implied by the card's own hour heading and each tick only needs its
+// own start time.
+export function formatSlotStart(slot) {
+  return formatClock(slot * 15);
 }
 
 /** Bookings must be made/changed at least this far ahead of their slot -
@@ -282,7 +292,7 @@ export const BOOKING_LEAD_TIME_MS = 4 * 60 * 60 * 1000;
  */
 export function slotStartMillis(bookingDate, slot) {
   const [y, m, d] = bookingDate.split("-").map(Number);
-  const totalMinutes = slot * 30;
+  const totalMinutes = slot * 15;
   const hour = Math.floor(totalMinutes / 60);
   const minute = totalMinutes % 60;
   return Date.UTC(y, m - 1, d, hour, minute) - 8 * 60 * 60 * 1000;
@@ -423,7 +433,7 @@ export function renderNav(profile) {
     <div class="nav-inner">
       <div class="nav-brand">
         <img src="assets/pitx-logo.webp" alt="PITX" />
-        <span class="unit">Bay Booking</span>
+        <span class="unit">Trip Scheduling</span>
       </div>
       <nav class="nav-links">
         ${links

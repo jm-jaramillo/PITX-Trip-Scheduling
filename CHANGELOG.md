@@ -1,6 +1,7 @@
 # Project log
 
-Build history for the PITX Bus Bay Booking app.
+Build history for the PITX Trip Scheduling app (formerly "PITX Bus Bay
+Booking" - renamed in #78).
 Repo: <https://github.com/jm-jaramillo/PITX-Trip-Scheduling>
 Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 
@@ -2735,6 +2736,80 @@ executes cleanly before the network call.
 
 ---
 
+### 78. App renamed to "Trip Scheduling"; booking slots widened to 15 minutes (20 Aug)
+
+**Rename.** "PITX Bus Bay Booking" is now **"PITX Trip Scheduling"**
+everywhere the old name appeared: every page's `<title>`, the nav
+bar's brand text (`renderNav()` in `app.js` - one shared spot, so
+every page picked it up automatically), the sign-in page's hero and
+subtitle, and page eyebrows/headings that referenced "slot" or "bay"
+as part of describing the app rather than the physical-bay feature
+itself: "Provincial Slot Booking" → "Provincial Trip Scheduling"
+(`dashboard.html`, `my-schedule.html`, `operator-overview.html`,
+`operator-profile.html`, `vehicles.html`), "Bay Monitor" → "Trip
+Monitor" (`schedule.html`), "Slot Approvals" → "Trip Approvals"
+(`staff.html`), and the request form's own `<h1>Request a bus bay
+slot</h1>` → `<h1>Request a trip</h1>`. The **Bays** page/nav link and
+the underlying bay-assignment feature are untouched - physical
+terminal bays are a real, ongoing part of how approvals work, distinct
+from what the app itself is called.
+
+**15-minute slots.** Booking slots widened from 30-minute to
+15-minute granularity - a day is now 96 slots (0-95) instead of 48
+(0-47). `docs/assets/app.js`'s `SLOTS`/`formatSlot`/`slotStartMillis`
+all updated in lockstep with a new migration,
+`0038_fifteen_minute_slots.sql` (see its own note on why this one, like
+#76's, is **not applied to the current database** - prepared ahead of
+the same upcoming clean-slate database): `slot_start_at()` and
+`compute_trip_number()`'s slot-to-clock math both move from a 30- to a
+15-minute step, the `bookings_slot_range` check widens to 0-95, and
+existing booking rows (should this run against a database that already
+has some) get their `slot` doubled first so they keep meaning the same
+wall-clock time under the new scheme rather than silently shifting.
+
+**New: hourly mini-card time picker.** The request form's flat
+96-option time dropdown became a grid of small hour cards (dashboard.html,
+both the request form and its Edit dialog) - each card headed by its
+hour ("9:00 PM") containing a 2x2 grid of clickable quarter-hour ticks
+(9:00, 9:15, 9:30, 9:45), so scanning a day's worth of 15-minute slots
+reads as 24 small groups instead of one long list. A shared
+`renderSlotPicker()`/`syncSlotPickerSelection()` pair (used by both the
+request form and the edit dialog) draws the cards and keeps a hidden
+input as the actual selected value, so every existing piece of slot
+logic (`checkGateFullness()`'s nearby-time suggestions,
+`submitBooking()`, `saveEdit()`) reads/writes that hidden input exactly
+as before and needed no changes itself.
+
+`schedule.html`'s Week view "Hourly" density toggle - which collapses
+groups of slots into one row for a coarser look at a busy week -
+updates its grouping from pairs of 2 (half-hour slots) to groups of 4
+(quarter-hour slots), and its capacity multiplier from `x2` to `x4`.
+Fixed a real bug while doing this: the row-label builder took its end
+time from `slots[1]` (correct only for a 2-slot group) - now takes it
+from the *last* slot in the group (`slots[slots.length - 1]`), which
+was silently already wrong for any group size other than exactly 2 and
+would have mislabeled every hourly row as covering only its first half
+hour.
+
+**Verification note:** since neither #76's nor this migration is
+applied to the current database yet, the actual booking-submission
+path can't be fully exercised end-to-end (the live database's
+`slot_start_at()` still does 30-minute math while the client now does
+15-minute math - the two must be deployed together, never one without
+the other). What's verified live instead: the sign-in page and nav
+brand read "Trip Scheduling" throughout; the request form renders
+hourly mini-cards with correct quarter-hour labels (12 AM-11 PM),
+clicking a tick sets slot `84` for "9:00 PM" (84 × 15 = 1260 min,
+correct) and highlights it; the Edit dialog's picker pre-highlights an
+existing booking's slot correctly (slot `10` → "2:30 AM"); and
+`schedule.html`'s Week Hourly view renders 24 correctly-labelled rows
+("12:00 AM – 1:00 AM", ...) with `108`-per-row capacity (27 bays × 4)
+and correctly buckets a slot-10 booking under its "2:00 AM – 3:00 AM"
+row. Apply both migrations to the new database together with this
+commit's `app.js`, then re-verify an actual end-to-end submission.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (Operator, trade name/
@@ -2744,15 +2819,15 @@ batch upload, with fields grouped by what they describe (LTFRB Franchise
 Details - Case No., Franchise, Sticker No., Body Number, trade name, CPC/
 OR-CR validity, CPC Extension of Validity, Route, Origin, Destination;
 Vehicle Details - MV File #, Chassis No., Year, Make, Bus Type, Seating
-capacity, Seat configuration; Remarks); request a 30-minute slot by picking a plate
-from their *approved*, CPC-current vehicles; see status, assigned bay, and
-any rejection note; filter their own requests by status; change a booking
-or a vehicle (back to staff for approval either way); cancel a pending
-booking.
+capacity, Seat configuration; Remarks); request a 15-minute trip slot by
+picking a plate from their *approved*, CPC-current vehicles; see status,
+assigned bay, and any rejection note; filter their own requests by status;
+change a booking or a vehicle (back to staff for approval either way);
+cancel a pending booking.
 
 **PITX staff** — approve or reject vehicle registrations and booking
 requests (assigning an available bay on approval); view a day-by-day
-30-minute-slot schedule with approved-vs-capacity; add/deactivate bays;
+15-minute-slot schedule with approved-vs-capacity; add/deactivate bays;
 create operator and staff logins.
 
 **Enforced by the database, not just the UI**

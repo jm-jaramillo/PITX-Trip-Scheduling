@@ -1540,6 +1540,68 @@ dialog.details-dialog {
   line-height: 1.6;
 }
 
+/* The time-slot picker on the booking request form and its edit dialog
+   (dashboard.html) - an hour per mini-card, a clickable pill per
+   15-minute tick inside it, instead of one long flat dropdown of 96
+   options. */
+.slot-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--border, #d7dbe3);
+  border-radius: var(--r-card-sm, 16px);
+  background: var(--ground, #f4f5f7);
+}
+
+.slot-hour-card {
+  border: 1px solid var(--border, #d7dbe3);
+  border-radius: var(--r-btn, 11px);
+  padding: 8px;
+  background: var(--surface, #fff);
+}
+
+.slot-hour-label {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--label, #6b7280);
+}
+
+.slot-hour-ticks {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+
+.slot-tick {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 4px;
+  border: 1px solid var(--border, #d7dbe3);
+  border-radius: 8px;
+  background: var(--ground-alt, #eef0f3);
+  color: var(--text, #1f2430);
+  cursor: pointer;
+}
+
+.slot-tick:hover {
+  border-color: var(--blue, #2f5fd0);
+}
+
+.slot-tick.is-selected {
+  background: var(--blue, #2f5fd0);
+  border-color: var(--blue, #2f5fd0);
+  color: #fff;
+}
+
 /* Advisory, not blocking - e.g. "this gate is full, try a different
    time" on the booking form. Amber rather than .warn's red since the
    operator can still submit; it's a nudge, not an error. */

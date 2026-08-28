@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bays · PITX Bus Bay Booking</title>
+    <title>Bays · PITX Trip Scheduling</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -68,7 +68,7 @@
 
         document.getElementById("count-note").textContent =
           `${activeCount} active bay${activeCount === 1 ? "" : "s"} — this is ` +
-          `the maximum number of approved bookings allowed per 30-minute slot.`;
+          `the maximum number of approved bookings allowed per 15-minute slot.`;
 
         document.getElementById("list").innerHTML = `
           <div class="table-wrap table-plain">

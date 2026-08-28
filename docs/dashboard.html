@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>My requests · PITX Bus Bay Booking</title>
+    <title>My requests · PITX Trip Scheduling</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -18,10 +18,10 @@
     <main class="wrap">
       <div class="page-head">
         <div>
-          <p class="eyebrow">Provincial Slot Booking</p>
-          <h1>Request a bus bay slot</h1>
+          <p class="eyebrow">Provincial Trip Scheduling</p>
+          <h1>Request a trip</h1>
           <p class="subtle">
-            Pick a 30-minute slot. PITX staff review each request and assign
+            Pick a 15-minute time slot. PITX staff review each request and assign
             a bay on approval.
           </p>
         </div>
@@ -56,9 +56,10 @@
             <input id="booking_date" name="booking_date" type="date" required />
           </div>
 
-          <div class="field">
-            <label for="slot">Time slot</label>
-            <select id="slot" name="slot" required></select>
+          <div class="field span-all">
+            <label>Time slot</label>
+            <input type="hidden" id="slot" name="slot" />
+            <div class="slot-picker" id="slot-picker"></div>
           </div>
 
           <div class="span-all">
@@ -147,9 +148,10 @@
             <label for="edit_booking_date">Date</label>
             <input id="edit_booking_date" type="date" required />
           </div>
-          <div class="field">
-            <label for="edit_slot">Time slot</label>
-            <select id="edit_slot" required></select>
+          <div class="field span-all">
+            <label>Time slot</label>
+            <input type="hidden" id="edit_slot" />
+            <div class="slot-picker" id="edit-slot-picker"></div>
           </div>
         </div>
 
@@ -176,6 +178,7 @@
         ROUTE_GATES,
         gateForRoute,
         formatSlot,
+        formatSlotStart,
         todayISO,
         statusBadge,
         bookingOperatorHtml,
@@ -545,6 +548,7 @@
         hintEl.querySelectorAll("[data-suggest-slot]").forEach((btn) => {
           btn.addEventListener("click", () => {
             document.getElementById("slot").value = btn.dataset.suggestSlot;
+            syncSlotPickerSelection("slot-picker", "slot");
             checkGateFullness();
           });
         });
@@ -687,28 +691,91 @@
           .addEventListener("submit", submitBooking);
       }
 
+      // Renders a set of slots as hourly mini-cards - a heading per hour
+      // (9:00 AM) with a row of clickable quarter-hour ticks inside it
+      // (9:00, 9:15, 9:30, 9:45) - rather than one long flat list of 96
+      // options, so scanning a day's worth of 15-minute slots reads as
+      // 24 small groups instead of a single unwieldy dropdown. Shared by
+      // the request form's picker and the edit dialog's, so the two
+      // can't drift into different markup/behavior.
+      //
+      // `hiddenInputId` is a plain hidden <input> (not a <select>) that
+      // holds the actual selected slot value - every other bit of logic
+      // in this file (checkGateFullness, submitBooking, saveEdit, the
+      // "try a different time" suggestion buttons) reads/writes that
+      // input directly and is unaffected by how the picker itself is
+      // drawn.
+      function renderSlotPicker(pickerId, hiddenInputId, availableSlots, onPick) {
+        const picker = document.getElementById(pickerId);
+        const hiddenInput = document.getElementById(hiddenInputId);
+
+        if (availableSlots.length === 0) {
+          picker.innerHTML = `<p class="fineprint">No times left today.</p>`;
+          return;
+        }
+
+        const byHour = new Map();
+        for (const s of availableSlots) {
+          const hour = Math.floor(s / 4);
+          if (!byHour.has(hour)) byHour.set(hour, []);
+          byHour.get(hour).push(s);
+        }
+
+        picker.innerHTML = [...byHour.entries()]
+          .map(
+            ([hour, slots]) => `
+          <div class="slot-hour-card">
+            <p class="slot-hour-label">${escapeHtml(formatSlotStart(hour * 4))}</p>
+            <div class="slot-hour-ticks">
+              ${slots
+                .map(
+                  (s) => `
+                <button
+                  type="button"
+                  class="slot-tick${String(s) === hiddenInput.value ? " is-selected" : ""}"
+                  data-slot="${s}"
+                >${escapeHtml(formatSlotStart(s))}</button>`
+                )
+                .join("")}
+            </div>
+          </div>`
+          )
+          .join("");
+
+        picker.querySelectorAll("[data-slot]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            picker.querySelectorAll(".slot-tick").forEach((b) => b.classList.remove("is-selected"));
+            btn.classList.add("is-selected");
+            hiddenInput.value = btn.dataset.slot;
+            hiddenInput.dispatchEvent(new Event("change"));
+            onPick?.();
+          });
+        });
+      }
+
+      // Re-highlights whichever tick matches the hidden input's current
+      // value - needed after something other than a direct click sets it
+      // (the "try a different time" suggestion buttons in
+      // checkGateFullness(), or opening the edit dialog on an existing
+      // booking).
+      function syncSlotPickerSelection(pickerId, hiddenInputId) {
+        const value = document.getElementById(hiddenInputId).value;
+        document.querySelectorAll(`#${pickerId} .slot-tick`).forEach((btn) => {
+          btn.classList.toggle("is-selected", btn.dataset.slot === value);
+        });
+      }
+
       // Only offers slots that are still >= 4 hours out for the selected
       // date - mirrors the same rule enforced server-side (migration
       // 0009), so operators never see a time they'd just be told to pick
       // again after submitting.
       function populateSlotOptions() {
-        const slotSelect = document.getElementById("slot");
         const bookingDate = document.getElementById("booking_date").value;
-
         const available = SLOTS.filter(
           (s) => slotStartMillis(bookingDate, s) - Date.now() >= BOOKING_LEAD_TIME_MS
         );
-
-        slotSelect.innerHTML =
-          available.length === 0
-            ? `<option value="" disabled selected>No times left today</option>`
-            : `<option value="" disabled selected>Select a time</option>` +
-              available
-                .map(
-                  (s) => `<option value="${s}">${escapeHtml(formatSlot(s))}</option>`
-                )
-                .join("");
-        slotSelect.disabled = available.length === 0;
+        document.getElementById("slot").value = "";
+        renderSlotPicker("slot-picker", "slot", available);
       }
 
       async function submitBooking(event) {
@@ -795,7 +862,7 @@
         okEl.className = "inline-ok";
         document.getElementById("route").value = "";
         document.getElementById("plate_no").value = "";
-        document.getElementById("slot").value = "";
+        populateSlotOptions();
         updatePlateOptions();
         document.getElementById("gate-full-hint").className = "hint hidden";
         await loadRequests();
@@ -1065,9 +1132,10 @@
       /* ------------------------------------------------------ edit dialog */
 
       function initEditDialog() {
-        document.getElementById("edit_slot").innerHTML = SLOTS.map(
-          (s) => `<option value="${s}">${escapeHtml(formatSlot(s))}</option>`
-        ).join("");
+        // Not filtered by lead time the way the request form's picker is -
+        // request_booking_change() itself is the real check on save, same
+        // as before this became mini-cards (see saveEdit()'s own comment).
+        renderSlotPicker("edit-slot-picker", "edit_slot", SLOTS);
 
         document
           .getElementById("edit-cancel")
@@ -1128,6 +1196,7 @@
         dateInput.min = todayISO();
         dateInput.value = booking.booking_date;
         document.getElementById("edit_slot").value = String(booking.slot);
+        syncSlotPickerSelection("edit-slot-picker", "edit_slot");
 
         document.getElementById("edit-context").textContent =
           `Currently ${booking.booking_date}, ${formatSlot(booking.slot)}` +

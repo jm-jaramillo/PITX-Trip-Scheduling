@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Schedule · PITX Bus Bay Booking</title>
+    <title>Schedule · PITX Trip Scheduling</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -18,7 +18,7 @@
     <main class="wrap">
       <div class="page-head">
         <div>
-          <p class="eyebrow">Transport Operations &middot; Bay Monitor</p>
+          <p class="eyebrow">Transport Operations &middot; Trip Monitor</p>
           <h1>Schedule</h1>
           <p class="subtle" id="capacity-note"></p>
         </div>
@@ -28,7 +28,7 @@
             <button type="button" class="mode-tab" data-view="week">Week</button>
           </div>
           <div class="mode-switch hidden" role="tablist" id="density-mode">
-            <button type="button" class="mode-tab is-active" data-density="half">Half-hour</button>
+            <button type="button" class="mode-tab is-active" data-density="half">15-min</button>
             <button type="button" class="mode-tab" data-density="hour">Hourly</button>
           </div>
           <button type="button" class="btn-outline" id="prev">&larr; Prev</button>
@@ -97,13 +97,15 @@
       // stays the place bookings are actually reviewed and bays
       // reassigned.
       let viewMode = "day";
-      // Week view density: "half" is the real 48-slot grid, "hour"
-      // collapses each pair of half-hour slots into one row (summed
-      // count) for a coarser first look at a busy week.
+      // Week view density: "half" is the real 96-slot grid (named
+      // "half" from when slots were half-hour; still means "full
+      // granularity" now that they're quarter-hour), "hour" collapses
+      // each group of 4 quarter-hour slots into one row (summed count)
+      // for a coarser first look at a busy week.
       let weekDensity = "half";
       // (date, slot) of the currently expanded heat cell, or null -
       // only one detail row is open at a time. In "hour" density this
-      // holds the first of the pair of half-hour slots the row covers.
+      // holds the first of the 4 quarter-hour slots the row covers.
       let expandedCell = null;
 
       document.querySelectorAll("#view-mode [data-view]").forEach((btn) => {
@@ -251,7 +253,7 @@
         lastDayBookings = bookings;
 
         document.getElementById("capacity-note").textContent =
-          `Arrivals for ${currentDate}. Each 30-minute slot holds at most ` +
+          `Arrivals for ${currentDate}. Each 15-minute slot holds at most ` +
           `${totalBays} approved bus${totalBays === 1 ? "" : "es"}.`;
 
         const bySlot = new Map();
@@ -416,7 +418,7 @@
         lastWeekBookings = bookings;
 
         document.getElementById("capacity-note").textContent =
-          `Week of ${days[0]} – ${days[6]}. Each 30-minute slot holds at ` +
+          `Week of ${days[0]} – ${days[6]}. Each 15-minute slot holds at ` +
           `most ${totalBays} approved bus${totalBays === 1 ? "" : "es"}.`;
 
         const byDate = new Map(days.map((d) => [d, []]));
@@ -537,15 +539,15 @@
         const days = weekDays;
         const totalBays = weekTotalBays;
         const today = todayISO();
-        // Half-hour density: one row per SLOT. Hourly: one row per pair
-        // of half-hour slots (0&1, 2&3, ...), fill count summed across
-        // both and compared against double capacity - a coarser first
-        // look at a busy week, 24 rows instead of 48.
+        // 15-min density: one row per SLOT (96 rows). Hourly: one row
+        // per group of 4 quarter-hour slots (0-3, 4-7, ...), fill count
+        // summed across all 4 and compared against 4x capacity - a
+        // coarser first look at a busy week, 24 rows instead of 96.
         const rowSlots =
           weekDensity === "hour"
-            ? SLOTS.filter((s) => s % 2 === 0).map((s) => [s, s + 1])
+            ? SLOTS.filter((s) => s % 4 === 0).map((s) => [s, s + 1, s + 2, s + 3])
             : SLOTS.map((s) => [s]);
-        const rowCapacity = weekDensity === "hour" ? totalBays * 2 : totalBays;
+        const rowCapacity = weekDensity === "hour" ? totalBays * 4 : totalBays;
 
         function rowsForCell(date, slots) {
           const bySlot = weekCellsByDate.get(date);
@@ -580,7 +582,7 @@
                         ? formatSlot(slots[0])
                         : formatSlot(slots[0]).split(" – ")[0] +
                           " – " +
-                          formatSlot(slots[1]).split(" – ")[1];
+                          formatSlot(slots[slots.length - 1]).split(" – ")[1];
                     const cellsHtml = days
                       .map((date) => {
                         const rows = rowsForCell(date, slots);
