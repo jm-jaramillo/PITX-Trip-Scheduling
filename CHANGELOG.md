@@ -2875,6 +2875,44 @@ board entirely (confirmed by row count, not just visually).
 
 ---
 
+### 80. Migrations 0037 and 0038 applied to the live database (20 Aug)
+
+Both were prepared-but-not-applied while a clean-slate database was
+expected soon (#76, #78). Applying them turned out to be needed sooner:
+without them, today's real bookings (written under the old 30-minute
+slot scheme) displayed on the new Schedule board compressed into a
+2:00 AM-10:45 AM window instead of their real times, since the client
+now reads `slot` as a 15-minute index while the database's own
+`slot_start_at()` still did 30-minute math - exactly the mismatch #78
+warned about, now actually hit in practice.
+
+Applying `0038` live surfaced two real ordering bugs in the migration
+itself, both fixed in place before it would run clean:
+1. The `bookings_slot_range` check (0-47) has to be dropped *before*
+   doubling existing `slot` values, not after - doubling anything past
+   23 momentarily violates the still-active old constraint.
+2. Doubling slot values in place can also transiently collide with the
+   unique `(booking_date, slot, assigned_bay_id)` index on approved
+   rows (row A's old slot 5 becomes 10 at the exact moment row B still
+   holds its own not-yet-updated old value of 10, same date/bay) - the
+   index is now dropped before the update and recreated after, same
+   reasoning as the check constraint.
+
+Both failures rolled back cleanly (no partial writes - confirmed by
+re-checking `slot` values were untouched after each failed attempt
+before retrying), so no data was ever at risk.
+
+Verified live: `slot_start_at('2026-08-28', 86)` now returns
+`21:30 Manila` (86 × 15 = 1290 min), matching the client's own math; a
+booking's real `slot` doubled correctly (43 → 86, 10 → 20); and the
+Schedule board for that date now spans its full real range (5:00 AM to
+9:30 PM) instead of the compressed window. `operator_profiles`' new
+columns (`0037`) are confirmed live and usable - operator-profile.html
+and operator-profiles.html can now be re-verified end to end (their
+earlier verification was necessarily UI-only, per #76's own note).
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (Operator, trade name/

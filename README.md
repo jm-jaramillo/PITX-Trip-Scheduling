@@ -393,9 +393,8 @@ name/number/position - added when importing the company's real operator
 database, which has emails but the paper form's contact fields don't ask
 for one.
 
-As of migration `0037_operator_profile_redesign.sql` - written but not
-yet applied to the current database, see that section's own note below
-- "Contact person 1/2" becomes an **up to 5** contact list stored as a
+As of migration `0037_operator_profile_redesign.sql` (applied - see
+CHANGELOG #80), "Contact person 1/2" becomes an **up to 5** contact list stored as a
 single `contacts` JSONB array instead of fixed column pairs, and TIN
 No./Serial Number (OR)/NAU are dropped in favor of a **Trade Name**,
 **Operator/Trade Code**, and a **logo upload**. "Company name" is
@@ -748,11 +747,12 @@ change, no schema involved); the operator-facing **My schedule** still
 has one, unchanged.
 
 Slots were 30 minutes (48/day) before migration
-`0038_fifteen_minute_slots.sql` - like `0037`, prepared but **not yet
-applied to the current live database** ahead of a planned clean-slate
-database upload (see CHANGELOG #78). Apply it together with the
-matching `docs/assets/app.js` deploy, never one without the other - the
-client and server's slot-to-clock-time math must always agree.
+`0038_fifteen_minute_slots.sql` (applied - see CHANGELOG #80). Deployed
+together with the matching `docs/assets/app.js` change, never one
+without the other - the client and server's slot-to-clock-time math
+must always agree, or existing bookings display at the wrong time
+(hit live once, see #80's own note on what that looked like and how
+the migration itself had to be fixed to apply cleanly).
 
 ### Gates and route-based bay suggestions
 

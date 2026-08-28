@@ -25,12 +25,30 @@
 --
 -- Run after 0037_operator_profile_redesign.sql.
 
+-- The old 0-47 check has to go *before* doubling existing values, not
+-- after - doubling any slot past 23 (46, 47) would otherwise briefly
+-- violate the still-active old constraint mid-migration and abort the
+-- whole thing (caught live: this exact ordering mistake failed against
+-- the real database on first attempt).
+alter table public.bookings
+  drop constraint if exists bookings_slot_range;
+
+-- Doubling slot values in place can also transiently collide with the
+-- unique (booking_date, slot, assigned_bay_id) index on approved rows -
+-- e.g. row A's old slot 5 doubles to 10 at the exact moment row B still
+-- holds its own not-yet-updated old slot of 10 on the same date/bay.
+-- Dropped before the UPDATE and recreated after for the same reason as
+-- the check constraint above (also caught live, on the second attempt).
+drop index if exists bookings_unique_approved_bay_slot;
+
 update public.bookings set slot = slot * 2 where slot is not null;
 
 alter table public.bookings
-  drop constraint if exists bookings_slot_range;
-alter table public.bookings
   add constraint bookings_slot_range check (slot between 0 and 95);
+
+create unique index if not exists bookings_unique_approved_bay_slot
+  on public.bookings (booking_date, slot, assigned_bay_id)
+  where (status = 'approved' and assigned_bay_id is not null);
 
 -- slot_start_at: same signature, just the interval per slot changes -
 -- CREATE OR REPLACE is fine.
