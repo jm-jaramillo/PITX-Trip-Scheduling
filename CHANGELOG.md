@@ -3022,6 +3022,33 @@ Suggested/Other, so there was nothing to fix there.
 
 ---
 
+### 83. Make a missing plate on an approved trip hard to miss (20 Aug)
+
+Nothing on the dashboard previously called attention to an *approved*
+booking with no plate set - "Not set yet" read the same as any other
+muted placeholder text, easy to scan right past exactly when it matters
+most (staff already assigned a bay; the trip won't be recognized at the
+terminal without a plate on file). Three layers now, all in
+`dashboard.html`, none needing a migration:
+
+1. A red-tinted banner above **My requests**, independent of the current
+   status filter, listing every approved-but-plateless booking with a
+   direct link to its edit dialog - shows even if the table itself is
+   currently filtered to "Pending" and would otherwise hide the row.
+2. The row itself gets a `.row-alert` red tint, and its Plate No. cell
+   reads **"⚠ Plate needed"** in bold red instead of the same muted "Not
+   set yet" a still-pending request shows (a pending request isn't
+   confirmed yet, so there's no urgency there - only "approved and no
+   plate" gets this treatment).
+3. Its action button is a solid red **"Set plate now"** (`.btn-alert`)
+   in place of the plain text-link "Set plate" every other row gets.
+
+Verified live: an approved test booking with no plate showed the banner,
+the red row, and the CTA button; clicking either the banner's link or the
+row's button opened the edit dialog on the right booking.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (Operator, trade name/

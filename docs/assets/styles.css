@@ -1625,6 +1625,32 @@ dialog.details-dialog {
   color: var(--red-ink);
 }
 
+/* An approved booking with no plate set yet - easy to miss otherwise,
+   since nothing else about an approved row demands attention. Used on
+   the whole table row (dashboard.html), a "Plate needed" tag in the
+   Plate No. cell, and the "Set plate now" call-to-action button. */
+tr.row-alert td {
+  background: var(--red-wash);
+}
+.plate-needed {
+  color: var(--red-ink);
+  font-weight: 700;
+}
+.btn-alert {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--r-btn, 11px);
+  border: 1px solid var(--red-ink);
+  background: var(--red-ink);
+  color: #fff;
+  cursor: pointer;
+}
+.btn-alert:hover {
+  opacity: 0.9;
+}
+
 /* --------------------------------------------------- vehicle scan UI */
 .mode-switch {
   display: flex;

@@ -69,6 +69,8 @@
         </form>
       </div>
 
+      <p class="warn hidden" id="plate-needed-banner"></p>
+
       <div class="toolbar" style="justify-content: space-between; margin-top: 36px">
         <h2 style="margin-top: 0">My requests</h2>
         <div class="mode-switch" role="tablist" id="status-filter">
@@ -973,7 +975,45 @@
         pendingTransferBookingIds = new Set(
           (transfers ?? []).map((t) => t.booking_id)
         );
+        renderPlateNeededBanner();
         renderRequestsTable();
+      }
+
+      // A top-of-page callout, on top of the per-row highlighting in
+      // renderRequestsTable() - an approved trip with no plate on file is
+      // the one state an operator must not overlook, so it gets flagged
+      // even if the status filter is currently hiding that row (e.g.
+      // filtered to "Pending"). Independent of statusFilter on purpose.
+      function renderPlateNeededBanner() {
+        const bannerEl = document.getElementById("plate-needed-banner");
+        const needPlate = allBookings.filter(
+          (b) => b.status === "approved" && !b.plate_no
+        );
+
+        if (needPlate.length === 0) {
+          bannerEl.className = "warn hidden";
+          return;
+        }
+
+        bannerEl.innerHTML =
+          `⚠ ${needPlate.length} approved trip${needPlate.length === 1 ? "" : "s"} still ` +
+          `${needPlate.length === 1 ? "needs" : "need"} a plate number - staff already ` +
+          `assigned a bay, but the trip won't be recognized at the terminal without one: ` +
+          needPlate
+            .map(
+              (b) =>
+                `<button type="button" class="btn-link" style="color:inherit;text-decoration:underline" data-setplate="${escapeHtml(
+                  b.id
+                )}">${escapeHtml(b.booking_date)}, ${escapeHtml(formatSlot(b.slot))} → ${escapeHtml(
+                  b.route
+                )}</button>`
+            )
+            .join(", ");
+        bannerEl.className = "warn";
+
+        bannerEl.querySelectorAll("[data-setplate]").forEach((btn) => {
+          btn.addEventListener("click", () => openEdit(btn.dataset.setplate));
+        });
       }
 
       function renderRequestsTable() {
@@ -1022,14 +1062,24 @@
                     // the trip - but still blocked while a cancellation is
                     // pending, since the trip may not happen at all.
                     const canSetPlate = live && !transferPending && !cancellationPending;
+                    // Approved and still no plate is the one state an
+                    // operator must not miss - pending isn't confirmed
+                    // yet, so there's no rush; approved means staff
+                    // already assigned a bay for a trip nothing will
+                    // actually show up for without a plate on file.
+                    const needsPlateUrgently = b.status === "approved" && !b.plate_no;
                     return `
-                  <tr>
+                  <tr${needsPlateUrgently ? ' class="row-alert"' : ""}>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
                     <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
                     <td data-label="Operator">${bookingOperatorHtml(b)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${
-                      b.plate_no ? escapeHtml(b.plate_no) : `<span class="subtle">Not set yet</span>`
+                      b.plate_no
+                        ? escapeHtml(b.plate_no)
+                        : needsPlateUrgently
+                          ? `<span class="plate-needed">⚠ Plate needed</span>`
+                          : `<span class="subtle">Not set yet</span>`
                     }</td>
                     <td data-label="Status">${statusBadge(b.status)}${
                       b.revision_count > 0
@@ -1051,9 +1101,13 @@
                     <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
                     <td><div class="row-actions">${
                       canSetPlate
-                        ? `<button type="button" class="btn-link" data-setplate="${escapeHtml(
-                            b.id
-                          )}">${b.plate_no ? "Change plate" : "Set plate"}</button>`
+                        ? needsPlateUrgently
+                          ? `<button type="button" class="btn-alert" data-setplate="${escapeHtml(
+                              b.id
+                            )}">Set plate now</button>`
+                          : `<button type="button" class="btn-link" data-setplate="${escapeHtml(
+                              b.id
+                            )}">${b.plate_no ? "Change plate" : "Set plate"}</button>`
                         : ""
                     }${
                       editable
