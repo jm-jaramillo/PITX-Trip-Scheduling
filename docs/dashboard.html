@@ -72,7 +72,13 @@
       <p class="warn hidden" id="plate-needed-banner"></p>
 
       <div class="toolbar" style="justify-content: space-between; margin-top: 36px">
-        <h2 style="margin-top: 0">My requests</h2>
+        <div>
+          <h2 style="margin: 0">My requests</h2>
+          <p class="fineprint" style="margin: 2px 0 0">
+            Today and future only - past requests are on
+            <a href="request-history.html">History</a>.
+          </p>
+        </div>
         <div class="mode-switch" role="tablist" id="status-filter">
           <button type="button" class="mode-tab is-active" data-filter="all">All</button>
           <button type="button" class="mode-tab" data-filter="approved">Approved</button>
@@ -195,6 +201,8 @@
       let bookingsById = new Map(); // keyed by id so the dialog can prefill
       let allBookings = [];
       let statusFilter = "all";
+      // Soonest-first by default - the Date column header toggles this.
+      let dateSortAscending = true;
       let editingId = null;
       let transferringId = null;
       let approvedVehicles = [];
@@ -355,10 +363,16 @@
       // renderRequestsTable() reads from) rather than refetching from
       // Supabase just for the export.
       function exportRequestsCsv() {
-        const bookings =
+        const filtered =
           statusFilter === "all"
             ? allBookings
             : allBookings.filter((b) => b.status === statusFilter);
+        const sortDir = dateSortAscending ? 1 : -1;
+        const bookings = [...filtered].sort(
+          (a, b) =>
+            sortDir *
+            (a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot)
+        );
         const rows = bookings.map((b) => [
           b.booking_date ?? "",
           formatSlot(b.slot),
@@ -951,6 +965,9 @@
       }
 
       async function loadRequests() {
+        // "My requests" is today-and-future only - anything before today
+        // is history, not something to act on, and belongs on
+        // request-history.html instead (see #84).
         const [{ data }, { data: transfers }] = await Promise.all([
           supabase
             .from("bookings")
@@ -958,8 +975,9 @@
               "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, cancellation_requested_at, cancellation_reason, bays ( id, name )"
             )
             .eq("operator_id", profile.id)
-            .order("booking_date", { ascending: false })
-            .order("slot", { ascending: false }),
+            .gte("booking_date", todayISO())
+            .order("booking_date", { ascending: true })
+            .order("slot", { ascending: true }),
           // Bookings this operator has already asked to hand off, still
           // awaiting a staff decision - editing/cancelling/re-transferring
           // while that's in review would race with the approval.
@@ -1017,10 +1035,18 @@
       }
 
       function renderRequestsTable() {
-        const bookings =
+        const filtered =
           statusFilter === "all"
             ? allBookings
             : allBookings.filter((b) => b.status === statusFilter);
+        // Client-side, not re-fetched - allBookings is already loaded, and
+        // there's nothing here a server sort would do better.
+        const sortDir = dateSortAscending ? 1 : -1;
+        const bookings = [...filtered].sort(
+          (a, b) =>
+            sortDir *
+            (a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot)
+        );
         const host = document.getElementById("requests");
 
         if (bookings.length === 0) {
@@ -1037,7 +1063,9 @@
             <table>
               <thead>
                 <tr>
-                  <th>Date</th><th>Time slot</th><th>Operator</th><th>Route</th>
+                  <th class="sortable" data-sort="date">Date${
+                    dateSortAscending ? " &#9650;" : " &#9660;"
+                  }</th><th>Time slot</th><th>Operator</th><th>Route</th>
                   <th>Plate No.</th><th>Status</th><th>Assigned bay</th><th>Trip No.</th>
                   <th>Note</th><th></th>
                 </tr>
@@ -1152,6 +1180,10 @@
           </div>
         `;
 
+        host.querySelector("[data-sort='date']").addEventListener("click", () => {
+          dateSortAscending = !dateSortAscending;
+          renderRequestsTable();
+        });
         host.querySelectorAll("[data-cancel]").forEach((btn) => {
           btn.addEventListener("click", () => cancelBooking(btn.dataset.cancel));
         });

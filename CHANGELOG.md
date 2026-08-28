@@ -33,6 +33,7 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 | Cancellation | A pending request cancels instantly; an approved booking needs PITX staff approval to cancel (changed 20 Aug, #81) |
 | Same-time visibility | The request form shows other operators' trips at the chosen date/time, flagging a same-route/same-time clash with a different-timeslot suggestion (advisory only) (added 20 Aug, #82) |
 | One vehicle, one slot at a time | A single vehicle can't be booked into two adjacent 15-minute slots on the same date (added 20 Aug, #82) |
+| Request list scope | "My requests" shows today and future only, sortable by date; a separate History page shows past requests, one month at a time (added 20 Aug, #84) |
 
 ---
 
@@ -3049,6 +3050,36 @@ row's button opened the edit dialog on the right booking.
 
 ---
 
+### 84. "My requests" scoped to today-and-future, sortable; new History page (20 Aug)
+
+`dashboard.html`'s request list was every request ever made, newest
+first, with no way to change the order - fine when the list was short,
+increasingly not once an operator has months of past requests mixed in
+with what they actually need to act on today. Two changes, no migration:
+
+1. **"My requests" now only shows today and future** (`gte("booking_date",
+   todayISO())` added to its query) - a past request there was never
+   actionable anyway (can't be changed, can't be cancelled, its "Set
+   plate" window has closed), so it was just noise once enough had piled
+   up. The Date column header is now sortable (click to flip between
+   soonest-first and furthest-first, matching the sortable-header pattern
+   already used on `vehicles.html`) - applies to both the on-screen table
+   and its CSV export, so what's exported always matches what's on screen.
+2. **New `request-history.html`** - every past request, one calendar
+   month at a time (prev/next month buttons, a native `<input
+   type="month">`, deep-linkable via `?month=YYYY-MM`), with the same
+   status filter tabs and sortable Date column as "My requests," plus its
+   own CSV export. Read-only by design - nothing on a past request can
+   still be changed, so there are no action buttons. Added to the
+   operator nav as **History**, right after **My requests**.
+
+Verified live: a booking dated in the past no longer appears on "My
+requests" but does appear on History under its own month; switching
+months on History shows the right rows; the sortable Date header flips
+order correctly on both pages.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (Operator, trade name/
@@ -3062,11 +3093,13 @@ capacity, Seat configuration; Remarks); request a 15-minute trip slot by
 picking a destination and time (no plate yet); assign the plate later,
 any time up to the day of the trip, from a dropdown of their *approved*,
 CPC-current vehicles; see status, assigned bay, and any rejection note;
-filter their own requests by status; change a booking or a vehicle (back
-to staff for approval either way, except a plate-only change, which
-isn't); cancel a still-pending request instantly, or request cancellation
-of an already-approved one (needs staff approval); view their own
-schedule or every operator's, both as an airport-style PIDS board.
+filter today-and-future requests by status, sortable by date, with past
+requests split off onto a separate History page browsable by month;
+change a booking or a vehicle (back to staff for approval either way,
+except a plate-only change, which isn't); cancel a still-pending request
+instantly, or request cancellation of an already-approved one (needs
+staff approval); view their own schedule or every operator's, both as an
+airport-style PIDS board.
 
 **PITX staff** — approve or reject vehicle registrations, booking
 requests (assigning an available bay on approval), and cancellation

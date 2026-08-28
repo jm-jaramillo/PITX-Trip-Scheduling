@@ -1129,7 +1129,8 @@ RPC - staff already have unrestricted UPDATE rights on `bookings`
 docs/                        THE SITE ITSELF (served by GitHub Pages)
   index.html                 Sign in (+ "Forgot password?" request-to-staff flow)
   operator-overview.html     Operator: shift-start dashboard - counts, lockout alerts, quick links
-  dashboard.html             Operator: request form + own requests (CSV export)
+  dashboard.html             Operator: request form + own requests, today and future only (CSV export)
+  request-history.html       Operator: own past requests, one month at a time (CSV export)
   my-schedule.html           Operator: airport-style PIDS board - own confirmed trips or every operator's, one day at a time (CSV export)
   vehicles.html              Operator: register/edit vehicles (scan or manual, Region/Province/City route picker, search, column toggle, CSV export)
   operator-profile.html     Operator: one-time company details (no approval)

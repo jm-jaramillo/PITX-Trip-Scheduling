@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>History · PITX Trip Scheduling</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Provincial Trip Scheduling</p>
+          <h1>Request history</h1>
+          <p class="subtle">
+            Every request you've made, one month at a time - see
+            <a href="dashboard.html">My requests</a> for today and future.
+          </p>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="btn-outline" id="prev-month">&larr; Prev month</button>
+          <input type="month" id="month-input" />
+          <button type="button" class="btn-outline" id="next-month">Next month &rarr;</button>
+          <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="toolbar" style="justify-content: flex-start; margin-top: 18px">
+        <div class="mode-switch" role="tablist" id="status-filter">
+          <button type="button" class="mode-tab is-active" data-filter="all">All</button>
+          <button type="button" class="mode-tab" data-filter="approved">Approved</button>
+          <button type="button" class="mode-tab" data-filter="pending">Pending</button>
+          <button type="button" class="mode-tab" data-filter="rejected">Declined</button>
+          <button type="button" class="mode-tab" data-filter="cancelled">Cancelled</button>
+        </div>
+      </div>
+
+      <div id="requests"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        formatSlot,
+        statusBadge,
+        bookingOperatorHtml,
+        escapeHtml,
+        downloadCsv,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("operator");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      // Module-level state must be declared before the init calls below
+      // run, same reasoning as every other page in this app (see e.g.
+      // dashboard.html) - avoids reading a `let` still in its temporal
+      // dead zone.
+      let allBookings = [];
+      let statusFilter = "all";
+      let dateSortAscending = false; // most recent first makes more sense for history
+
+      const monthInput = document.getElementById("month-input");
+      const fromQuery = new URLSearchParams(location.search).get("month");
+      let currentMonth = /^\d{4}-\d{2}$/.test(fromQuery ?? "")
+        ? fromQuery
+        : todayMonth();
+      monthInput.value = currentMonth;
+
+      function todayMonth() {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      }
+
+      function monthBounds(month) {
+        const [y, m] = month.split("-").map(Number);
+        const start = `${month}-01`;
+        const lastDay = new Date(y, m, 0).getDate();
+        const end = `${month}-${String(lastDay).padStart(2, "0")}`;
+        return { start, end };
+      }
+
+      function shiftMonth(month, delta) {
+        const [y, m] = month.split("-").map(Number);
+        const d = new Date(y, m - 1 + delta, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      }
+
+      monthInput.addEventListener("change", () => {
+        if (monthInput.value) {
+          currentMonth = monthInput.value;
+          load();
+        }
+      });
+      document.getElementById("prev-month").addEventListener("click", () => {
+        currentMonth = shiftMonth(currentMonth, -1);
+        monthInput.value = currentMonth;
+        load();
+      });
+      document.getElementById("next-month").addEventListener("click", () => {
+        currentMonth = shiftMonth(currentMonth, 1);
+        monthInput.value = currentMonth;
+        load();
+      });
+
+      document.querySelectorAll("#status-filter [data-filter]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          statusFilter = btn.dataset.filter;
+          document
+            .querySelectorAll("#status-filter [data-filter]")
+            .forEach((b) => b.classList.toggle("is-active", b === btn));
+          renderTable();
+        });
+      });
+
+      document.getElementById("export-csv").addEventListener("click", exportCsv);
+
+      const CSV_HEADERS = [
+        "Date",
+        "Time slot",
+        "Route",
+        "Plate No.",
+        "Status",
+        "Assigned bay",
+        "Trip No.",
+        "Note",
+      ];
+
+      function sortedFiltered() {
+        const filtered =
+          statusFilter === "all"
+            ? allBookings
+            : allBookings.filter((b) => b.status === statusFilter);
+        const sortDir = dateSortAscending ? 1 : -1;
+        return [...filtered].sort(
+          (a, b) =>
+            sortDir *
+            (a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot)
+        );
+      }
+
+      function exportCsv() {
+        const rows = sortedFiltered().map((b) => [
+          b.booking_date ?? "",
+          formatSlot(b.slot),
+          b.route ?? "",
+          b.plate_no ?? "",
+          b.status ?? "",
+          b.bays?.name ?? "",
+          b.trip_number ?? "",
+          b.rejection_reason ?? "",
+        ]);
+        downloadCsv(`request-history-${currentMonth}-${statusFilter}.csv`, CSV_HEADERS, rows);
+      }
+
+      await load();
+
+      async function load() {
+        const { start, end } = monthBounds(currentMonth);
+        const { data, error } = await supabase
+          .from("bookings")
+          .select(
+            "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, bays ( id, name )"
+          )
+          .eq("operator_id", profile.id)
+          .gte("booking_date", start)
+          .lte("booking_date", end);
+
+        if (error) {
+          document.getElementById("requests").innerHTML =
+            `<p class="empty">Couldn't load history: ${escapeHtml(error.message)}</p>`;
+          return;
+        }
+
+        allBookings = data ?? [];
+        renderTable();
+      }
+
+      function renderTable() {
+        const host = document.getElementById("requests");
+        const bookings = sortedFiltered();
+
+        if (bookings.length === 0) {
+          host.innerHTML = `<p class="empty">${
+            allBookings.length === 0
+              ? "No requests for this month."
+              : "No requests match this filter."
+          }</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="sortable" data-sort="date">Date${
+                    dateSortAscending ? " &#9650;" : " &#9660;"
+                  }</th><th>Time slot</th><th>Operator</th><th>Route</th>
+                  <th>Plate No.</th><th>Status</th><th>Assigned bay</th><th>Trip No.</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${bookings
+                  .map(
+                    (b) => `
+                  <tr>
+                    <td data-label="Date">${escapeHtml(b.booking_date)}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
+                    <td data-label="Operator">${bookingOperatorHtml(b)}</td>
+                    <td data-label="Route">${escapeHtml(b.route)}</td>
+                    <td data-label="Plate No.">${escapeHtml(b.plate_no ?? "—")}</td>
+                    <td data-label="Status">${statusBadge(b.status)}${
+                      b.revision_count > 0
+                        ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
+                        : ""
+                    }</td>
+                    <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
+                    <td data-label="Trip No.">${escapeHtml(b.trip_number ?? "—")}</td>
+                    <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        host.querySelector("[data-sort='date']").addEventListener("click", () => {
+          dateSortAscending = !dateSortAscending;
+          renderTable();
+        });
+      }
+    </script>
+  </body>
+</html>
