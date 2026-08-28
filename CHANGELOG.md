@@ -2604,6 +2604,56 @@ now first.
 
 ---
 
+### 75. Per-vehicle trade names, shown wherever a booking lists its operator (20 Aug)
+
+Some operators run more than one trade name (DBA) under a single
+account - different vehicles registered to the same operator can
+belong to different trades. Migration `0036_vehicle_trade_name.sql`
+adds a `trade_name` field to `vehicles` (optional - a new "Trade Name"
+input on `vehicles.html`, right next to Body Number in LTFRB Franchise
+Details) and threads it through to every place a booking shows who it
+belongs to:
+
+- A booking now **snapshots** the trade name of whichever vehicle/plate
+  it's for, the same way it already snapshots `operator_name` - so a
+  booking's own display reflects what was true when it was made or
+  last changed, not whatever the vehicle's trade name is today. A new
+  trigger (`trg_assign_booking_trade_name`) keeps this in sync
+  automatically on insert and on any plate change (a plain new
+  booking, an edit via `request_booking_change()`, or a transfer's
+  operator+plate swap via `approve_booking_transfer()`) - no caller
+  computes or passes it themselves, so there's exactly one place this
+  logic lives. A transfer also gets a `previous_trade_name` column,
+  struck through next to the new one, mirroring `previous_operator_name`.
+- A new shared `bookingOperatorHtml()` helper in `app.js` renders the
+  "operator name (+ struck-through previous name after a transfer) +
+  trade name tag" combination consistently - wired into every page
+  that lists bookings: `dashboard.html` (My requests), `my-schedule.html`,
+  `schedule.html` (both Day view's booking list and Week view's
+  click-to-expand detail, plus its CSV export), `staff.html` (pending
+  request cards, the search filter, and the Recently decided table),
+  and `overview.html`'s approaching-lockout list. A vehicle's trade
+  name (when it has one) also shows on its own detail card, and as an
+  optional column on `vehicle-approvals.html` and
+  `vehicles-database.html`.
+- `request_vehicle_change()` gained a `p_trade_name` param (cosmetic -
+  editing it never sends an approved vehicle back to pending, same
+  treatment as Body Number).
+
+Verified live end to end with an operator running two vehicles under
+two different trade names: a booking made against one vehicle
+correctly showed "Multi-Trade Holdings Inc Bicol Star Express · MTH001"
+on both staff's Pending requests and the Schedule Day view; changing
+the booking's plate to the second vehicle via `request_booking_change()`
+correctly recomputed the trade name to the second trade with no
+explicit update needed; editing a vehicle's trade name through
+`vehicles.html`'s Edit dialog persisted correctly and left an approved
+vehicle approved (cosmetic, not material); the new Trade Name column
+appeared correctly on `vehicles-database.html` once toggled on via
+Columns.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

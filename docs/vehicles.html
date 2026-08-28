@@ -259,6 +259,12 @@
             <input id="f_body_number" />
           </div>
           <div class="field">
+            <label for="f_trade_name">
+              Trade Name <span class="fineprint">(optional &mdash; only if this vehicle runs under a different trade name than your account)</span>
+            </label>
+            <input id="f_trade_name" placeholder="e.g. Bicol Express Lines" />
+          </div>
+          <div class="field">
             <label for="f_cpc_validity">CPC validity</label>
             <input id="f_cpc_validity" type="date" />
           </div>
@@ -418,6 +424,12 @@
           <div class="field">
             <label for="e_body_number">Body Number</label>
             <input id="e_body_number" />
+          </div>
+          <div class="field">
+            <label for="e_trade_name">
+              Trade Name <span class="fineprint">(optional &mdash; only if this vehicle runs under a different trade name than your account)</span>
+            </label>
+            <input id="e_trade_name" placeholder="e.g. Bicol Express Lines" />
           </div>
           <div class="field">
             <label for="e_cpc_validity">CPC validity</label>
@@ -591,7 +603,7 @@
       // its temporal dead zone when loadVehicles() first runs (same class
       // of bug as #37/#39/#46/#52/#66/#69).
       const VEHICLE_SELECT_COLUMNS =
-        "id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, source, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, status, ltfrb_status, rejection_reason, revision_count";
+        "id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, trade_name, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, source, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, status, ltfrb_status, rejection_reason, revision_count";
 
       /* ------------------------------------------------------- PH geography */
       // Route used to be a free-text field ("e.g. PITX - Batangas") - the
@@ -935,6 +947,7 @@
         { key: "origin", label: "Origin", csv: (v) => v.origin ?? "" },
         { key: "destination", label: "Destination", csv: (v) => v.destination ?? "" },
         { key: "body_number", label: "Body Number", csv: (v) => v.body_number ?? "" },
+        { key: "trade_name", label: "Trade Name", csv: (v) => v.trade_name ?? "" },
         { key: "vehicle_year", label: "Year", csv: (v) => v.vehicle_year ?? "" },
         { key: "vehicle_make", label: "Make", csv: (v) => v.vehicle_make ?? "" },
         { key: "bus_type", label: "Bus Type", csv: (v) => busTypeLabel(v.bus_type) },
@@ -1219,7 +1232,7 @@
                   ${sortTh("CPC validity", "cpc_validity")}<th data-col="cpc_eov">CPC EOV?</th><th data-col="cpc_eov_validity">EOV validity</th>
                   ${sortTh("OR/CR validity", "orcr_validity")}
                   <th data-col="route">Route</th><th data-col="origin">Origin</th><th data-col="destination">Destination</th>
-                  <th data-col="body_number">Body Number</th><th data-col="vehicle_year">Year</th><th data-col="vehicle_make">Make</th>
+                  <th data-col="body_number">Body Number</th><th data-col="trade_name">Trade Name</th><th data-col="vehicle_year">Year</th><th data-col="vehicle_make">Make</th>
                   <th data-col="bus_type">Bus Type</th><th data-col="seating_capacity">Seating capacity</th>
                   <th data-col="seat_type">Seat configuration</th><th data-col="remarks">Remarks</th>
                   <th data-col="status">Status</th>
@@ -1249,6 +1262,7 @@
                     <td data-label="Origin" data-col="origin">${escapeHtml(v.origin ?? "—")}</td>
                     <td data-label="Destination" data-col="destination">${escapeHtml(v.destination ?? "—")}</td>
                     <td data-label="Body Number" data-col="body_number">${escapeHtml(v.body_number ?? "—")}</td>
+                    <td data-label="Trade Name" data-col="trade_name">${escapeHtml(v.trade_name ?? "—")}</td>
                     <td data-label="Year" data-col="vehicle_year">${escapeHtml(v.vehicle_year ?? "—")}</td>
                     <td data-label="Make" data-col="vehicle_make">${escapeHtml(v.vehicle_make ?? "—")}</td>
                     <td data-label="Bus Type" data-col="bus_type">${busTypeLabel(v.bus_type)}</td>
@@ -1425,6 +1439,7 @@
           "f_origin",
           "f_destination",
           "f_body_number",
+          "f_trade_name",
           "f_vehicle_year",
           "f_vehicle_make",
           "f_bus_type",
@@ -1586,6 +1601,7 @@
           origin: document.getElementById("f_origin").value.trim() || null,
           destination: document.getElementById("f_destination").value.trim() || null,
           body_number: document.getElementById("f_body_number").value.trim() || null,
+          trade_name: document.getElementById("f_trade_name").value.trim() || null,
           vehicle_year: yearRaw ? Number(yearRaw) : null,
           vehicle_make: document.getElementById("f_vehicle_make").value.trim() || null,
           bus_type: document.getElementById("f_bus_type").value || null,
@@ -1761,6 +1777,7 @@
         document.getElementById("e_origin").value = v.origin ?? "";
         document.getElementById("e_destination").value = v.destination ?? "";
         document.getElementById("e_body_number").value = v.body_number ?? "";
+        document.getElementById("e_trade_name").value = v.trade_name ?? "";
         document.getElementById("e_vehicle_year").value = v.vehicle_year ?? "";
         document.getElementById("e_vehicle_make").value = v.vehicle_make ?? "";
         document.getElementById("e_bus_type").value = v.bus_type ?? "";
@@ -1871,6 +1888,7 @@
           p_mv_file_number: document.getElementById("e_mv_file_number").value.trim(),
           p_route: document.getElementById("e_route").value.trim(),
           p_body_number: document.getElementById("e_body_number").value.trim(),
+          p_trade_name: document.getElementById("e_trade_name").value.trim(),
           p_seating_capacity: seatingRaw ? Number(seatingRaw) : null,
           p_seat_type: document.getElementById("e_seat_type").value || null,
           p_bus_type: document.getElementById("e_bus_type").value || null,
@@ -1945,7 +1963,7 @@
         "plate_no", "route", "origin", "destination", "case_number",
         "mv_file_number", "chassis_no", "franchise", "sticker_no",
         "cpc_validity", "cpc_eov", "cpc_eov_validity", "orcr_validity",
-        "body_number", "vehicle_year", "vehicle_make", "bus_type",
+        "body_number", "trade_name", "vehicle_year", "vehicle_make", "bus_type",
         "seating_capacity", "seat_type", "remarks",
       ];
 
@@ -2000,7 +2018,7 @@
           downloadCsv("vehicle-batch-template.csv", BATCH_HEADERS, [
             [
               "ABC1234", "Legazpi City, Albay", "PITX", "Legazpi City", "", "",
-              "", "", "", "", "no", "", "", "", "", "", "aircon", "45", "2x2", "",
+              "", "", "", "", "no", "", "", "", "", "", "", "aircon", "45", "2x2", "",
             ],
           ]);
         });
@@ -2077,6 +2095,7 @@
             cpc_eov_validity: cpcEov ? cpcEovValidity : null,
             orcr_validity: get("orcr_validity") || null,
             body_number: get("body_number") || null,
+            trade_name: get("trade_name") || null,
             vehicle_year: yearRaw ? Number(yearRaw) : null,
             vehicle_make: get("vehicle_make") || null,
             bus_type: busType,

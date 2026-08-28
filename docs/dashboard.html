@@ -178,6 +178,7 @@
         formatSlot,
         todayISO,
         statusBadge,
+        bookingOperatorHtml,
         escapeHtml,
         slotStartMillis,
         BOOKING_LEAD_TIME_MS,
@@ -805,7 +806,7 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, bays ( id, name )"
+              "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, bays ( id, name )"
             )
             .eq("operator_id", profile.id)
             .order("booking_date", { ascending: false })
@@ -873,13 +874,7 @@
                   <tr>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
                     <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
-                    <td data-label="Operator">${
-                      b.previous_operator_name
-                        ? `<s class="transferred-from">${escapeHtml(
-                            b.previous_operator_name
-                          )}</s> `
-                        : ""
-                    }${escapeHtml(b.operator_name)}</td>
+                    <td data-label="Operator">${bookingOperatorHtml(b)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
                     <td data-label="Status">${statusBadge(b.status)}${

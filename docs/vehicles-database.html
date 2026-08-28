@@ -159,6 +159,7 @@
         { key: "cpc_eov_validity", label: "EOV validity", csv: (v) => v.cpc_eov_validity ?? "" },
         { key: "orcr_validity", label: "OR/CR validity", csv: (v) => v.orcr_validity ?? "" },
         { key: "body_number", label: "Body Number", csv: (v) => v.body_number ?? "" },
+        { key: "trade_name", label: "Trade Name", csv: (v) => v.trade_name ?? "" },
         { key: "vehicle_year", label: "Year", csv: (v) => v.vehicle_year ?? "" },
         { key: "vehicle_make", label: "Make", csv: (v) => v.vehicle_make ?? "" },
         { key: "bus_type", label: "Bus Type", csv: (v) => busTypeLabel(v.bus_type) },
@@ -325,7 +326,7 @@
           const { data, error } = await supabase
             .from("vehicles")
             .select(
-              "id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, status, ltfrb_status, rejection_reason, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, created_at, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+              "id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, trade_name, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, status, ltfrb_status, rejection_reason, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, created_at, profiles!vehicles_operator_id_fkey ( username, operator_name )"
             )
             .order("created_at", { ascending: false })
             .range(from, from + PAGE_SIZE - 1);
@@ -391,7 +392,7 @@
 
         if (query) {
           rows = rows.filter((v) =>
-            [v.plate_no, v.body_number, v.profiles?.operator_name, v.profiles?.username, v.route]
+            [v.plate_no, v.body_number, v.trade_name, v.profiles?.operator_name, v.profiles?.username, v.route]
               .filter(Boolean)
               .some((s) => s.toLowerCase().includes(query))
           );
@@ -429,7 +430,7 @@
                   <th data-col="chassis_no">Chassis No.</th><th data-col="franchise">Franchise</th><th data-col="sticker_no">Sticker No.</th>
                   ${sortTh("CPC validity", "cpc_validity")}<th data-col="cpc_eov">CPC EOV?</th><th data-col="cpc_eov_validity">EOV validity</th>
                   ${sortTh("OR/CR validity", "orcr_validity")}
-                  <th data-col="body_number">Body Number</th><th data-col="vehicle_year">Year</th><th data-col="vehicle_make">Make</th>
+                  <th data-col="body_number">Body Number</th><th data-col="trade_name">Trade Name</th><th data-col="vehicle_year">Year</th><th data-col="vehicle_make">Make</th>
                   <th data-col="bus_type">Bus Type</th><th data-col="seating_capacity">Seating</th>
                   <th data-col="seat_type">Seat configuration</th><th data-col="remarks">Remarks</th>
                   <th data-col="rejection_reason">Note</th>
@@ -459,6 +460,7 @@
                     <td data-label="EOV validity" data-col="cpc_eov_validity">${v.cpc_eov ? expiryCell(v.cpc_eov_validity, escapeHtml) : "—"}</td>
                     <td data-label="OR/CR validity" data-col="orcr_validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
                     <td data-label="Body Number" data-col="body_number">${escapeHtml(v.body_number ?? "—")}</td>
+                    <td data-label="Trade Name" data-col="trade_name">${escapeHtml(v.trade_name ?? "—")}</td>
                     <td data-label="Year" data-col="vehicle_year">${escapeHtml(v.vehicle_year ?? "—")}</td>
                     <td data-label="Make" data-col="vehicle_make">${escapeHtml(v.vehicle_make ?? "—")}</td>
                     <td data-label="Bus Type" data-col="bus_type">${busTypeLabel(v.bus_type)}</td>

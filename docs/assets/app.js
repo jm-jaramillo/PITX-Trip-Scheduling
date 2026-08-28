@@ -587,6 +587,32 @@ export function escapeHtml(value) {
   );
 }
 
+// Renders a booking's "Operator" cell: the operator name (with a
+// struck-through previous name after a transfer, same as before), plus
+// - only when the booked vehicle has one - its trade name in a small
+// tag, since some operators run more than one trade under a single
+// account and a booking's own vehicle may belong to any of them (see
+// migration 0036). Shared by every page that lists bookings
+// (dashboard.html, my-schedule.html, schedule.html, staff.html,
+// overview.html) so the "operator + trade" rendering can't drift
+// between them.
+export function bookingOperatorHtml(b) {
+  const nameHtml = `${
+    b.previous_operator_name
+      ? `<s class="transferred-from">${escapeHtml(b.previous_operator_name)}</s> `
+      : ""
+  }${escapeHtml(b.operator_name)}`;
+
+  if (!b.trade_name) return nameHtml;
+
+  const tradeHtml = `${
+    b.previous_trade_name && b.previous_trade_name !== b.trade_name
+      ? `<s class="transferred-from">${escapeHtml(b.previous_trade_name)}</s> `
+      : ""
+  }${escapeHtml(b.trade_name)}`;
+  return `${nameHtml} <span class="trade-tag">${tradeHtml}</span>`;
+}
+
 export function statusBadge(status) {
   return `<span class="badge badge-${escapeHtml(status)}">${escapeHtml(
     status
@@ -665,6 +691,7 @@ export function vehicleDetailsHtml(v, operatorLabel) {
     ["Origin", escapeHtml(v.origin ?? "—")],
     ["Destination", escapeHtml(v.destination ?? "—")],
     ["Body Number", escapeHtml(v.body_number ?? "—")],
+    v.trade_name ? ["Trade Name", escapeHtml(v.trade_name)] : null,
     ["Year", escapeHtml(v.vehicle_year ?? "—")],
     ["Make", escapeHtml(v.vehicle_make ?? "—")],
     ["Bus type", busTypeLabel(v.bus_type)],

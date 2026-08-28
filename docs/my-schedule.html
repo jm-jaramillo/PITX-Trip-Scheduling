@@ -53,6 +53,7 @@
         weekDates,
         escapeHtml,
         downloadCsv,
+        bookingOperatorHtml,
       } from "./assets/app.js";
 
       const profile = await guardPage("operator");
@@ -171,7 +172,7 @@
         const { data, error } = await supabase
           .from("bookings")
           .select(
-            "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, trip_number, bays ( id, name )"
+            "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, trip_number, bays ( id, name )"
           )
           .eq("operator_id", profile.id)
           .eq("status", "approved")
@@ -392,12 +393,8 @@
                                 }
                               </div>
                               ${
-                                b.previous_operator_name
-                                  ? `<div class="subtle">
-                                      <s class="transferred-from">${escapeHtml(
-                                        b.previous_operator_name
-                                      )}</s> ${escapeHtml(b.operator_name)}
-                                    </div>`
+                                b.previous_operator_name || b.trade_name
+                                  ? `<div class="subtle">${bookingOperatorHtml(b)}</div>`
                                   : ""
                               }
                             </div>

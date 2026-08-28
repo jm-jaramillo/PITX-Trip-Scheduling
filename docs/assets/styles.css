@@ -1062,6 +1062,20 @@ td strong,
   border-radius: 6px;
 }
 
+/* A booking's trade name (the vehicle's DBA, when different from the
+   operator's own account name) - neutral grey rather than blue/green
+   like .bay-tag/.trip-tag, since it's just descriptive, not a status
+   or an assignment. */
+.trade-tag {
+  font-size: 11px;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--text-2);
+  background: var(--ground-alt);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
 /* The Schedule page's inline "reassign this approved booking's bay"
    control - a compact select + Save button standing in for the plain
    .bay-tag on rows staff can edit. */

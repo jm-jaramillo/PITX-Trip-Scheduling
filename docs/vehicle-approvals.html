@@ -101,6 +101,7 @@
         { key: "origin", label: "Origin" },
         { key: "destination", label: "Destination" },
         { key: "body", label: "Body Number" },
+        { key: "trade", label: "Trade Name" },
         { key: "year", label: "Year" },
         { key: "make", label: "Make" },
         { key: "bus_type", label: "Bus Type" },
@@ -234,7 +235,7 @@
           .select(
             // vehicles has two FKs into profiles (operator_id, decided_by),
             // so the embed needs the constraint name to disambiguate which.
-            "id, operator_id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, source, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+            "id, operator_id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, trade_name, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, source, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
           )
           .eq("status", "pending")
           .order("created_at", { ascending: true });
@@ -300,7 +301,7 @@
                   <th data-col="cpc">CPC validity</th><th data-col="cpc_eov">CPC EOV?</th><th data-col="cpc_eov_validity">EOV validity</th>
                   <th data-col="orcr">OR/CR validity</th>
                   <th data-col="route">Route</th><th data-col="origin">Origin</th><th data-col="destination">Destination</th>
-                  <th data-col="body">Body Number</th><th data-col="year">Year</th><th data-col="make">Make</th>
+                  <th data-col="body">Body Number</th><th data-col="trade">Trade Name</th><th data-col="year">Year</th><th data-col="make">Make</th>
                   <th data-col="bus_type">Bus Type</th><th data-col="seating">Seating</th>
                   <th data-col="seat">Seat configuration</th><th data-col="remarks">Remarks</th>
                   <th data-col="docs">Documents</th><th></th>
@@ -336,6 +337,7 @@
                     <td data-col="origin" data-label="Origin">${escapeHtml(v.origin ?? "—")}</td>
                     <td data-col="destination" data-label="Destination">${escapeHtml(v.destination ?? "—")}</td>
                     <td data-col="body" data-label="Body Number">${escapeHtml(v.body_number ?? "—")}</td>
+                    <td data-col="trade" data-label="Trade Name">${escapeHtml(v.trade_name ?? "—")}</td>
                     <td data-col="year" data-label="Year">${escapeHtml(v.vehicle_year ?? "—")}</td>
                     <td data-col="make" data-label="Make">${escapeHtml(v.vehicle_make ?? "—")}</td>
                     <td data-col="bus_type" data-label="Bus Type">${busTypeLabel(v.bus_type)}</td>
@@ -581,6 +583,7 @@
         origin: (v) => v.origin ?? "",
         destination: (v) => v.destination ?? "",
         body: (v) => v.body_number ?? "",
+        trade: (v) => v.trade_name ?? "",
         year: (v) => v.vehicle_year ?? "",
         make: (v) => v.vehicle_make ?? "",
         bus_type: (v) => busTypeLabel(v.bus_type),

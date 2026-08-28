@@ -69,6 +69,7 @@
         addDays,
         weekDates,
         statusBadge,
+        bookingOperatorHtml,
         gateForRoute,
         showMessage,
         escapeHtml,
@@ -181,6 +182,7 @@
         "Date",
         "Time slot",
         "Operator",
+        "Trade Name",
         "Route",
         "Plate No.",
         "Status",
@@ -193,6 +195,7 @@
           b.booking_date ?? currentDate,
           formatSlot(b.slot),
           b.operator_name ?? "",
+          b.trade_name ?? "",
           b.route ?? "",
           b.plate_no ?? "",
           b.status ?? "",
@@ -235,7 +238,7 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, previous_operator_name, route, plate_no, slot, status, trip_number, bays ( id, name )"
+              "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, slot, status, trip_number, bays ( id, name )"
             )
             .eq("booking_date", currentDate)
             .in("status", ["pending", "approved"])
@@ -313,14 +316,8 @@
                           : `<ul class="bookings-list">${rows
                               .map(
                                 (b) =>
-                                  `<li>${statusBadge(b.status)}<span>${
-                                    b.previous_operator_name
-                                      ? `<s class="transferred-from">${escapeHtml(
-                                          b.previous_operator_name
-                                        )}</s> `
-                                      : ""
-                                  }${escapeHtml(
-                                    b.operator_name
+                                  `<li>${statusBadge(b.status)}<span>${bookingOperatorHtml(
+                                    b
                                   )} &middot; ${escapeHtml(
                                     b.plate_no
                                   )} &middot; ${escapeHtml(b.route)}</span>${
@@ -398,7 +395,7 @@
           const { data, error } = await supabase
             .from("bookings")
             .select(
-              "id, operator_name, previous_operator_name, route, plate_no, booking_date, slot, status, trip_number, bays ( id, name )"
+              "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, trip_number, bays ( id, name )"
             )
             .gte("booking_date", days[0])
             .lte("booking_date", days[6])
@@ -516,11 +513,9 @@
         return `<ul class="week-detail-bookings">${rows
           .map(
             (b) => `
-          <li>${statusBadge(b.status)}<span>${
-            b.previous_operator_name
-              ? `<s class="transferred-from">${escapeHtml(b.previous_operator_name)}</s> `
-              : ""
-          }${escapeHtml(b.operator_name)} &middot; ${escapeHtml(
+          <li>${statusBadge(b.status)}<span>${bookingOperatorHtml(
+            b
+          )} &middot; ${escapeHtml(
             b.plate_no
           )} &middot; ${escapeHtml(b.route)}</span>${
             b.trip_number

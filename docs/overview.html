@@ -135,6 +135,7 @@
         slotStartMillis,
         BOOKING_LEAD_TIME_MS,
         formatSlot,
+        bookingOperatorHtml,
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
@@ -162,7 +163,7 @@
         ] = await Promise.all([
           supabase
             .from("bookings")
-            .select("id, operator_name, route, plate_no, booking_date, slot")
+            .select("id, operator_name, trade_name, route, plate_no, booking_date, slot")
             .eq("status", "pending"),
           supabase
             .from("vehicles")
@@ -300,7 +301,7 @@
                   return `
                     <li>
                       <span>
-                        ${escapeHtml(b.operator_name)} &middot; ${escapeHtml(
+                        ${bookingOperatorHtml(b)} &middot; ${escapeHtml(
                           b.route
                         )} &middot; ${escapeHtml(b.plate_no)}
                         &middot; ${escapeHtml(b.booking_date)} ${escapeHtml(

@@ -491,7 +491,7 @@ long list:
 |---|---|
 | (top-level) | Plate No. |
 | Vehicle Details | MV File #, Chassis No., Year, Make, Bus Type (Ordinary/Aircon/Deluxe/Luxury), Seating capacity, Seat configuration (1x1/2x2/2x3/1x3) |
-| LTFRB Franchise Details | Case No., Franchise, Sticker No., Body Number, CPC validity, OR/CR validity, CPC Extension of Validity? (if yes, its own validity date), the Region/Province/City route picker (see below), Origin, Destination |
+| LTFRB Franchise Details | Case No., Franchise, Sticker No., Body Number, Trade Name (optional), CPC validity, OR/CR validity, CPC Extension of Validity? (if yes, its own validity date), the Region/Province/City route picker (see below), Origin, Destination |
 | Remarks | free text |
 
 Case No., Franchise, Sticker No., CPC/OR-CR validity, and the route
@@ -500,6 +500,18 @@ reason, with Body Number alongside them since it's how staff cross-
 reference a vehicle against that paperwork. MV File # and Chassis No.
 sit under Vehicle Details instead - they describe the physical vehicle,
 not its franchise record.
+
+**Trade Name** (migration `0036_vehicle_trade_name.sql`) is for
+operators who run more than one trade (DBA) under a single account -
+left blank, a vehicle just goes by the operator's own name everywhere.
+When set, it appears in a small tag wherever that vehicle's bookings
+show who they belong to: **My requests**, **My schedule**, staff's
+**Pending requests** and **Schedule**, and the approaching-lockout list
+on staff's **Overview**. A booking snapshots the trade name of
+whichever vehicle it's for at the time the plate is set or changed -
+kept in sync automatically by a database trigger, not something any
+page computes itself - so it stays accurate even after an edit or a
+transfer to a different vehicle/operator.
 
 Earlier revisions of this form also had OR No., CR No., Date granted, and
 Date expiry (added in `0015_vehicle_or_cr_numbers.sql`/
