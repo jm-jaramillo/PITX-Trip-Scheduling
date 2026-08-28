@@ -278,10 +278,11 @@ export function formatSlotStart(slot) {
 }
 
 /** Bookings must be made/changed at least this far ahead of their slot -
- * mirrors the same rule enforced server-side (see migration 0009). This
- * copy is for immediate UI feedback only; the database is still the real
- * boundary, since a client can always be bypassed. */
-export const BOOKING_LEAD_TIME_MS = 4 * 60 * 60 * 1000;
+ * mirrors the same rule enforced server-side (see migration 0009, reduced
+ * to 2 hours in migration 0039). This copy is for immediate UI feedback
+ * only; the database is still the real boundary, since a client can
+ * always be bypassed. */
+export const BOOKING_LEAD_TIME_MS = 2 * 60 * 60 * 1000;
 
 /**
  * The real UTC instant a (bookingDate, slot) pair represents. PITX runs on

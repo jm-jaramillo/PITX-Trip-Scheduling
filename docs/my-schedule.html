@@ -11,6 +11,138 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="assets/styles.css" />
+    <style>
+      /* Same airport-style Public Information Display board as the staff
+         Schedule page (docs/schedule.html) - kept in lockstep on purpose
+         (see the user's "use what you did for the admin account as
+         reference" instruction) so the same date/time board reads the
+         same way for both roles. This page never renders the bay-reassign
+         control staff get, so its markup is a strict subset of that page's. */
+      .pids-wrap {
+        border-radius: var(--r-card, 20px);
+        overflow: hidden;
+        border: 1px solid var(--border, #d7dbe3);
+        background: var(--surface, #fff);
+      }
+
+      .pids-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .pids-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bar, #14192b);
+        color: var(--bar-text, #c7ccdc);
+        font-family: var(--display, inherit);
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        text-align: left;
+        padding: 12px 14px;
+        white-space: nowrap;
+      }
+      .pids-table thead th.pids-num {
+        text-align: center;
+      }
+
+      .pids-time-row td {
+        background: var(--blue-wash, #eef1fb);
+        color: var(--blue-ink, #1d2b6b);
+        font-family: var(--display, inherit);
+        font-weight: 800;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+        padding: 9px 14px;
+        position: sticky;
+        top: 38px;
+        z-index: 1;
+      }
+
+      .pids-row td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--divider, #eef0f3);
+        font-size: 13.5px;
+        vertical-align: middle;
+      }
+      .pids-row:hover td {
+        background: var(--ground, #f7f8fa);
+      }
+      .pids-row.is-cancelled td {
+        color: var(--faint, #9aa1b2);
+      }
+      .pids-row.is-cancelled .pids-company-name,
+      .pids-row.is-cancelled .pids-trip-no {
+        text-decoration: line-through;
+      }
+      .pids-row.is-mine td {
+        background: var(--blue-wash, #eef1fb);
+      }
+      .pids-row.is-mine:hover td {
+        background: var(--blue-wash, #eef1fb);
+      }
+
+      .pids-company {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .pids-avatar {
+        flex-shrink: 0;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--display, inherit);
+        font-weight: 800;
+        font-size: 12px;
+        color: #fff;
+      }
+      .pids-company-name {
+        font-weight: 700;
+        color: var(--title, #14192b);
+        line-height: 1.3;
+      }
+
+      .pids-trip-no {
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .pids-num {
+        text-align: center;
+        font-weight: 700;
+      }
+
+      .pids-status {
+        font-weight: 800;
+        font-size: 12px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+      .pids-status.status-arriving {
+        color: var(--green-ink, #1c6b3f);
+      }
+      .pids-status.status-departed {
+        color: var(--faint, #9aa1b2);
+      }
+      .pids-status.status-cancelled {
+        color: var(--red-ink, #9c1f22);
+      }
+
+      .pids-empty {
+        padding: 40px 20px;
+        text-align: center;
+        color: var(--faint, #9aa1b2);
+        font-size: 13.5px;
+      }
+    </style>
   </head>
   <body>
     <header class="nav" id="nav"></header>
@@ -20,25 +152,24 @@
         <div>
           <p class="eyebrow">Provincial Trip Scheduling</p>
           <h1>My schedule</h1>
-          <p class="subtle">
-            Your approved slots and the bay assigned to each, in order.
-            Pending and declined requests aren't shown here - see
-            <a href="dashboard.html">My requests</a> for those.
-          </p>
+          <p class="subtle" id="capacity-note"></p>
         </div>
         <div class="toolbar">
           <div class="mode-switch" role="tablist" id="view-mode">
-            <button type="button" class="mode-tab" data-view="day">Day</button>
-            <button type="button" class="mode-tab is-active" data-view="week">Week</button>
+            <button type="button" class="mode-tab is-active" data-view="mine">My trips</button>
+            <button type="button" class="mode-tab" data-view="all">All trips</button>
           </div>
-          <button type="button" class="btn-outline" id="prev">&larr; Prev</button>
+          <button type="button" class="btn-outline" id="prev">&larr; Prev day</button>
           <input type="date" id="date" />
-          <button type="button" class="btn-outline" id="next">Next &rarr;</button>
+          <button type="button" class="btn-outline" id="next">Next day &rarr;</button>
           <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
         </div>
       </div>
 
-      <div id="schedule"></div>
+      <div class="kpis" id="kpis"></div>
+
+      <div class="hidden" id="message"></div>
+      <div id="grid"></div>
     </main>
 
     <script type="module">
@@ -46,14 +177,15 @@
         supabase,
         guardPage,
         renderNav,
-        SLOTS,
         formatSlot,
         todayISO,
         addDays,
-        weekDates,
+        bookingOperatorHtml,
+        gateForRoute,
+        slotStartMillis,
+        showMessage,
         escapeHtml,
         downloadCsv,
-        bookingOperatorHtml,
       } from "./assets/app.js";
 
       const profile = await guardPage("operator");
@@ -67,26 +199,59 @@
         : todayISO();
       dateInput.value = currentDate;
 
-      // Week is the default - closest to the old "Upcoming" view, showing
-      // a whole week (including empty days) rather than one date at a
-      // time. Day zooms into a single date; both share the same
-      // prev/next navigation, just at different step sizes.
-      let viewMode = "week";
+      // "My trips" (this operator's own bookings only) is the default -
+      // closest to this page's previous behavior - "All trips" is the
+      // same board staff see on the Schedule page, read-only here (no
+      // bay-reassign control - that's staff-only).
+      let viewMode = "mine";
       document.querySelectorAll("#view-mode [data-view]").forEach((btn) => {
         btn.addEventListener("click", () => {
           viewMode = btn.dataset.view;
           document
             .querySelectorAll("#view-mode [data-view]")
             .forEach((b) => b.classList.toggle("is-active", b === btn));
-          document.getElementById("prev").textContent =
-            viewMode === "week" ? "← Prev week" : "← Prev day";
-          document.getElementById("next").textContent =
-            viewMode === "week" ? "Next week →" : "Next day →";
           load();
         });
       });
-      document.getElementById("prev").textContent = "← Prev week";
-      document.getElementById("next").textContent = "Next week →";
+
+      // Retained from the most recent load() so the Export CSV button can
+      // reuse the already-fetched bookings instead of refetching.
+      let lastDayBookings = [];
+
+      const CSV_HEADERS = [
+        "Time",
+        "Company",
+        "Trip No.",
+        "Plate No.",
+        "Destination",
+        "Gate",
+        "Bay",
+        "Status",
+      ];
+
+      function bookingToCsvRow(b) {
+        return [
+          formatSlot(b.slot).split(" – ")[0],
+          b.operator_name ?? "",
+          b.trip_number ?? "",
+          b.plate_no ?? "",
+          b.route ?? "",
+          bareGate(b.route),
+          bareBay(b.bays?.name),
+          pidsStatus(b).label,
+        ];
+      }
+
+      function exportCsv() {
+        const rows = [...lastDayBookings]
+          .sort((a, b) => a.slot - b.slot)
+          .map(bookingToCsvRow);
+        downloadCsv(
+          `${viewMode === "mine" ? "my-schedule" : "schedule"}-${currentDate}.csv`,
+          CSV_HEADERS,
+          rows
+        );
+      }
 
       dateInput.addEventListener("change", () => {
         if (dateInput.value) {
@@ -95,317 +260,208 @@
         }
       });
       document.getElementById("prev").addEventListener("click", () => {
-        currentDate = addDays(currentDate, viewMode === "week" ? -7 : -1);
+        currentDate = addDays(currentDate, -1);
         dateInput.value = currentDate;
         load();
       });
       document.getElementById("next").addEventListener("click", () => {
-        currentDate = addDays(currentDate, viewMode === "week" ? 7 : 1);
+        currentDate = addDays(currentDate, 1);
         dateInput.value = currentDate;
         load();
       });
+      document.getElementById("export-csv").addEventListener("click", exportCsv);
 
-      document.getElementById("export-csv").addEventListener("click", () => {
-        if (viewMode === "week") {
-          exportWeekCsv();
-        } else {
-          exportDayCsv();
-        }
-      });
+      // Strips the "Gate "/"Bay " prefix a PIDS board doesn't repeat on
+      // every row (the column header already says what it is) - falls
+      // back to the full string for anything that doesn't match, so an
+      // unexpected naming scheme never silently disappears. Declared
+      // (along with everything else below, down to pidsStatus) ahead of
+      // the module's top-level `await load()` a few lines down - load()
+      // -> renderBoard() reads these at module top-level, which would
+      // otherwise run while these `const`s are still in their temporal
+      // dead zone (same class of bug as #37/#39/#46/#52/#66/#69/#75).
+      function bareNumber(prefix, value) {
+        if (!value) return "—";
+        const re = new RegExp(`^${prefix}\\s*`, "i");
+        return value.replace(re, "");
+      }
+      const bareGate = (route) => bareNumber("Gate", gateForRoute(route));
+      const bareBay = (bayName) => bareNumber("Bay", bayName);
 
-      // Retained from the most recent load() call so the Export CSV
-      // button can reuse the already-fetched bookings instead of
-      // refetching from Supabase just for the export.
-      let lastDayBookings = [];
-      let lastWeekBookings = [];
-
-      const CSV_HEADERS = [
-        "Date",
-        "Time slot",
-        "Route",
-        "Plate No.",
-        "Bay",
-        "Trip No.",
+      // A stable colour per operator (hashed from the name, not random)
+      // so the same company always gets the same avatar colour across
+      // reloads, without needing real logo artwork on file.
+      const AVATAR_PALETTE = [
+        "#2f5fd0", "#1c6b3f", "#9c1f22", "#a15c00",
+        "#6b3fa0", "#0f7a8c", "#b0326b", "#4a5568",
       ];
-
-      function bookingToCsvRow(b) {
-        return [
-          b.booking_date ?? currentDate,
-          formatSlot(b.slot),
-          b.route ?? "",
-          b.plate_no ?? "",
-          b.bays?.name ?? "",
-          b.trip_number ?? "",
-        ];
+      function avatarColor(name) {
+        let hash = 0;
+        for (const ch of name || "") hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+        return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+      }
+      function initials(name) {
+        const words = (name || "?").trim().split(/\s+/).filter(Boolean);
+        return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "?";
       }
 
-      function exportDayCsv() {
-        const rows = [...lastDayBookings]
-          .sort((a, b) => a.slot - b.slot)
-          .map(bookingToCsvRow);
-        downloadCsv(`my-schedule-${currentDate}.csv`, CSV_HEADERS, rows);
-      }
-
-      function exportWeekCsv() {
-        const days = weekDates(currentDate);
-        const rows = [...lastWeekBookings]
-          .sort(
-            (a, b) =>
-              a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot
-          )
-          .map(bookingToCsvRow);
-        downloadCsv(
-          `my-schedule-week-${days[0]}-to-${days[6]}.csv`,
-          CSV_HEADERS,
-          rows
-        );
+      // Status shown on the board is derived entirely from data this app
+      // actually has - no fabricated real-time tracking. A cancelled
+      // booking (that had a real assigned slot at some point) shows as
+      // CANCELLED; an approved one flips from ARRIVING to DEPARTED once
+      // its 15-minute window has passed, since that's the one thing we
+      // can honestly infer without live GPS/dispatch data.
+      function pidsStatus(b) {
+        if (b.status === "cancelled") return { key: "cancelled", label: "Cancelled" };
+        const hasDeparted =
+          slotStartMillis(currentDate, b.slot) + 15 * 60 * 1000 <= Date.now();
+        return hasDeparted
+          ? { key: "departed", label: "Departed" }
+          : { key: "arriving", label: "Arriving" };
       }
 
       await load();
 
       async function load() {
-        const days = viewMode === "week" ? weekDates(currentDate) : [currentDate];
-
-        // Only approved bookings have a bay assigned - pending/declined
-        // ones already show elsewhere (My requests), so this page stays
-        // focused on "where do I actually need to show up".
-        const { data, error } = await supabase
+        let query = supabase
           .from("bookings")
           .select(
-            "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, trip_number, bays ( id, name )"
+            "id, operator_id, operator_name, trade_name, route, plate_no, slot, status, previously_approved, trip_number, bays ( id, name )"
           )
-          .eq("operator_id", profile.id)
-          .eq("status", "approved")
-          .gte("booking_date", days[0])
-          .lte("booking_date", days[days.length - 1])
-          .order("booking_date", { ascending: true })
+          .eq("booking_date", currentDate)
+          // A live board shows confirmed trips, not the internal approval
+          // queue (that's My requests) - approved trips, plus
+          // cancellations of a trip that was actually confirmed at some
+          // point (a request cancelled before ever being approved never
+          // had a real slot to show here).
+          .or("status.eq.approved,and(status.eq.cancelled,previously_approved.eq.true)")
           .order("slot", { ascending: true });
 
+        if (viewMode === "mine") {
+          query = query.eq("operator_id", profile.id);
+        }
+
+        const { data, error } = await query;
+
         if (error) {
-          document.getElementById("schedule").innerHTML =
-            `<p class="empty">Couldn't load your schedule: ${escapeHtml(error.message)}</p>`;
+          showMessage("message", error.message);
           return;
         }
 
-        if (viewMode === "week") {
-          lastWeekBookings = data ?? [];
-          renderWeekGrid(days, data ?? []);
-        } else {
-          lastDayBookings = data ?? [];
-          render(days, data ?? []);
-        }
-      }
+        const bookings = data ?? [];
+        lastDayBookings = bookings;
 
-      function formatDateHeading(iso) {
-        const [y, m, d] = iso.split("-").map(Number);
-        // Noon avoids any timezone edge landing on the wrong calendar day.
-        const date = new Date(y, m - 1, d, 12);
-        return date.toLocaleDateString(undefined, {
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        });
-      }
+        document.getElementById("capacity-note").textContent =
+          viewMode === "mine"
+            ? `Your confirmed trips for ${currentDate}.`
+            : `Every operator's trips scheduled for ${currentDate}.`;
 
-      function formatDayHeading(iso) {
-        const [y, m, d] = iso.split("-").map(Number);
-        const date = new Date(y, m - 1, d, 12);
-        return date.toLocaleDateString(undefined, {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
-      }
+        const scheduled = bookings.filter((b) => b.status === "approved").length;
+        const cancelled = bookings.length - scheduled;
 
-      // Week view as a grid - dates across the top, time slots down the
-      // side, matching the staff schedule's Week grid (docs/schedule.html)
-      // so the same date/time axes read the same way for both roles.
-      // Most cells are empty (an operator typically has only a handful
-      // of approved bookings across a whole week's 336 slots) - each
-      // populated cell shows the bay, route, and plate for that slot.
-      function renderWeekGrid(days, bookings) {
-        const today = todayISO();
-        const host = document.getElementById("schedule");
-
-        const byDateSlot = new Map(days.map((d) => [d, new Map()]));
-        for (const b of bookings) {
-          byDateSlot.get(b.booking_date)?.set(b.slot, b);
-        }
-
-        const gridHtml = `
-          <div class="table-wrap">
-            <table class="week-grid">
-              <thead>
-                <tr>
-                  <th>Time slot</th>
-                  ${days
-                    .map(
-                      (date) => `
-                    <th${date === today ? ' class="week-today"' : ""}>
-                      ${escapeHtml(formatDayHeading(date))}
-                      ${date === today ? '<span class="tl-today-tag">Today</span>' : ""}
-                    </th>`
-                    )
-                    .join("")}
-                </tr>
-              </thead>
-              <tbody>
-                ${SLOTS.map((slot) => {
-                  return `
-                    <tr>
-                      <td class="hour-cell" data-label="Time slot">${escapeHtml(formatSlot(slot))}</td>
-                      ${days
-                        .map((date) => {
-                          const b = byDateSlot.get(date).get(slot);
-                          return `
-                        <td class="${date === today ? "week-today" : ""}" data-label="${escapeHtml(
-                            formatDayHeading(date)
-                          )}">
-                          ${
-                            b
-                              ? `<span class="bay-tag">${escapeHtml(
-                                  b.bays?.name ?? "No bay"
-                                )}</span> <span class="timeline-route">${escapeHtml(
-                                  b.route
-                                )}</span> <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>${
-                                  b.trip_number
-                                    ? ` <span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
-                                    : ""
-                                }`
-                              : '<span class="muted">—</span>'
-                          }
-                        </td>`;
-                        })
-                        .join("")}
-                    </tr>`;
-                }).join("")}
-              </tbody>
-            </table>
-          </div>
-        `;
-
-        // Condensed agenda alternative for narrow viewports - the same
-        // 48-row x 7-column grid above is unusable on a phone (very tall,
-        // needs both scroll directions), so this groups the same week's
-        // bookings by date instead, one line per populated slot and empty
-        // days collapsed to a single "no bookings" line. Both markups are
-        // rendered up front; CSS (see styles.css) picks which one shows
-        // based on viewport width, so there's no separate fetch/render
-        // path to keep in sync.
-        const agendaHtml = days
-          .map((date) => {
-            const bySlot = byDateSlot.get(date);
-            const rows = SLOTS.filter((slot) => bySlot.has(slot)).map(
-              (slot) => bySlot.get(slot)
-            );
-            return `
-              <section class="tl-day">
-                <h2 class="tl-day-heading">
-                  ${escapeHtml(formatDayHeading(date))}
-                  ${date === today ? '<span class="tl-today-tag">Today</span>' : ""}
-                </h2>
-                ${
-                  rows.length === 0
-                    ? `<p class="empty">No approved slots.</p>`
-                    : `<div class="timeline">
-                        ${rows
-                          .map(
-                            (b) => `
-                          <div class="timeline-item">
-                            <div class="timeline-rail">
-                              <span class="timeline-dot"></span>
-                              <span class="timeline-line"></span>
-                            </div>
-                            <div class="timeline-card">
-                              <div class="timeline-time">${escapeHtml(formatSlot(b.slot))}</div>
-                              <div class="timeline-main">
-                                <span class="bay-tag">${escapeHtml(b.bays?.name ?? "No bay")}</span>
-                                <span class="timeline-route">${escapeHtml(b.route)}</span>
-                                <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>
-                                ${
-                                  b.trip_number
-                                    ? `<span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
-                                    : ""
-                                }
-                              </div>
-                            </div>
-                          </div>`
-                          )
-                          .join("")}
-                      </div>`
-                }
-              </section>`;
-          })
+        document.getElementById("kpis").innerHTML = [
+          { label: "Scheduled today", value: scheduled, unit: "trips" },
+          { label: "Cancelled", value: cancelled, unit: "trips" },
+        ]
+          .map(
+            (k) => `
+            <div class="kpi">
+              <div class="kpi-label">${escapeHtml(k.label)}</div>
+              <div class="kpi-value">
+                <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
+              </div>
+            </div>`
+          )
           .join("");
+
+        renderBoard(bookings);
+      }
+
+      // Groups bookings by slot (skipping any slot with nothing
+      // scheduled - a real departures board doesn't print empty times)
+      // and renders one time-divider row per group, PIDS-style. On the
+      // "All trips" view, this operator's own rows are highlighted so
+      // they're easy to pick out of the full board.
+      function renderBoard(bookings) {
+        const host = document.getElementById("grid");
+
+        if (bookings.length === 0) {
+          host.innerHTML = `
+            <div class="pids-wrap">
+              <p class="pids-empty">${
+                viewMode === "mine"
+                  ? "No confirmed trips for this date."
+                  : "No trips scheduled for this date."
+              }</p>
+            </div>`;
+          return;
+        }
+
+        const bySlot = new Map();
+        for (const b of bookings) {
+          if (!bySlot.has(b.slot)) bySlot.set(b.slot, []);
+          bySlot.get(b.slot).push(b);
+        }
+        const slotsInOrder = [...bySlot.keys()].sort((a, b) => a - b);
 
         host.innerHTML = `
-          <div id="week-grid-wrap">${gridHtml}</div>
-          <div id="week-agenda-wrap">${agendaHtml}</div>
+          <div class="pids-wrap">
+            <div class="table-wrap table-plain" style="max-height: 70vh; overflow-y: auto">
+              <table class="pids-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Trip No.</th>
+                    <th>Plate No.</th>
+                    <th>Destination</th>
+                    <th class="pids-num">Gate</th>
+                    <th class="pids-num">Bay</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${slotsInOrder
+                    .map((slot) => {
+                      const rows = bySlot.get(slot);
+                      const timeLabel = formatSlot(slot).split(" – ")[0];
+                      const rowsHtml = rows
+                        .map((b) => {
+                          const status = pidsStatus(b);
+                          const label = b.operator_name || "Operator";
+                          const isMine = b.operator_id === profile.id;
+                          return `
+                        <tr class="pids-row${status.key === "cancelled" ? " is-cancelled" : ""}${
+                            isMine && viewMode === "all" ? " is-mine" : ""
+                          }">
+                          <td>
+                            <div class="pids-company">
+                              <span class="pids-avatar" style="background:${avatarColor(label)}">${escapeHtml(
+                                initials(label)
+                              )}</span>
+                              <span class="pids-company-name">${bookingOperatorHtml(b)}</span>
+                            </div>
+                          </td>
+                          <td class="pids-trip-no">${escapeHtml(b.trip_number ?? "—")}</td>
+                          <td>${b.plate_no ? escapeHtml(b.plate_no) : "—"}</td>
+                          <td>${escapeHtml((b.route ?? "—").toUpperCase())}</td>
+                          <td class="pids-num">${escapeHtml(bareGate(b.route))}</td>
+                          <td class="pids-num">${escapeHtml(bareBay(b.bays?.name))}</td>
+                          <td><span class="pids-status status-${status.key}">${escapeHtml(status.label)}</span></td>
+                        </tr>`;
+                        })
+                        .join("");
+                      return `
+                      <tr class="pids-time-row">
+                        <td colspan="7">${escapeHtml(timeLabel)}</td>
+                      </tr>
+                      ${rowsHtml}`;
+                    })
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
         `;
-      }
-
-      // `days` is every date the current view should show (a single date
-      // in Day mode, 7 in Week mode) - always rendered, even with zero
-      // bookings, so the shape of the range is visible rather than
-      // silently collapsing empty days out of the list.
-      function render(days, bookings) {
-        const today = todayISO();
-        const host = document.getElementById("schedule");
-
-        const byDate = new Map(days.map((d) => [d, []]));
-        for (const b of bookings) {
-          byDate.get(b.booking_date)?.push(b);
-        }
-
-        host.innerHTML = days
-          .map((date) => {
-            const rows = byDate.get(date) ?? [];
-            const isPast = date < today;
-            return `
-              <section class="tl-day${isPast ? " tl-day-past" : ""}">
-                <h2 class="tl-day-heading">
-                  ${escapeHtml(formatDateHeading(date))}
-                  ${date === today ? '<span class="tl-today-tag">Today</span>' : ""}
-                </h2>
-                ${
-                  rows.length === 0
-                    ? `<p class="empty">No approved slots.</p>`
-                    : `<div class="timeline">
-                        ${rows
-                          .map(
-                            (b) => `
-                          <div class="timeline-item">
-                            <div class="timeline-rail">
-                              <span class="timeline-dot"></span>
-                              <span class="timeline-line"></span>
-                            </div>
-                            <div class="timeline-card">
-                              <div class="timeline-time">${escapeHtml(formatSlot(b.slot))}</div>
-                              <div class="timeline-main">
-                                <span class="bay-tag">${escapeHtml(b.bays?.name ?? "No bay")}</span>
-                                <span class="timeline-route">${escapeHtml(b.route)}</span>
-                                <span class="timeline-plate">${escapeHtml(b.plate_no)}</span>
-                                ${
-                                  b.trip_number
-                                    ? `<span class="trip-tag">${escapeHtml(b.trip_number)}</span>`
-                                    : ""
-                                }
-                              </div>
-                              ${
-                                b.previous_operator_name || b.trade_name
-                                  ? `<div class="subtle">${bookingOperatorHtml(b)}</div>`
-                                  : ""
-                              }
-                            </div>
-                          </div>`
-                          )
-                          .join("")}
-                      </div>`
-                }
-              </section>`;
-          })
-          .join("");
       }
     </script>
   </body>

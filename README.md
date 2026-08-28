@@ -4,19 +4,23 @@ Provincial bus operators request a 15-minute trip slot; PITX staff review
 and approve/reject each request, assigning a specific bay on approval.
 
 - **Operators** submit a request: Route (picked from the fixed list of
-  PITX-served provincial routes), Plate No. (picked from their
-  approved vehicles), Date, and a 15-minute time slot (12:00-12:15 AM,
-  12:15-12:30 AM, ... 96 slots a day, the terminal runs 24/7) - the Operator
-  name isn't a form field, it's whatever's on the account (`profiles.operator_name`).
-  They can filter their own request list by status (All / Approved / Pending
-  / Declined), cancel a request while it's still pending, hand an
-  already-booked slot to another operator (see "Transferring a booking"),
-  and see their own approved slots with bay assignments on **My schedule**.
+  PITX-served provincial routes), Date, and a 15-minute time slot
+  (12:00-12:15 AM, 12:15-12:30 AM, ... 96 slots a day, the terminal runs
+  24/7) - no plate at booking time; that's picked from their approved
+  vehicles later, any time up to the day of the trip. The Operator name
+  isn't a form field, it's whatever's on the account
+  (`profiles.operator_name`). They can filter their own request list by
+  status (All / Approved / Pending / Declined), cancel a pending request
+  instantly or request cancellation of an already-approved one (needs
+  staff approval), hand an already-booked slot to another operator (see
+  "Transferring a booking"), and see their own confirmed trips - or every
+  operator's - as an airport-style board on **My schedule**.
 - **PITX staff** see every pending request, approve it (picking one of the
-  bays not already taken for that slot) or reject it with an optional note,
-  view the day's confirmed trips as an airport-style departures board, manage the bay
-  list, browse every operator's company profile, and create or delete
-  login accounts (there is no self-signup).
+  bays not already taken for that slot) or reject it with an optional
+  note, review and approve/decline cancellation requests for approved
+  bookings, view the day's confirmed trips as an airport-style departures
+  board, manage the bay list, browse every operator's company profile,
+  and create or delete login accounts (there is no self-signup).
 
 ## How it's built
 
@@ -224,39 +228,52 @@ scripts - the site itself has no dependencies to install.
 ## Modifying a booking
 
 Operators can change a booking's route, plate number, date, or time slot
-with the **Change** button on their dashboard. Every change goes back
-through PITX staff:
+with the **Change** button on their dashboard (a plate-only change is also
+offered as its own **Set plate**/**Change plate** action - see below).
+A route/date/time change goes back through PITX staff:
 
-| Booking was | After the operator saves a change |
+| Booking was | After the operator saves a route/date/time change |
 |---|---|
 | **Pending** | stays pending, with the new details |
 | **Approved** | **reverts to pending and the bay is released** |
 
 The warning about losing the bay is shown in the dialog before saving.
 Rejected and cancelled bookings can't be edited - the operator submits a new
-request instead.
+request instead. A booking with a cancellation request pending can't be
+edited either - the operator withdraws the request first.
 
 Staff see a **"changed after approval"** badge on any pending request that
 had previously been approved, so they know they're re-confirming a slot the
 operator already held rather than granting a new one.
 
-**4-hour lead time.** New requests and changes both need at least 4 hours'
-notice before the scheduled slot:
+**Plate assigned separately, not at booking time.** A request only ever
+asks for a route, date, and time; the plate is filled in later via
+**Set plate** (or **Change plate**, once one's already set) - any time up
+to and including the day of the trip, even inside the 2-hour lockout
+below, since it doesn't touch the booking's approval, bay, or status.
+Only a route/date/time change is treated as material by
+`request_booking_change()`; a plate-only save skips the lead-time check
+and the reset-to-pending entirely.
 
-- A new request's slot must be at least 4 hours away at submission time.
-- An existing booking can't be changed once its *current* slot is within 4
-  hours (the **Change** button disappears - only **Cancel** still shows);
-  and whatever new slot is being requested must itself be at least 4 hours
-  out.
+**2-hour lead time** (was 4 hours before 20 Aug). New requests and
+route/date/time changes both need at least 2 hours' notice before the
+scheduled slot:
+
+- A new request's slot must be at least 2 hours away at submission time.
+- An existing booking's route/date/time can't be changed once its
+  *current* slot is within 2 hours (the **Change** button disappears -
+  **Set/Change plate** and **Cancel**/**Request cancellation** still
+  show); and whatever new slot is being requested must itself be at
+  least 2 hours out.
 
 Enforced in the database (an RLS check on insert, and inside
 `request_booking_change()`), not just hidden in the UI - the app just
 mirrors the same rule client-side so operators get an immediate answer
-instead of a raw database error. Staff approve/reject and operator
-cancellation are unaffected by this rule.
+instead of a raw database error. Staff approve/reject, setting the plate,
+and cancellation are unaffected by this rule.
 
-The new-request **Time slot** dropdown only ever lists slots that are
-still at least 4 hours out for the selected date, so there's nothing to
+The new-request **Time slot** picker only ever lists slots that are
+still at least 2 hours out for the selected date, so there's nothing to
 reject in the first place - picking a date shows "No times left today"
 once every remaining slot is too close, and re-picks the list whenever
 the date changes.
@@ -268,6 +285,25 @@ policy loose enough to permit editing would also let an operator write
 change to those four fields and decides the status/bay transition
 server-side.
 
+## Cancelling a booking
+
+- **Pending** - cancels instantly (`bookings_cancel_own` RLS policy), no
+  staff review. It never had a bay or an approval to lose.
+- **Approved** - needs PITX staff approval. **Request cancellation** on
+  the dashboard calls `request_booking_cancellation(booking_id, reason)`
+  (reason optional), which just flags the booking
+  (`cancellation_requested_at`/`cancellation_reason`) without touching its
+  status or bay yet. The operator can **Withdraw cancellation** while it's
+  still awaiting review. Staff see it on Pending requests' **Cancellation
+  requests** tab (badge count on the tab) and either
+  **Approve cancellation** (`approve_booking_cancellation()` - sets
+  `status = 'cancelled'`, releases the bay, clears the request flag) or
+  **Decline** (`decline_booking_cancellation()` - clears the request flag,
+  leaves the booking approved).
+
+A booking with a cancellation request pending can't be changed or have its
+plate set until the request is withdrawn or decided.
+
 ## Transferring a booking
 
 When one operator can't make a slot and has an internal arrangement for
@@ -276,7 +312,7 @@ another operator to cover it, the current owner opens **Transfer** next to
 from a dropdown, then picks **their plate no.** from a second dropdown -
 not free text, so a transfer can't name a plate the receiving operator
 hasn't actually registered and had approved. Plus an optional reason.
-Same eligibility as **Change** (pending/approved, at least 4 hours out,
+Same eligibility as **Change** (pending/approved, at least 2 hours out,
 and no other transfer already awaiting review on that booking).
 
 **Both dropdowns are narrowed to the booking's own route** (migration
@@ -790,41 +826,47 @@ bay count from 20 to 27, which directly raises the per-slot approval cap
 described above.
 
 On the operator's own booking form ([`docs/dashboard.html`](docs/dashboard.html)),
-if the chosen route/date/time combination's gate has no bay left (every
-bay in that gate is already assigned to an *approved* booking for that
-slot), an amber hint appears under the time slot field naming the
-nearest open times that still have room in that gate, each a clickable
-button that swaps the slot in place. This is advisory only, not a hard
-block - submitting anyway still works, since staff can fall back to a
-bay in another gate exactly as described above; the hint just saves the
-operator a round trip through a request that would otherwise get bumped
-to an unrelated gate. It only fires when the route maps to a real gate
-and both a date and slot are already picked; picking a suggested slot
-re-runs the check immediately, in case that slot fills up too.
+if the chosen route/date/time combination has no bay left (every relevant
+bay is already assigned to an *approved* booking for that slot), an amber
+hint appears under the time slot field naming the nearest open times that
+still have room, each a clickable button that swaps the slot in place.
+This is advisory only, not a hard block - submitting anyway still works,
+since staff can fall back to a different bay exactly as described above;
+the hint just saves the operator a round trip through a request that
+would otherwise get bumped to an unrelated bay. If the route maps to a
+gate, the check (and the hint's wording) is scoped to that gate's bays;
+otherwise it falls back to checking every active bay, so a route with no
+mapped gate still gets a real fullness check rather than none at all
+(changed 20 Aug, #81 - `checkGateFullness()` used to `return` immediately
+for those routes). It only fires once both a date and slot are already
+picked; picking a suggested slot re-runs the check immediately, in case
+that slot fills up too.
 
 ### A vehicle must be registered for the route it books
 
-Once a route is picked, the Plate No. dropdown **only** offers vehicles
-whose own `route` matches it - not a suggestion, a hard requirement.
-With none, the dropdown disables with an explanatory note and the
-Request button disables too. Matching is **plain equality**
-(`vehicleMatchesRoute()` in `docs/dashboard.html`): `vehicles.route` is
-set by the one-time masterlist data-linking pass to the exact canonical
-string from `ROUTES` (see "Real operator data import" below), so a
-vehicle matches a route only when its own `route` is that exact string.
-The same rule applies to the **Change** dialog, re-filtering live if the
-route is changed there too.
+A route no longer needs a matching vehicle at booking time - that check
+now runs when the plate is actually set, via **Set plate**/**Change
+plate** or the **Change** dialog (whichever route is selected there).
+Once a route is picked in that dialog, the Plate No. dropdown **only**
+offers vehicles whose own `route` matches it - not a suggestion, a hard
+requirement. With none, the dropdown disables with an explanatory note.
+Matching is **plain equality** (`vehicleMatchesRoute()` in
+`docs/dashboard.html`): `vehicles.route` is set by the one-time
+masterlist data-linking pass to the exact canonical string from `ROUTES`
+(see "Real operator data import" below), so a vehicle matches a route
+only when its own `route` is that exact string.
 
 **This is enforced server-side, not just in the UI** (migration
 `0026_vehicle_route_required.sql`, restarted as plain equality in
-`0031_vehicle_matches_route_exact.sql` - see below):
-`bookings_insert_own`'s RLS policy and `request_booking_change()` both
-require an `exists` match against the operator's own approved,
-LTFRB-eligible vehicles via a SQL port of the same matching function
-(`vehicle_matches_route()`), kept in lockstep with the client-side
-version. The dropdown filter is UX only, same as everywhere else in this
-app - RLS is the real gate, confirmed by bypassing the UI entirely and
-inserting a mismatched booking directly.
+`0031_vehicle_matches_route_exact.sql`, made conditional on a plate
+actually being set in `0039_two_hour_lockout_plate_later_cancellation.sql`
+- see below): whenever `plate_no` isn't null, `bookings_insert_own`'s RLS
+policy and `request_booking_change()` both require an `exists` match
+against the operator's own approved, LTFRB-eligible vehicles via a SQL
+port of the same matching function (`vehicle_matches_route()`), kept in
+lockstep with the client-side version. The dropdown filter is UX only,
+same as everywhere else in this app - RLS is the real gate, confirmed by
+bypassing the UI entirely and inserting a mismatched booking directly.
 
 **History - three rounds of fuzzy matching, then a restart:** this
 requirement went through several iterations before landing on plain
@@ -1054,7 +1096,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   index.html                 Sign in (+ "Forgot password?" request-to-staff flow)
   operator-overview.html     Operator: shift-start dashboard - counts, lockout alerts, quick links
   dashboard.html             Operator: request form + own requests (CSV export)
-  my-schedule.html           Operator: own approved slots + bay assignments (Day/Week views, CSV export, mobile agenda)
+  my-schedule.html           Operator: airport-style PIDS board - own confirmed trips or every operator's, one day at a time (CSV export)
   vehicles.html              Operator: register/edit vehicles (scan or manual, Region/Province/City route picker, search, column toggle, CSV export)
   operator-profile.html     Operator: one-time company details (no approval)
   overview.html              Staff: shift-start dashboard - queue counts, lockout alerts, quick links

@@ -32,6 +32,9 @@
 
       <div class="mode-switch" role="tablist" id="view-tabs">
         <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
+        <button type="button" class="mode-tab" data-view="cancellations">
+          Cancellation requests<span class="hidden" id="cancel-count-badge"></span>
+        </button>
         <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
       </div>
 
@@ -53,6 +56,7 @@
 
       <div class="hidden" id="message"></div>
       <div id="requests"></div>
+      <div class="hidden" id="cancellations"></div>
       <div class="hidden" id="decided"></div>
     </main>
 
@@ -75,6 +79,7 @@
       let pendingRequests = [];
       let pendingBays = [];
       let pendingTaken = new Map();
+      let cancellationRequests = [];
       let view = "pending";
       // Which pending ids the bulk actions apply to - cleared on every
       // reload since the queue itself changes underneath it. Must be
@@ -103,21 +108,24 @@
               .forEach((b) => b.classList.toggle("is-active", b === btn));
             document.getElementById("pending-toolbar").classList.toggle("hidden", view !== "pending");
             document.getElementById("requests").classList.toggle("hidden", view !== "pending");
+            document.getElementById("cancellations").classList.toggle("hidden", view !== "cancellations");
             document.getElementById("decided").classList.toggle("hidden", view !== "decided");
             showMessage("message", "");
+            if (view === "cancellations") await loadCancellations();
             if (view === "decided") await loadDecided();
           });
         });
       }
 
       async function load() {
-        const [pendingRes, baysRes, approvedRes] = await Promise.all([
+        const [pendingRes, baysRes, approvedRes, cancelCountRes] = await Promise.all([
           supabase
             .from("bookings")
             .select(
               "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, revision_count, previously_approved, last_edited_at"
             )
             .eq("status", "pending")
+            .is("cancellation_requested_at", null)
             .order("booking_date", { ascending: true })
             .order("slot", { ascending: true }),
           supabase
@@ -128,6 +136,10 @@
             .from("bookings")
             .select("booking_date, slot, assigned_bay_id")
             .eq("status", "approved"),
+          supabase
+            .from("bookings")
+            .select("id", { count: "exact", head: true })
+            .not("cancellation_requested_at", "is", null),
         ]);
 
         pendingRequests = pendingRes.data ?? [];
@@ -143,8 +155,104 @@
           if (row.assigned_bay_id) pendingTaken.get(key).add(row.assigned_bay_id);
         }
 
+        const cancelCount = cancelCountRes.count ?? 0;
+        const badge = document.getElementById("cancel-count-badge");
+        badge.textContent = cancelCount > 0 ? ` (${cancelCount})` : "";
+        badge.classList.toggle("hidden", cancelCount === 0);
+
         selectedIds = new Set();
         renderRequests();
+      }
+
+      async function loadCancellations() {
+        const host = document.getElementById("cancellations");
+        const { data, error } = await supabase
+          .from("bookings")
+          .select(
+            "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, cancellation_requested_at, cancellation_reason"
+          )
+          .not("cancellation_requested_at", "is", null)
+          .order("cancellation_requested_at", { ascending: true });
+
+        if (error) {
+          host.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+          return;
+        }
+
+        cancellationRequests = data ?? [];
+        renderCancellations();
+      }
+
+      function renderCancellations() {
+        const host = document.getElementById("cancellations");
+        if (cancellationRequests.length === 0) {
+          host.innerHTML = `<p class="empty">No cancellation requests pending.</p>`;
+          return;
+        }
+
+        host.innerHTML = cancellationRequests
+          .map(
+            (b) => `
+              <div class="request-card">
+                <div class="request-head">
+                  <div>
+                    <p class="request-who">${bookingOperatorHtml(b)}${
+                      b.plate_no ? ` &middot; ${escapeHtml(b.plate_no)}` : ""
+                    }</p>
+                    <p class="subtle">${escapeHtml(b.route)} &middot; currently ${escapeHtml(
+                      b.status
+                    )}</p>
+                    <p class="subtle">Reason: ${escapeHtml(b.cancellation_reason || "No reason given")}</p>
+                  </div>
+                  <p class="request-when">${escapeHtml(b.booking_date)} &middot; ${escapeHtml(
+                    formatSlot(b.slot)
+                  )}</p>
+                </div>
+                <div class="request-actions">
+                  <button type="button" class="btn-approve" data-approve-cancel="${escapeHtml(
+                    b.id
+                  )}">Approve cancellation</button>
+                  <button type="button" class="btn-danger-outline" data-decline-cancel="${escapeHtml(
+                    b.id
+                  )}">Decline</button>
+                </div>
+              </div>
+            `
+          )
+          .join("");
+
+        host.querySelectorAll("[data-approve-cancel]").forEach((btn) => {
+          btn.addEventListener("click", () => approveCancellation(btn.dataset.approveCancel));
+        });
+        host.querySelectorAll("[data-decline-cancel]").forEach((btn) => {
+          btn.addEventListener("click", () => declineCancellation(btn.dataset.declineCancel));
+        });
+      }
+
+      async function approveCancellation(bookingId) {
+        showMessage("message", "");
+        const { error } = await supabase.rpc("approve_booking_cancellation", {
+          p_booking_id: bookingId,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        showMessage("message", "Booking cancelled.", "ok");
+        await Promise.all([loadCancellations(), load()]);
+      }
+
+      async function declineCancellation(bookingId) {
+        showMessage("message", "");
+        const { error } = await supabase.rpc("decline_booking_cancellation", {
+          p_booking_id: bookingId,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        showMessage("message", "Cancellation request declined.", "ok");
+        await Promise.all([loadCancellations(), load()]);
       }
 
       // Given a route, works out which bay the single-approve dropdown
@@ -217,7 +325,9 @@
                   <div>
                     <p class="request-who">${bookingOperatorHtml(
                       b
-                    )} &middot; ${escapeHtml(b.plate_no)}${
+                    )} &middot; ${
+                      b.plate_no ? escapeHtml(b.plate_no) : `<span class="subtle">plate not set yet</span>`
+                    }${
                       // Flags a slot the operator already held: approving
                       // re-confirms it, rejecting leaves them with nothing.
                       b.previously_approved
@@ -444,7 +554,7 @@
                     <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
                     <td data-label="Operator">${bookingOperatorHtml(b)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
-                    <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
+                    <td data-label="Plate No.">${escapeHtml(b.plate_no ?? "—")}</td>
                     <td data-label="Status">${escapeHtml(b.status)}</td>
                     <td data-label="Decided by">${escapeHtml(decider)}</td>
                     <td data-label="Decided at">${

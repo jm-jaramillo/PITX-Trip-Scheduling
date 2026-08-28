@@ -22,14 +22,15 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 | Conflicts | A bay can't be double-booked for the same hour |
 | Modifications | Operators may change a booking; every change needs staff re-approval |
 | Vehicle registration | Operators scan or manually enter their LTO OR/CR; needs staff approval |
-| Plate selection at booking | Dropdown of the operator's *approved* vehicles only, not free text |
+| Plate selection at booking | Operator books destination + time only; plate assigned later from a dropdown of their *approved* vehicles, any time up to the day of the trip (changed 20 Aug, #81) |
 | Visual identity | Matches the PITX Terminal Ops design system (shared logo, palette, type) |
 | Device support | Must be readable and usable on mobile, not just desktop |
 | Request filtering | Operators can filter their own requests: All / Approved / Pending / Declined |
 | Vehicle detail | Matches the official PITX/MWM Terminals paper form exactly (superseded 14 Aug; originally franchise no./body no./seat config, replaced not extended) |
 | Operator profile | One-time company details (name, owner, TIN, OR serial no., booking system, 2 contacts), no approval needed |
-| Booking lead time | New requests and changes both need at least 4 hours' notice before the scheduled slot |
+| Booking lead time | New requests and material changes (route/date/time) both need at least 2 hours' notice before the scheduled slot (was 4 hours until 20 Aug, #81); setting the plate later is exempt |
 | Booking transfer | An operator may hand off a booked slot to another operator (internal agreement); needs PITX staff approval; schedule shows the previous operator struck through next to the new one |
+| Cancellation | A pending request cancels instantly; an approved booking needs PITX staff approval to cancel (changed 20 Aug, #81) |
 
 ---
 
@@ -2911,6 +2912,63 @@ columns (`0037`) are confirmed live and usable - operator-profile.html
 and operator-profiles.html can now be re-verified end to end (their
 earlier verification was necessarily UI-only, per #76's own note).
 
+### 81. 2-hour lead time; plate assigned later; approval-gated cancellation; operator "All trips" board (20 Aug)
+
+Five changes to how a trip request moves from creation to departure,
+plus a generalized fullness check (migrations `0039`-`0042`):
+
+1. **Booking lead time: 4 hours → 2 hours**, both client-side
+   (`BOOKING_LEAD_TIME_MS`) and server-side (`bookings_insert_own`,
+   `request_booking_change()`). Also fixed a stale bug noticed while
+   touching that function: its slot-range check still said `> 47`
+   (30-minute-era, superseded by #78's 15-minute slots) instead of `> 95`.
+2. **Operators now book a destination and time only - no plate at
+   creation.** `plate_no` is nullable; the operator fills it in later
+   (any time up to the day of the trip) via the existing "Change" dialog,
+   now offered as a separate "Set plate" action that isn't blocked by the
+   2-hour lockout. `request_booking_change()` no longer treats a
+   plate-only edit as a material change - only route/date/slot changes
+   reset the booking to pending, re-run the lead-time check, and release
+   the assigned bay; setting the plate close to (or during) the lockout
+   window leaves status, approval, and bay untouched.
+3. **Cancelling now needs staff approval - but only once a booking is
+   approved.** A still-pending request never had a bay or approval to
+   lose, so it keeps the original instant self-cancel (migration 0001's
+   `bookings_cancel_own`, briefly and mistakenly dropped by `0039`,
+   restored by `0041`). An *approved* booking instead goes through
+   `request_booking_cancellation()` (operator, with an optional reason) →
+   staff's new "Cancellation requests" tab on Pending requests (badge
+   count, reason shown) → `approve_booking_cancellation()` (cancels,
+   releases the bay) or `decline_booking_cancellation()` (leaves it
+   approved). An operator can withdraw their own request while it's still
+   pending review. Fixed a bug caught during verification:
+   `approve_booking_cancellation()` cancelled the booking but never
+   cleared `cancellation_requested_at`, so the now-closed request never
+   left the queue or its badge count (`0042`).
+4. **Gate-fullness check generalized to every route, not just gated
+   ones.** `dashboard.html`'s "suggest a different timeslot" hint used to
+   bail out entirely for a route with no mapped gate - now it falls back
+   to checking against every active bay for those routes, so any fully
+   booked slot gets a suggestion, not just ones at a named gate.
+5. **Operators get a general "All trips" board, not just their own
+   schedule.** `my-schedule.html`'s Week view is gone; "My trips" (default,
+   this operator's own confirmed trips) and "All trips" (every operator's,
+   read-only, own rows highlighted) are both the exact PIDS board built
+   for staff in #79 - same grouped-by-time layout, avatar colors, and
+   honest Arriving/Departed/Cancelled status, just without the
+   bay-reassignment control that's staff-only. Needed a new RLS policy
+   (`0040`): `bookings_select` only ever let an operator see their own
+   rows: widened so any signed-in user can also see a booking once it's a
+   real confirmed trip (approved, or cancelled after being approved) -
+   still-pending requests stay private to their own operator and staff.
+
+Verified live end to end with throwaway operator/staff accounts: booking
+without a plate, setting it later without disturbing an approved
+booking's status, an approved-booking cancellation request → staff
+approve (bay released, badge cleared) and the request/decline/withdraw
+paths, and both `my-schedule.html` views rendering real data with no
+console errors.
+
 ---
 
 ## What the app does now
@@ -2923,21 +2981,29 @@ Details - Case No., Franchise, Sticker No., Body Number, trade name, CPC/
 OR-CR validity, CPC Extension of Validity, Route, Origin, Destination;
 Vehicle Details - MV File #, Chassis No., Year, Make, Bus Type, Seating
 capacity, Seat configuration; Remarks); request a 15-minute trip slot by
-picking a plate from their *approved*, CPC-current vehicles; see status,
-assigned bay, and any rejection note; filter their own requests by status;
-change a booking or a vehicle (back to staff for approval either way);
-cancel a pending booking.
+picking a destination and time (no plate yet); assign the plate later,
+any time up to the day of the trip, from a dropdown of their *approved*,
+CPC-current vehicles; see status, assigned bay, and any rejection note;
+filter their own requests by status; change a booking or a vehicle (back
+to staff for approval either way, except a plate-only change, which
+isn't); cancel a still-pending request instantly, or request cancellation
+of an already-approved one (needs staff approval); view their own
+schedule or every operator's, both as an airport-style PIDS board.
 
-**PITX staff** — approve or reject vehicle registrations and booking
-requests (assigning an available bay on approval); view an airport-style
-departures board of the day's confirmed trips (Arriving/Departed/
-Cancelled), grouped by time, with inline bay reassignment; add/deactivate
-bays; create operator and staff logins.
+**PITX staff** — approve or reject vehicle registrations, booking
+requests (assigning an available bay on approval), and cancellation
+requests for already-approved bookings; view an airport-style departures
+board of the day's confirmed trips (Arriving/Departed/Cancelled), grouped
+by time, with inline bay reassignment; add/deactivate bays; create
+operator and staff logins.
 
 **Enforced by the database, not just the UI**
 
-- Operators can only ever see and act on their own bookings and vehicles
-  (RLS).
+- Operators can only ever see and act on their own vehicles, and their own
+  bookings while still pending; once a booking is a confirmed trip
+  (approved, or cancelled after being approved), any signed-in operator
+  can read it too - that's the "All trips" board (#81) - but only staff or
+  the owning operator can act on it (RLS).
 - Only staff can approve, reject, manage bays, or read all profiles.
 - A unique index prevents two staff from approving the same bay for the
   same hour.
@@ -2972,6 +3038,14 @@ Each of these was exercised in a browser against the live Supabase project:
   self-approve a vehicle affects zero rows
 - Every page's tables and forms at 375px width: no hidden columns, no
   page-level horizontal scroll, desktop layout unchanged
+- Booking without a plate; setting it later via "Set plate" without
+  disturbing an already-approved booking's status or bay (#81)
+- Requesting cancellation of an approved booking → staff's Cancellation
+  requests tab (badge count, reason shown) → approve (booking cancelled,
+  bay released, request cleared from the queue) (#81)
+- A still-pending request's "Cancel" stays instant, no staff step (#81)
+- `my-schedule.html`'s "My trips" and "All trips" views, both rendering
+  real live data with no console errors (#81)
 
 **Not yet verifiable:** creating accounts from the Accounts page, which
 needs the Edge Function deployed (see below). It currently shows a clear
@@ -3054,11 +3128,13 @@ error rather than failing silently.
   knowing if this pattern recurs: an additive migration followed by a
   replacing one, both against a live database, is a data-loss risk on
   the second migration if real records exist by then.
-- **The 4-hour lead time only restricts operators.** Staff can still
-  approve or reject a request with any amount of time left (by design -
-  otherwise a request submitted with 4h01m of notice could become
-  unapprovable the moment staff get to it), and operators can still
-  cancel a pending booking inside the 4-hour window (also by design -
-  only asked to restrict creation and modification, not cancellation).
-  Worth deciding whether cancellation should eventually have its own
+- **The 2-hour lead time (was 4 hours until #81) only restricts
+  operators.** Staff can still approve or reject a request with any
+  amount of time left (by design - otherwise a request submitted with
+  2h01m of notice could become unapprovable the moment staff get to it),
+  and operators can still cancel a pending booking inside the lead-time
+  window (also by design - only asked to restrict creation and
+  modification, not cancellation). #81 added staff approval for
+  cancelling an *approved* booking, closing the other half of this
+  question; worth deciding whether cancellation should eventually have its own
   cutoff too.

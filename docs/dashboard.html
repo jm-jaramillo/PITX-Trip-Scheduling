@@ -34,20 +34,10 @@
           <div class="field">
             <label for="route">Route</label>
             <select id="route" name="route" required></select>
-          </div>
-
-          <div class="field">
-            <label for="plate_no">Plate No.</label>
-            <select id="plate_no" name="plate_no" required></select>
             <p class="fineprint hidden" id="no-vehicles-note">
               No approved vehicles yet.
               <a href="vehicles.html">Register one</a> - PITX staff need to
-              approve it before it appears here.
-            </p>
-            <p class="fineprint hidden" id="no-route-vehicle-hint">
-              None of your approved vehicles are registered for this route -
-              <a href="vehicles.html">check or update a vehicle's route</a>,
-              or pick a different route.
+              approve it before you can request a trip on its route.
             </p>
           </div>
 
@@ -63,6 +53,10 @@
           </div>
 
           <div class="span-all">
+            <p class="fineprint">
+              You'll assign a vehicle's plate number to this trip later, any
+              time up to the day of the trip.
+            </p>
             <p class="hint hidden" id="gate-full-hint"></p>
             <p class="inline-error hidden" id="form-error"></p>
             <p class="inline-ok hidden" id="form-ok"></p>
@@ -130,9 +124,10 @@
         <p class="subtle" id="edit-context"></p>
 
         <p class="warn hidden" id="edit-warning">
-          This booking is already approved. Saving changes sends it back to
-          PITX staff for approval and releases the assigned bay in the
-          meantime &mdash; another operator may be approved into it.
+          Changing the route, date or time sends this booking back to PITX
+          staff for approval and releases the assigned bay in the meantime
+          &mdash; another operator may be approved into it. Setting the plate
+          number alone does not affect its approval.
         </p>
 
         <div class="dialog-grid">
@@ -142,7 +137,7 @@
           </div>
           <div class="field">
             <label for="edit_plate_no">Plate No.</label>
-            <select id="edit_plate_no" required></select>
+            <select id="edit_plate_no"></select>
           </div>
           <div class="field">
             <label for="edit_booking_date">Date</label>
@@ -487,13 +482,17 @@
         const slotRaw = document.getElementById("slot").value;
         const gate = route ? gateForRoute(route) : null;
 
-        if (!gate || !bookingDate || slotRaw === "") {
+        if (!bookingDate || slotRaw === "") {
           hintEl.className = "hint hidden";
           return;
         }
 
-        const gateIds = gateBayIds(gate);
-        if (gateIds.length === 0) {
+        // Gate-scoped bays when the route maps to one; otherwise fall back
+        // to every active bay, so routes without a mapped gate still get a
+        // real fullness check instead of no feedback at all.
+        const relevantIds = gate ? gateBayIds(gate) : activeBays.map((b) => b.id);
+        const scopeLabel = gate ? escapeHtml(gate) : "the terminal";
+        if (relevantIds.length === 0) {
           hintEl.className = "hint hidden";
           return;
         }
@@ -506,11 +505,11 @@
 
         const takenPerSlot = new Map();
         for (const row of data ?? []) {
-          if (row.assigned_bay_id && gateIds.includes(row.assigned_bay_id)) {
+          if (row.assigned_bay_id && relevantIds.includes(row.assigned_bay_id)) {
             takenPerSlot.set(row.slot, (takenPerSlot.get(row.slot) ?? 0) + 1);
           }
         }
-        const isFull = (s) => (takenPerSlot.get(s) ?? 0) >= gateIds.length;
+        const isFull = (s) => (takenPerSlot.get(s) ?? 0) >= relevantIds.length;
 
         const slot = Number(slotRaw);
         if (!isFull(slot)) {
@@ -529,7 +528,7 @@
           .slice(0, 3);
 
         hintEl.innerHTML =
-          `${escapeHtml(gate)} has no open bays at ${escapeHtml(
+          `${scopeLabel} has no open bays at ${escapeHtml(
             formatSlot(slot)
           )} on this date - you can still submit and staff may assign a ` +
           `different gate, but you'll have better luck at: ` +
@@ -589,25 +588,6 @@
         return placeholder + pool.map(optionHtml).join("");
       }
 
-      function updatePlateOptions() {
-        const plateSelect = document.getElementById("plate_no");
-        const currentValue = plateSelect.value;
-        const route = document.getElementById("route").value || null;
-        const pool = route
-          ? approvedVehicles.filter((v) => vehicleMatchesRoute(v, route))
-          : approvedVehicles;
-        plateSelect.innerHTML = plateOptionsHtml(currentValue || null, approvedVehicles, route);
-        plateSelect.disabled = pool.length === 0;
-
-        const hintEl = document.getElementById("no-route-vehicle-hint");
-        if (hintEl) {
-          hintEl.classList.toggle("hidden", !(route && pool.length === 0));
-        }
-        document.getElementById("submit").disabled =
-          !(approvedVehicles.length > 0 && Boolean(profile.operator_name)) ||
-          (Boolean(route) && pool.length === 0);
-      }
-
       // Grouped by gate (matching how staff assign bays). `routes`
       // defaults to the full canonical list, but both callers narrow it
       // to routesWithRegisteredVehicle() - the operator's own routes are
@@ -647,10 +627,7 @@
           null,
           routesWithRegisteredVehicle()
         );
-        document.getElementById("route").addEventListener("change", () => {
-          updatePlateOptions();
-          checkGateFullness();
-        });
+        document.getElementById("route").addEventListener("change", checkGateFullness);
 
         const dateInput = document.getElementById("booking_date");
         dateInput.min = todayISO();
@@ -666,17 +643,19 @@
 
         document.getElementById("slot").addEventListener("change", checkGateFullness);
 
-        const plateSelect = document.getElementById("plate_no");
-        plateSelect.innerHTML = plateOptionsHtml(null);
-        plateSelect.disabled = approvedVehicles.length === 0;
         document
           .getElementById("no-vehicles-note")
           .classList.toggle("hidden", approvedVehicles.length > 0);
 
         // The account has no operator name to stamp on a booking with -
         // shouldn't happen for a normally-created account, but block
-        // submitting rather than silently failing the NOT NULL insert.
-        const canSubmit = approvedVehicles.length > 0 && Boolean(profile.operator_name);
+        // submitting rather than silently failing the NOT NULL insert. A
+        // vehicle is no longer required at booking time - the plate is
+        // filled in later - but the route list is still narrowed to
+        // routes the operator has a registered vehicle for (see
+        // routesWithRegisteredVehicle()), so an operator with none simply
+        // has no route to pick yet.
+        const canSubmit = Boolean(profile.operator_name);
         document.getElementById("submit").disabled = !canSubmit;
         if (!profile.operator_name) {
           showMessage(
@@ -787,7 +766,6 @@
         okEl.className = "inline-ok hidden";
 
         const route = document.getElementById("route").value.trim();
-        const plateNo = document.getElementById("plate_no").value.trim();
         const bookingDate = document.getElementById("booking_date").value;
         const slotRaw = document.getElementById("slot").value;
 
@@ -801,13 +779,13 @@
             "Your account has no operator name set - ask PITX staff to add one before you can request a slot."
           );
         }
-        if (!route || !plateNo || !bookingDate || slotRaw === "") {
+        if (!route || !bookingDate || slotRaw === "") {
           return fail("Please fill in every field.");
         }
         if (bookingDate < todayISO()) {
           return fail("Booking date can't be in the past.");
         }
-        // Mirrors the DB-enforced rule (migration 0009) so operators get an
+        // Mirrors the DB-enforced rule (migration 0039) so operators get an
         // immediate answer instead of a raw RLS-violation error - the
         // database check is still what actually protects this.
         if (
@@ -815,28 +793,21 @@
           BOOKING_LEAD_TIME_MS
         ) {
           return fail(
-            "Bookings must be made at least 4 hours before the scheduled time. Please choose a later slot."
-          );
-        }
-        // Mirrors the DB-enforced rule (migration 0026) so operators get an
-        // immediate answer instead of a raw RLS-violation error - the
-        // database check (bookings_insert_own) is still what actually
-        // protects this.
-        const vehicle = approvedVehicles.find((v) => v.plate_no === plateNo);
-        if (!vehicle || !vehicleMatchesRoute(vehicle, route)) {
-          return fail(
-            `${plateNo} isn't registered for ${route}. Choose a vehicle registered for this route, or pick a different route.`
+            "Bookings must be made at least 2 hours before the scheduled time. Please choose a later slot."
           );
         }
 
         submitBtn.disabled = true;
         submitBtn.textContent = "Submitting…";
 
+        // No plate_no here - the operator picks a destination and time only;
+        // the plate is filled in later (any time up to the day of the
+        // trip) via the "Set plate" action, which goes through
+        // request_booking_change() (migration 0039).
         const { error } = await supabase.from("bookings").insert({
           operator_id: profile.id,
           operator_name: profile.operator_name,
           route,
-          plate_no: plateNo,
           booking_date: bookingDate,
           slot: Number(slotRaw),
           status: "pending",
@@ -846,13 +817,12 @@
         submitBtn.textContent = "Request slot";
 
         if (error) {
-          // Both client-side checks above should catch these first - this
-          // only fires on a race (e.g. the vehicle's approval/route
-          // changed, or the clock crossed 4 hours, between page load and
-          // submit), so it covers both rules rather than naming just one.
+          // The client-side check above should catch this first - this
+          // only fires on a race (e.g. the clock crossed 2 hours between
+          // page load and submit).
           return fail(
             error.code === "42501" || /row-level security/i.test(error.message)
-              ? "Couldn't submit - either the slot is now within 4 hours, or that vehicle is no longer registered for this route. Please recheck and try again."
+              ? "Couldn't submit - that slot is now within 2 hours. Please recheck and try again."
               : error.message
           );
         }
@@ -861,9 +831,7 @@
           "Request submitted. PITX staff will review it shortly.";
         okEl.className = "inline-ok";
         document.getElementById("route").value = "";
-        document.getElementById("plate_no").value = "";
         populateSlotOptions();
-        updatePlateOptions();
         document.getElementById("gate-full-hint").className = "hint hidden";
         await loadRequests();
       }
@@ -873,7 +841,7 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, bays ( id, name )"
+              "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, cancellation_requested_at, cancellation_reason, bays ( id, name )"
             )
             .eq("operator_id", profile.id)
             .order("booking_date", { ascending: false })
@@ -927,23 +895,30 @@
                   .map((b) => {
                     // Only live bookings can be changed; rejected/cancelled
                     // ones are closed - the operator submits a new request.
-                    // Once within 4 hours of the scheduled slot, it's also
-                    // locked - too close to change (matches migration 0009).
+                    // Once within 2 hours of the scheduled slot, it's also
+                    // locked - too close to change (matches migration 0039).
                     const withinLockout =
                       slotStartMillis(b.booking_date, b.slot) - Date.now() <
                       BOOKING_LEAD_TIME_MS;
                     const transferPending = pendingTransferBookingIds.has(b.id);
+                    const cancellationPending = Boolean(b.cancellation_requested_at);
+                    const live = b.status === "pending" || b.status === "approved";
                     const editable =
-                      (b.status === "pending" || b.status === "approved") &&
-                      !withinLockout &&
-                      !transferPending;
+                      live && !withinLockout && !transferPending && !cancellationPending;
+                    // Setting the plate is exempt from the 2-hour lockout -
+                    // that's the whole point of filling it in on the day of
+                    // the trip - but still blocked while a cancellation is
+                    // pending, since the trip may not happen at all.
+                    const canSetPlate = live && !transferPending && !cancellationPending;
                     return `
                   <tr>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
                     <td data-label="Time slot">${escapeHtml(formatSlot(b.slot))}</td>
                     <td data-label="Operator">${bookingOperatorHtml(b)}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
-                    <td data-label="Plate No.">${escapeHtml(b.plate_no)}</td>
+                    <td data-label="Plate No.">${
+                      b.plate_no ? escapeHtml(b.plate_no) : `<span class="subtle">Not set yet</span>`
+                    }</td>
                     <td data-label="Status">${statusBadge(b.status)}${
                       b.revision_count > 0
                         ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
@@ -952,11 +927,23 @@
                       transferPending
                         ? `<span class="revised" title="A transfer request for this booking is awaiting PITX staff review">transfer&nbsp;pending</span>`
                         : ""
+                    }${
+                      cancellationPending
+                        ? `<span class="revised" title="${escapeHtml(
+                            b.cancellation_reason || "No reason given"
+                          )}">cancellation&nbsp;pending</span>`
+                        : ""
                     }</td>
                     <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
                     <td data-label="Trip No.">${escapeHtml(b.trip_number ?? "—")}</td>
                     <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
                     <td><div class="row-actions">${
+                      canSetPlate
+                        ? `<button type="button" class="btn-link" data-setplate="${escapeHtml(
+                            b.id
+                          )}">${b.plate_no ? "Change plate" : "Set plate"}</button>`
+                        : ""
+                    }${
                       editable
                         ? `<button type="button" class="btn-link" data-edit="${escapeHtml(
                             b.id
@@ -969,10 +956,26 @@
                           )}">Transfer</button>`
                         : ""
                     }${
+                      // A still-pending request never had anything approved
+                      // to lose, so cancelling it is instant, no staff
+                      // review needed - only an approved booking goes
+                      // through the request/approve flow (migration 0041).
                       b.status === "pending" && !transferPending
                         ? `<button type="button" class="btn-link danger" data-cancel="${escapeHtml(
                             b.id
                           )}">Cancel</button>`
+                        : ""
+                    }${
+                      b.status === "approved" && !transferPending && !cancellationPending
+                        ? `<button type="button" class="btn-link danger" data-reqcancel="${escapeHtml(
+                            b.id
+                          )}">Request cancellation</button>`
+                        : ""
+                    }${
+                      cancellationPending
+                        ? `<button type="button" class="btn-link" data-withdrawcancel="${escapeHtml(
+                            b.id
+                          )}">Withdraw cancellation</button>`
                         : ""
                     }</div></td>
                   </tr>`;
@@ -986,8 +989,18 @@
         host.querySelectorAll("[data-cancel]").forEach((btn) => {
           btn.addEventListener("click", () => cancelBooking(btn.dataset.cancel));
         });
-        host.querySelectorAll("[data-edit]").forEach((btn) => {
-          btn.addEventListener("click", () => openEdit(btn.dataset.edit));
+        host.querySelectorAll("[data-reqcancel]").forEach((btn) => {
+          btn.addEventListener("click", () => requestCancellation(btn.dataset.reqcancel));
+        });
+        host.querySelectorAll("[data-withdrawcancel]").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            withdrawCancellationRequest(btn.dataset.withdrawcancel)
+          );
+        });
+        host.querySelectorAll("[data-edit], [data-setplate]").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            openEdit(btn.dataset.edit ?? btn.dataset.setplate)
+          );
         });
         host.querySelectorAll("[data-transfer]").forEach((btn) => {
           btn.addEventListener("click", () => openTransfer(btn.dataset.transfer));
@@ -1179,11 +1192,14 @@
 
         // Include the booking's current plate even if it's no longer an
         // approved vehicle (e.g. that vehicle got edited/un-approved since),
-        // so re-opening this dialog never silently loses the value.
+        // so re-opening this dialog never silently loses the value. No
+        // plate at all (still unset, per migration 0039) isn't "no longer
+        // approved" - it just hasn't been picked yet, so plateOptionsHtml's
+        // own placeholder option covers that case with nothing appended.
         const plateSelect = document.getElementById("edit_plate_no");
-        const stillApproved = approvedVehicles.some(
-          (v) => v.plate_no === booking.plate_no
-        );
+        const stillApproved =
+          !booking.plate_no ||
+          approvedVehicles.some((v) => v.plate_no === booking.plate_no);
         plateSelect.innerHTML =
           plateOptionsHtml(booking.plate_no, approvedVehicles, booking.route) +
           (stillApproved
@@ -1216,15 +1232,32 @@
         const saveBtn = document.getElementById("edit-save");
         errorEl.className = "inline-error hidden";
 
+        const newRoute = document.getElementById("edit_route").value;
         const newBookingDate = document.getElementById("edit_booking_date").value;
         const newSlot = Number(document.getElementById("edit_slot").value);
+
+        // A plate-only edit (route/date/slot unchanged) is exempt from the
+        // lead-time check server-side (migration 0039) - it's how an
+        // operator fills in the plate close to or even during the day of
+        // the trip, so this client-side mirror of that check must only
+        // fire for an actual route/date/slot change too.
+        const original = bookingsById.get(editingId);
+        const isMaterial =
+          !original ||
+          original.route !== newRoute ||
+          original.booking_date !== newBookingDate ||
+          original.slot !== newSlot;
+
         // Immediate feedback for the common case; request_booking_change()
-        // (migration 0009) is the real check, including for the booking's
-        // *current* slot, which this client-side check doesn't re-verify -
-        // the "Change" button is already hidden once that happens, so this
-        // only guards the new time being requested.
-        if (slotStartMillis(newBookingDate, newSlot) - Date.now() < BOOKING_LEAD_TIME_MS) {
-          errorEl.textContent = "Please choose a time at least 4 hours from now.";
+        // is the real check, including for the booking's *current* slot,
+        // which this client-side check doesn't re-verify - the "Change"
+        // button is already hidden once that happens, so this only guards
+        // the new time being requested.
+        if (
+          isMaterial &&
+          slotStartMillis(newBookingDate, newSlot) - Date.now() < BOOKING_LEAD_TIME_MS
+        ) {
+          errorEl.textContent = "Please choose a time at least 2 hours from now.";
           errorEl.className = "inline-error";
           return;
         }
@@ -1237,7 +1270,7 @@
         // the client can't assign itself a bay. See migration 0002.
         const { error } = await supabase.rpc("request_booking_change", {
           p_booking_id: editingId,
-          p_route: document.getElementById("edit_route").value,
+          p_route: newRoute,
           p_plate_no: document.getElementById("edit_plate_no").value,
           p_booking_date: newBookingDate,
           p_slot: newSlot,
@@ -1256,6 +1289,10 @@
         await loadRequests();
       }
 
+      // A still-pending request never had a bay or approval to lose, so
+      // this stays instant, no staff review (migration 0001, restored by
+      // 0041). Once approved, cancelling goes through staff review
+      // instead - see requestCancellation() below.
       async function cancelBooking(bookingId) {
         await supabase
           .from("bookings")
@@ -1263,6 +1300,30 @@
           .eq("id", bookingId)
           .eq("operator_id", profile.id)
           .eq("status", "pending");
+        await loadRequests();
+      }
+
+      async function requestCancellation(bookingId) {
+        const reason = prompt("Reason for cancelling (optional):") ?? "";
+        const { error } = await supabase.rpc("request_booking_cancellation", {
+          p_booking_id: bookingId,
+          p_reason: reason,
+        });
+        if (error) {
+          showMessage("form-error", error.message, "error");
+          document.getElementById("form-error").scrollIntoView({ block: "center" });
+        }
+        await loadRequests();
+      }
+
+      async function withdrawCancellationRequest(bookingId) {
+        const { error } = await supabase.rpc("cancel_booking_cancellation_request", {
+          p_booking_id: bookingId,
+        });
+        if (error) {
+          showMessage("form-error", error.message, "error");
+          document.getElementById("form-error").scrollIntoView({ block: "center" });
+        }
         await loadRequests();
       }
     </script>
