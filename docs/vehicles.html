@@ -199,18 +199,10 @@
             <input id="f_plate_no" required placeholder="e.g. ABC 1234" />
           </div>
 
-          <p class="field-group-heading span-all">Registration &amp; paperwork</p>
+          <p class="field-group-heading span-all">LTFRB Franchise Details</p>
           <div class="field">
             <label for="f_case_number">Case No.</label>
             <input id="f_case_number" />
-          </div>
-          <div class="field">
-            <label for="f_mv_file_number">MV File #</label>
-            <input id="f_mv_file_number" />
-          </div>
-          <div class="field">
-            <label for="f_chassis_no">Chassis No.</label>
-            <input id="f_chassis_no" />
           </div>
           <div class="field">
             <label for="f_franchise">Franchise</label>
@@ -220,8 +212,10 @@
             <label for="f_sticker_no">Sticker No.</label>
             <input id="f_sticker_no" />
           </div>
-
-          <p class="field-group-heading span-all">CPC validity</p>
+          <div class="field">
+            <label for="f_body_number">Body Number</label>
+            <input id="f_body_number" />
+          </div>
           <div class="field">
             <label for="f_cpc_validity">CPC validity</label>
             <input id="f_cpc_validity" type="date" />
@@ -242,8 +236,6 @@
             <input id="f_cpc_eov_validity" type="date" />
           </div>
           <p class="fineprint span-all" id="f_cpc_expired_note"></p>
-
-          <p class="field-group-heading span-all">Route</p>
           <div class="field span-all">
             <p class="fineprint" style="margin: 0 0 6px">
               Pick region, province, and city/municipality - the route is
@@ -275,8 +267,12 @@
 
           <p class="field-group-heading span-all">Vehicle details</p>
           <div class="field">
-            <label for="f_body_number">Body Number</label>
-            <input id="f_body_number" />
+            <label for="f_mv_file_number">MV File #</label>
+            <input id="f_mv_file_number" />
+          </div>
+          <div class="field">
+            <label for="f_chassis_no">Chassis No.</label>
+            <input id="f_chassis_no" />
           </div>
           <div class="field">
             <label for="f_vehicle_year">Year</label>
@@ -313,8 +309,7 @@
 
           <p class="field-group-heading span-all">Remarks</p>
           <div class="field span-all">
-            <label for="f_remarks">Remarks</label>
-            <textarea id="f_remarks" class="remarks-input" placeholder="Anything staff should know about this vehicle"></textarea>
+            <textarea id="f_remarks" class="remarks-input"></textarea>
           </div>
         </div>
 
@@ -365,18 +360,10 @@
             <input id="e_plate_no" required />
           </div>
 
-          <p class="field-group-heading span-all">Registration &amp; paperwork</p>
+          <p class="field-group-heading span-all">LTFRB Franchise Details</p>
           <div class="field">
             <label for="e_case_number">Case No.</label>
             <input id="e_case_number" />
-          </div>
-          <div class="field">
-            <label for="e_mv_file_number">MV File #</label>
-            <input id="e_mv_file_number" />
-          </div>
-          <div class="field">
-            <label for="e_chassis_no">Chassis No.</label>
-            <input id="e_chassis_no" />
           </div>
           <div class="field">
             <label for="e_franchise">Franchise</label>
@@ -386,8 +373,10 @@
             <label for="e_sticker_no">Sticker No.</label>
             <input id="e_sticker_no" />
           </div>
-
-          <p class="field-group-heading span-all">CPC validity</p>
+          <div class="field">
+            <label for="e_body_number">Body Number</label>
+            <input id="e_body_number" />
+          </div>
           <div class="field">
             <label for="e_cpc_validity">CPC validity</label>
             <input id="e_cpc_validity" type="date" />
@@ -408,8 +397,6 @@
             <input id="e_cpc_eov_validity" type="date" />
           </div>
           <p class="fineprint span-all" id="e_cpc_expired_note"></p>
-
-          <p class="field-group-heading span-all">Route</p>
           <div class="field span-all">
             <div style="display: flex; gap: 8px; flex-wrap: wrap">
               <select id="e_region" style="flex: 1; min-width: 140px">
@@ -436,8 +423,12 @@
 
           <p class="field-group-heading span-all">Vehicle details</p>
           <div class="field">
-            <label for="e_body_number">Body Number</label>
-            <input id="e_body_number" />
+            <label for="e_mv_file_number">MV File #</label>
+            <input id="e_mv_file_number" />
+          </div>
+          <div class="field">
+            <label for="e_chassis_no">Chassis No.</label>
+            <input id="e_chassis_no" />
           </div>
           <div class="field">
             <label for="e_vehicle_year">Year</label>
@@ -474,7 +465,6 @@
 
           <p class="field-group-heading span-all">Remarks</p>
           <div class="field span-all">
-            <label for="e_remarks">Remarks</label>
             <textarea id="e_remarks" class="remarks-input"></textarea>
           </div>
         </div>

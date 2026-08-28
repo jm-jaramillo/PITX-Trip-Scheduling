@@ -2567,6 +2567,32 @@ correctly against the new schema.
 
 ---
 
+### 73. Vehicle registration: regroup into "LTFRB Franchise Details", fix Remarks (20 Aug)
+
+Follow-up to #72's field regrouping - "Registration & paperwork," "CPC
+validity," and "Route" were really all the same kind of thing (what
+LTFRB's franchise paperwork covers), so they're now one **LTFRB
+Franchise Details** group: Case No., Franchise, Sticker No., **Body
+Number** (moved in from Vehicle details), CPC validity, OR/CR
+validity, CPC Extension of Validity, and the Region/Province/City route
+picker with Origin/Destination. MV File # and Chassis No. moved the
+other way, into **Vehicle details**, alongside Year/Make/Bus
+Type/Seating/Seat configuration - they describe the physical vehicle,
+not its franchise paperwork.
+
+Also fixed **Remarks** showing two "Remarks" labels stacked on top of
+each other (the group heading and the field's own `<label>` said the
+same thing) - dropped the redundant field label, kept just the section
+heading, and left the textbox empty (no placeholder copy either).
+
+Verified live: both dialogs now show exactly one heading per group
+(`LTFRB Franchise Details`, `Vehicle details`, `Remarks`), Body Number
+renders under LTFRB Franchise Details, MV File #/Chassis No. render
+under Vehicle details, and the Remarks textbox has no label and no
+placeholder text.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (name, owner, TIN, OR

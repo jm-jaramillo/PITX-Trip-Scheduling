@@ -482,17 +482,24 @@ once via **Batch upload** (a CSV template, previewed and validated row by
 row before submitting). Every field stays editable afterward regardless of
 how it was first entered.
 
-As of migration `0035_vehicle_registration_redesign.sql`, the fields are
-grouped by what they describe rather than laid out as one long list:
+As of migration `0035_vehicle_registration_redesign.sql` (fields) and a
+follow-up regroup (CHANGELOG #73, UI-only - no schema change), the
+fields are grouped by what they describe rather than laid out as one
+long list:
 
 | Group | Fields |
 |---|---|
 | (top-level) | Plate No. |
-| Registration & Paperwork | Case No., MV File #, Chassis No., Franchise, Sticker No. |
-| CPC Validity | CPC validity, OR/CR validity, CPC Extension of Validity? (if yes, its own validity date) |
-| Route | Region/Province/City picker (see below), Origin, Destination |
-| Vehicle Details | Body Number, Year, Make, Bus Type (Ordinary/Aircon/Deluxe/Luxury), Seating capacity, Seat configuration (1x1/2x2/2x3/1x3) |
+| LTFRB Franchise Details | Case No., Franchise, Sticker No., Body Number, CPC validity, OR/CR validity, CPC Extension of Validity? (if yes, its own validity date), the Region/Province/City route picker (see below), Origin, Destination |
+| Vehicle Details | MV File #, Chassis No., Year, Make, Bus Type (Ordinary/Aircon/Deluxe/Luxury), Seating capacity, Seat configuration (1x1/2x2/2x3/1x3) |
 | Remarks | free text |
+
+Case No., Franchise, Sticker No., CPC/OR-CR validity, and the route
+itself are all LTFRB franchise paperwork - grouped together for that
+reason, with Body Number alongside them since it's how staff cross-
+reference a vehicle against that paperwork. MV File # and Chassis No.
+sit under Vehicle Details instead - they describe the physical vehicle,
+not its franchise record.
 
 Earlier revisions of this form also had OR No., CR No., Date granted, and
 Date expiry (added in `0015_vehicle_or_cr_numbers.sql`/
