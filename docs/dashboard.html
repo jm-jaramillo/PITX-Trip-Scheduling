@@ -1427,6 +1427,10 @@
         event.preventDefault();
         const errorEl = document.getElementById("edit-error");
         const saveBtn = document.getElementById("edit-save");
+        // Clear the text too, not just hide it - a stale message left in
+        // the node from a previous failed save would otherwise flash on
+        // the next failure before the new one is written.
+        errorEl.textContent = "";
         errorEl.className = "inline-error hidden";
 
         const newRoute = document.getElementById("edit_route").value;
@@ -1491,6 +1495,18 @@
       // 0041). Once approved, cancelling goes through staff review
       // instead - see requestCancellation() below.
       async function cancelBooking(bookingId) {
+        // Irreversible and immediate - a cancelled booking can't be
+        // reinstated, only re-requested (and the slot may be gone by
+        // then). Every other destructive action here either asks for a
+        // reason first or goes through staff, so this one shouldn't be
+        // the only single-click point of no return.
+        const b = bookingsById.get(bookingId);
+        const what = b
+          ? `${b.booking_date}, ${formatSlotStart(b.slot)} to ${b.route}`
+          : "this request";
+        if (!confirm(`Cancel ${what}?\n\nThis can't be undone - you'd have to submit a new request, and the slot may be taken by then.`)) {
+          return;
+        }
         await supabase
           .from("bookings")
           .update({ status: "cancelled" })

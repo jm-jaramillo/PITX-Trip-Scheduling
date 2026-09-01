@@ -3106,6 +3106,66 @@ specific time ("11:00 AM"), never a range.
 
 ---
 
+### 86. Full end-to-end test pass against real accounts; six fixes (1 Sep)
+
+A full walkthrough using the real `ceresgoldstar.ops` and `pitx.admin`
+accounts - booking a 7-day weekly schedule, then exercising every
+operator and staff function against it - then removing every row the
+test created (verified: 2,798 bookings before and after, zero
+pre-existing rows modified). Six issues found and fixed:
+
+1. **Taken bays were still offered in the approve dropdown** - the one
+   thing the user had specifically asked for in #82, which I'd wrongly
+   reported as already working. `staff.html`'s "which bays are taken"
+   query fetched *every* approved booking ever with no date filter, so
+   once the table passed PostgREST's default 1,000-row cap it silently
+   returned only the oldest 1,000 rows (Aug 12-26 here) - meaning the
+   taken-bay set was empty for every date staff actually approve.
+   Already-assigned bays were offered *and auto-suggested*; the unique
+   index still blocked the write, so it surfaced as a confusing "that
+   bay was just taken" error. Now scoped to just the dates in the queue
+   (`.in("booking_date", queueDates)`), which is both correct and far
+   cheaper. Confirmed live: an already-taken Bay 8 dropped out of a
+   competing same-slot request (27 options → 26) and the suggestion moved
+   to Bay 9, and a bulk approve then correctly skipped a request with the
+   real reason "no suggested bay left at Gate 5" (verified against the
+   database - all four Gate 5 bays genuinely were taken).
+2. **Both Overview pages still said "within 2 hours of their 4-hour
+   booking-lockout window"** - stale copy from before #81 cut the lockout
+   to 2 hours. The *logic* was already correct (derived from
+   `BOOKING_LEAD_TIME_MS`); only the sentence was hardcoded. Both numbers
+   are now derived from the same constant so they can't drift again.
+3. **Cancelling a pending request had no confirmation** - a single
+   misclick permanently cancelled it, with no undo and no way back to the
+   slot. Every other destructive action in the app either collects a
+   reason first or goes through staff. Now confirms, naming the specific
+   trip.
+4. **"Decided at" rendered as a raw UTC ISO string**
+   (`2026-09-01T04:07:09.905+00:00`) on both `staff.html` and
+   `vehicle-approvals.html`. Added a shared `formatDateTime()` that
+   renders in Asia/Manila like the rest of the app ("Sep 1, 2026,
+   12:07 PM") - the old value was both unreadable and in the wrong
+   timezone.
+5. **An approved trip with no plate showed as a blank cell on the
+   Schedule board** - operationally the single most important thing for
+   staff to spot there, since the trip can't be matched to a bus at the
+   gate. Now an explicit red "No plate" marker.
+6. **The operator Overview's Quick Links never got the History page**
+   added in #84.
+
+Everything else exercised came through clean: the 15-minute slot picker,
+the 2-hour lockout, plate-set-later (including the adjacent-slot vehicle
+block correctly rejecting a back-to-back assignment and allowing a
+different vehicle), material vs. plate-only change detection, transfer
+(route-narrowed operator/plate dropdowns, recipient-confirmation gate,
+actions correctly locked while in review), instant pending-cancel,
+approval-gated cancel for approved bookings (approve released the bay and
+cleared the queue badge; decline left the booking approved), bulk
+approve/reject, inline bay reassignment, Recently decided, History's
+month navigation, and both My schedule views.
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (Operator, trade name/

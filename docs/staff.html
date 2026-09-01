@@ -66,6 +66,7 @@
         guardPage,
         renderNav,
         formatSlotStart,
+        formatDateTime,
         compareBayNames,
         gateForRoute,
         showMessage,
@@ -118,7 +119,7 @@
       }
 
       async function load() {
-        const [pendingRes, baysRes, approvedRes, cancelCountRes] = await Promise.all([
+        const [pendingRes, baysRes, cancelCountRes] = await Promise.all([
           supabase
             .from("bookings")
             .select(
@@ -134,10 +135,6 @@
             .eq("is_active", true),
           supabase
             .from("bookings")
-            .select("booking_date, slot, assigned_bay_id")
-            .eq("status", "approved"),
-          supabase
-            .from("bookings")
             .select("id", { count: "exact", head: true })
             .not("cancellation_requested_at", "is", null),
         ]);
@@ -148,11 +145,32 @@
         );
 
         // Which bays are already committed for a given date+slot.
+        //
+        // Scoped to just the dates actually in the queue, NOT every
+        // approved booking ever. Fetching them all silently hit
+        // PostgREST's default 1000-row cap once the table grew past that
+        // (2,800+ rows here), so this map only ever covered the oldest
+        // 1000 rows - months in the past - and came back empty for every
+        // date staff are actually approving. The visible symptom was
+        // already-taken bays still being offered (and auto-suggested) in
+        // the approve dropdown; the unique index still blocked the
+        // double-booking at write time, so this surfaced as a confusing
+        // "that bay was just taken" error instead of a wrong assignment.
+        // Caught in live testing, #86.
+        const queueDates = [...new Set(pendingRequests.map((b) => b.booking_date))];
         pendingTaken = new Map();
-        for (const row of approvedRes.data ?? []) {
-          const key = `${row.booking_date}|${row.slot}`;
-          if (!pendingTaken.has(key)) pendingTaken.set(key, new Set());
-          if (row.assigned_bay_id) pendingTaken.get(key).add(row.assigned_bay_id);
+        if (queueDates.length > 0) {
+          const { data: approvedRows } = await supabase
+            .from("bookings")
+            .select("booking_date, slot, assigned_bay_id")
+            .eq("status", "approved")
+            .in("booking_date", queueDates);
+
+          for (const row of approvedRows ?? []) {
+            const key = `${row.booking_date}|${row.slot}`;
+            if (!pendingTaken.has(key)) pendingTaken.set(key, new Set());
+            if (row.assigned_bay_id) pendingTaken.get(key).add(row.assigned_bay_id);
+          }
         }
 
         const cancelCount = cancelCountRes.count ?? 0;
@@ -558,7 +576,7 @@
                     <td data-label="Status">${escapeHtml(b.status)}</td>
                     <td data-label="Decided by">${escapeHtml(decider)}</td>
                     <td data-label="Decided at">${
-                      b.decided_at ? escapeHtml(b.decided_at) : "—"
+                      escapeHtml(formatDateTime(b.decided_at))
                     }</td>
                     <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
                   </tr>`;

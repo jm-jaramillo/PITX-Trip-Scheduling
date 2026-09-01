@@ -137,6 +137,16 @@
         max-width: 88px;
       }
 
+      /* An approved trip with no plate assigned yet - operationally the
+         thing staff most need to spot on the board, since the trip can't
+         be matched to an actual bus at the gate. Rendered as an explicit
+         marker rather than an empty cell, which read as "nothing here". */
+      .pids-no-plate {
+        color: var(--red-ink, #9c1f22);
+        font-weight: 700;
+        font-size: 12px;
+      }
+
       .pids-empty {
         padding: 40px 20px;
         text-align: center;
@@ -413,7 +423,11 @@
                             </div>
                           </td>
                           <td class="pids-trip-no">${escapeHtml(b.trip_number ?? "—")}</td>
-                          <td>${escapeHtml(b.plate_no)}</td>
+                          <td>${
+                            b.plate_no
+                              ? escapeHtml(b.plate_no)
+                              : `<span class="pids-no-plate">No plate</span>`
+                          }</td>
                           <td>${escapeHtml((b.route ?? "—").toUpperCase())}</td>
                           <td class="pids-num">${escapeHtml(bareGate(b.route))}</td>
                           <td class="pids-num" data-bay-cell="${escapeHtml(b.id)}">${

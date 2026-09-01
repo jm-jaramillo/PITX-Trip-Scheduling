@@ -273,6 +273,27 @@ export function formatSlotStart(slot) {
   return formatClock(slot * 15);
 }
 
+/** A stored timestamptz rendered in terminal-local (Manila) time.
+ * Everything else in this app is already Manila-relative - a booking's
+ * slot, the lead-time cutoff, `slot_start_at()` - so a decision
+ * timestamp shown in the viewer's own zone (or worse, raw UTC ISO)
+ * reads as a different moment than the rest of the row. Returns "—" for
+ * null so callers don't each repeat that. */
+export function formatDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 /** Bookings must be made/changed at least this far ahead of their slot -
  * mirrors the same rule enforced server-side (see migration 0009, reduced
  * to 2 hours in migration 0039). This copy is for immediate UI feedback

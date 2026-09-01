@@ -142,11 +142,18 @@
       if (!profile) throw new Error("unauthorised");
       renderNav(profile);
 
-      // Half the 4-hour lockout window - requests inside this band are
+      // Half the booking-lockout window - requests inside this band are
       // still pending but will lose their lead time soon, so they're
       // surfaced here rather than only showing up once the operator
       // happens to check My requests.
       const URGENT_WINDOW_MS = BOOKING_LEAD_TIME_MS / 2;
+
+      // Both derived from BOOKING_LEAD_TIME_MS rather than written out,
+      // so the copy can't drift from the actual rule the way a hardcoded
+      // "4-hour" did when the lockout dropped to 2 hours (#86).
+      const LOCKOUT_HOURS = BOOKING_LEAD_TIME_MS / 3600000;
+      const URGENT_HOURS = URGENT_WINDOW_MS / 3600000;
+      const plural = (n) => (n === 1 ? "" : "s");
 
       renderQuickLinks();
       await load();
@@ -266,8 +273,8 @@
           .map((b) => {
             const timeToSlot = slotStartMillis(b.booking_date, b.slot) - now;
             // Not "time until the slot starts" - time until this request
-            // hits the 4-hour lockout and can no longer be approved at
-            // all. A request 4h50m from its slot is 50m from that
+            // hits the booking lockout and can no longer be changed at
+            // all. A request 2h50m from its slot is 50m from that
             // deadline, not "50m away" itself - subtracting the lockout
             // window is what turns "time to slot" into "time to act".
             return { ...b, remainingMs: timeToSlot - BOOKING_LEAD_TIME_MS };
@@ -284,8 +291,9 @@
             <div class="lockout-card is-calm">
               <p class="lockout-title">Nothing approaching lockout</p>
               <p class="subtle" style="margin: 0">
-                None of your pending requests are within 2 hours of their
-                4-hour booking-lockout window.
+                None of your pending requests are within ${URGENT_HOURS}
+                hour${plural(URGENT_HOURS)} of their ${LOCKOUT_HOURS}-hour
+                booking-lockout window.
               </p>
             </div>
           `;
@@ -326,6 +334,7 @@
       function renderQuickLinks() {
         const links = [
           { href: "dashboard.html", label: "My requests" },
+          { href: "request-history.html", label: "History" },
           { href: "my-schedule.html", label: "My schedule" },
           { href: "vehicles.html", label: "My vehicles" },
           { href: "operator-profile.html", label: "Operator profile" },
