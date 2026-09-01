@@ -3325,7 +3325,57 @@ it as Gate 4 with Bay 18 pre-selected. Test booking removed afterwards
 
 ---
 
+### 89. Operator / Trade name / Destination filters on the Vehicles page (1 Sep)
+
+The staff Vehicles page had a free-text search and status tabs, which is
+fine for finding one plate but not for "show me every vehicle these two
+operators run to Iloilo" - with 1,832 rows and 104 destinations that meant
+scrolling. Three multi-select filters now sit under the toolbar:
+**Operator**, **Trade name**, **Destination**.
+
+Each is a checkbox popover, reusing the page's existing Columns control
+rather than introducing a second dropdown idiom, plus a search box (there
+are ~65 operators and ~104 destinations) and a per-value count. Values
+picked within one filter are OR'd; the three filters are AND'd, and
+combine with the status tabs and the search box.
+
+The lists **cross-filter**: each one's counts reflect every *other*
+selection, so picking two operators immediately shows how many vehicles
+each destination has across just those two. A filter deliberately skips
+its own selections when computing its list - otherwise ticking one
+operator would hide the rest and you could never pick a second. Values
+excluded by the other filters stay listed but dim to 0 rather than
+disappearing, so the list doesn't reshuffle under the cursor as you tick.
+
+Details worth noting:
+
+- The button carries the state, since the popover is normally shut -
+  "Operator", then "Operator: CERES-GOLDSTAR", then "Operator: 2
+  selected" once naming them would be too long.
+- Vehicles with no destination group under **(not set)**, sorted last -
+  which makes the 24 currently-unbookable vehicles (#88) reachable in one
+  click here as well as on the Utilization report.
+- The header count now reads "131 of 1832 vehicles shown" whenever
+  anything is narrowing the list; the bare fleet total would have been
+  misleading next to a filtered table.
+- CSV export already routed through `currentRows()`, so it follows the
+  filters with no extra work.
+- The popover is width-capped (`min(92vw, 420px)`): the longest
+  destination - "BATANGAS CITY PIER (BATANGAS) - PLAZA LAWTON (MANILA)" -
+  otherwise stretched it past a phone viewport. Labels ellipsis with the
+  full text on the row's `title`.
+
+Verified live: two operators selected gave 131 + 52 = 183 rows and
+narrowed Destination to just their 13 combined destinations (91 others
+dimmed to 0); adding two of those destinations gave 50 + 35 = 85; the
+in-popover search, per-filter Clear, Clear all, and mutual exclusion with
+the Columns popover all behave; no console errors; no horizontal overflow
+at 375px.
+
+---
+
 ## What the app does now
+
 
 
 **Operators** — fill in a one-time company profile (Operator, trade name/

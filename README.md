@@ -755,10 +755,17 @@ batch.
 default - past that, the query silently truncates rather than erroring.
 The masterlist import pushed the table past 1000 rows for the first
 time, surfacing this; the page now pages through with `.range()` until a
-page comes back short, so the count keeps growing correctly. No other
-page in the app queries an unbounded table like this (bookings/vehicles
-elsewhere are always filtered by date, operator, or pending-status, which
-stay well under 1000).
+page comes back short, so the count keeps growing correctly.
+
+That assumption - that no other page queried an unbounded table - turned
+out to be wrong. The #86 test pass found the staff approvals page
+fetching *every* approved booking with no date filter, so once the table
+passed 1000 rows its bay-conflict check silently saw only the oldest
+1000 and offered bays that were already taken. #87 swept the rest and
+added a shared `fetchAllRows()` helper (in `docs/assets/app.js`) that
+pages with `.range()` until a short page comes back. Any list that grows
+with usage should go through it rather than assume one round trip is the
+whole answer.
 
 ## Notifications
 
@@ -1210,7 +1217,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   overview.html              Staff: shift-start dashboard - queue counts, lockout alerts, quick links
   staff.html                 Staff: pending booking queue (search, bulk actions, decided log)
   vehicle-approvals.html     Staff: pending vehicle queue (search, bulk actions, columns, CSV, decided log)
-  vehicles-database.html     Staff: every registered vehicle, any status, searchable, column toggle, CSV export
+  vehicles-database.html     Staff: every registered vehicle, any status, searchable, Operator/Trade/Destination filters, column toggle, CSV export
   transfer-approvals.html    Staff: pending booking-transfer queue (search, bulk actions, decided log)
   schedule.html              Staff: airport-style departures board, one day at a time (CSV export)
   utilization.html           Staff: gate occupancy + busiest hours over a date range, plus vehicles blocked by an unlinked route (CSV export)

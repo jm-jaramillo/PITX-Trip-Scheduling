@@ -53,6 +53,89 @@
       .columns-popover input {
         margin: 0;
       }
+
+      /* Operator / Trade name / Destination filters. Same popover as the
+         Columns control above - these are checkbox lists too, so they
+         reuse it rather than introducing a second dropdown idiom - plus
+         a search box (there are ~65 operators and ~104 destinations) and
+         a per-value count. */
+      /* Capped, not just min-width: the longest destination
+         ("BATANGAS CITY PIER (BATANGAS) - PLAZA LAWTON (MANILA)") would
+         otherwise stretch the popover past a phone's viewport. Labels
+         ellipsis instead, and the full text is in the row's title. */
+      .filter-popover {
+        min-width: 280px;
+        max-width: min(92vw, 420px);
+        left: 0;
+        right: auto;
+      }
+
+      .filter-search {
+        width: 100%;
+        font-family: inherit;
+        font-size: 12px;
+        padding: 6px 9px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--ground);
+        color: var(--text);
+        margin-bottom: 8px;
+      }
+
+      .filter-options {
+        max-height: 240px;
+        overflow-y: auto;
+      }
+
+      /* The count sits hard right of each row, so the eye can scan
+         quantities down one column instead of hunting after each label. */
+      .filter-options label {
+        justify-content: space-between;
+      }
+
+      .filter-option-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .filter-option-label span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .filter-count {
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        color: var(--label, #6b7280);
+        flex-shrink: 0;
+        padding-left: 10px;
+      }
+
+      /* A value that no longer exists under the other filters, but which
+         stays listed (and checkable) so the list doesn't reshuffle. */
+      .filter-options label.is-empty {
+        opacity: 0.45;
+      }
+
+      .filter-toggle.has-filter {
+        border-color: var(--blue, #2f5fd0);
+        color: var(--blue-ink, #1d2b6b);
+        font-weight: 700;
+      }
+
+      .filter-empty {
+        font-size: 12px;
+        color: var(--faint, #9aa1b2);
+        padding: 6px 4px;
+      }
+
+      .filter-clear {
+        margin-top: 8px;
+        font-size: 11.5px;
+      }
     </style>
   </head>
   <body>
@@ -87,6 +170,34 @@
           <div class="columns-popover hidden" id="columns-popover"></div>
         </div>
         <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
+      </div>
+
+      <div class="toolbar" style="margin-bottom: 20px; gap: 10px; justify-content: flex-start">
+        <div class="columns-control filter-control" data-facet="operator">
+          <button type="button" class="btn-outline filter-toggle">Operator</button>
+          <div class="columns-popover filter-popover hidden">
+            <input class="filter-search" type="search" placeholder="Find operator…" />
+            <div class="filter-options"></div>
+            <button type="button" class="btn-link filter-clear">Clear</button>
+          </div>
+        </div>
+        <div class="columns-control filter-control" data-facet="trade">
+          <button type="button" class="btn-outline filter-toggle">Trade name</button>
+          <div class="columns-popover filter-popover hidden">
+            <input class="filter-search" type="search" placeholder="Find trade name…" />
+            <div class="filter-options"></div>
+            <button type="button" class="btn-link filter-clear">Clear</button>
+          </div>
+        </div>
+        <div class="columns-control filter-control" data-facet="destination">
+          <button type="button" class="btn-outline filter-toggle">Destination</button>
+          <div class="columns-popover filter-popover hidden">
+            <input class="filter-search" type="search" placeholder="Find destination…" />
+            <div class="filter-options"></div>
+            <button type="button" class="btn-link filter-clear">Clear</button>
+          </div>
+        </div>
+        <button type="button" class="btn-link hidden" id="clear-filters">Clear all filters</button>
       </div>
 
       <div class="hidden" id="message"></div>
@@ -125,6 +236,31 @@
       let statusFilter = "all";
       let sortKey = null;
       let sortDir = "asc";
+
+      // Operator / Trade name / Destination dropdown filters, combined
+      // with AND (and with the status tabs and search box). What each one
+      // reads off a vehicle lives here; adding another filter is an entry
+      // here plus a <select> in the toolbar - everything below is driven
+      // by this map. Declared with the rest of the module state, ahead of
+      // the init calls further down, so nothing reads it while it's still
+      // in its temporal dead zone (the recurring bug class here - see #87).
+      const FILTERS = {
+        operator: (v) => v.profiles?.operator_name || v.profiles?.username || null,
+        trade: (v) => v.trade_name || null,
+        destination: (v) => v.destination || null,
+      };
+      const NOT_SET = "(not set)";
+      const FILTER_NOUNS = {
+        operator: "operator",
+        trade: "trade name",
+        destination: "destination",
+      };
+      const filterValue = (facet, v) => FILTERS[facet](v) ?? NOT_SET;
+      // Multi-select: values picked within one filter are OR'd, and the
+      // three filters are AND'd together. An empty set = not filtering.
+      const filterSelected = Object.fromEntries(
+        Object.keys(FILTERS).map((f) => [f, new Set()])
+      );
       // Supabase caps a single request at 1000 rows (PostgREST's default
       // max-rows setting) - the masterlist import (migration 0021/0022,
       // ~1,900 rows) pushed this table past that. Must be declared before
@@ -206,6 +342,7 @@
       initStatusFilter();
       initDetailsDialog();
       initColumnsPopover();
+      initFilters();
       document.getElementById("search").addEventListener("input", render);
       document.getElementById("export-csv").addEventListener("click", exportCsv);
       await load();
@@ -227,7 +364,9 @@
 
         toggle.addEventListener("click", (e) => {
           e.stopPropagation();
-          popover.classList.toggle("hidden");
+          const opening = popover.classList.contains("hidden");
+          closeAllFilterPopovers();
+          popover.classList.toggle("hidden", !opening);
         });
 
         popover.querySelectorAll("[data-col-toggle]").forEach((checkbox) => {
@@ -380,9 +519,10 @@
         if (docsEl) docsEl.innerHTML = links.length ? links.join("") : "—";
       }
 
-      // Shared by render() and exportCsv() so the CSV always matches
-      // exactly what's on screen - same status filter, search, and sort.
-      function currentRows() {
+      // Status tabs + free-text search, without the dropdown filters -
+      // split out so each dropdown can build its own option list from
+      // everything the *other* filters still allow.
+      function baseRows() {
         const query = document.getElementById("search").value.trim().toLowerCase();
 
         let rows =
@@ -397,15 +537,161 @@
               .some((s) => s.toLowerCase().includes(query))
           );
         }
+        return rows;
+      }
 
-        return applySort(rows);
+      // Applies every dropdown except `skip`. Skipping a filter's own
+      // value is what keeps its options from collapsing to just the one
+      // already picked, while still narrowing the other two.
+      function applyFilters(rows, skip = null) {
+        for (const facet of Object.keys(FILTERS)) {
+          if (facet === skip) continue;
+          const picked = filterSelected[facet];
+          if (picked.size === 0) continue;
+          rows = rows.filter((v) => picked.has(filterValue(facet, v)));
+        }
+        return rows;
+      }
+
+      // Shared by render() and exportCsv() so the CSV always matches
+      // exactly what's on screen - same status filter, search, dropdown
+      // filters, and sort.
+      function currentRows() {
+        return applySort(applyFilters(baseRows()));
+      }
+
+      // Each filter's list is built from what the *other* filters still
+      // allow, with a count per value. Its own selections are skipped in
+      // that calculation, so ticking one operator doesn't hide the rest -
+      // otherwise you could never select a second one.
+      function renderFilters() {
+        const base = baseRows();
+        let any = false;
+
+        for (const facet of Object.keys(FILTERS)) {
+          const panel = document.querySelector(`.filter-control[data-facet="${facet}"]`);
+          const host = panel.querySelector(".filter-options");
+          const picked = filterSelected[facet];
+          const term = panel.querySelector(".filter-search").value.trim().toLowerCase();
+          if (picked.size > 0) any = true;
+
+          const counts = new Map();
+          for (const v of applyFilters(base, facet)) {
+            const key = filterValue(facet, v);
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+          }
+          // Options come from the unfiltered base, so the list stays put
+          // as you tick things; a value the others exclude shows 0.
+          const options = [...new Set(base.map((v) => filterValue(facet, v)))].sort((a, b) => {
+            if (a === NOT_SET) return 1; // "(not set)" last
+            if (b === NOT_SET) return -1;
+            return a.localeCompare(b);
+          });
+          const shown = term ? options.filter((o) => o.toLowerCase().includes(term)) : options;
+
+          host.innerHTML = shown.length
+            ? shown
+                .map((opt) => {
+                  const n = counts.get(opt) ?? 0;
+                  const on = picked.has(opt);
+                  return `<label class="${n === 0 && !on ? "is-empty" : ""}" title="${escapeHtml(
+                    opt
+                  )}">
+                      <span class="filter-option-label">
+                        <input type="checkbox" data-value="${escapeHtml(opt)}"${on ? " checked" : ""} />
+                        <span>${escapeHtml(opt)}</span>
+                      </span>
+                      <span class="filter-count">${n}</span>
+                    </label>`;
+                })
+                .join("")
+            : `<p class="filter-empty">No matches.</p>`;
+
+          // The button carries the state, since the popover is usually
+          // shut - "Operator" alone, one name when that's all it is, or
+          // a count once naming them would be too long.
+          const toggle = panel.querySelector(".filter-toggle");
+          const noun = FILTER_NOUNS[facet];
+          const nounLabel = noun[0].toUpperCase() + noun.slice(1);
+          toggle.textContent =
+            picked.size === 0
+              ? nounLabel
+              : picked.size === 1
+                ? `${nounLabel}: ${[...picked][0]}`
+                : `${nounLabel}: ${picked.size} selected`;
+          toggle.classList.toggle("has-filter", picked.size > 0);
+          panel.querySelector(".filter-clear").classList.toggle("hidden", picked.size === 0);
+        }
+
+        document.getElementById("clear-filters").classList.toggle("hidden", !any);
+      }
+
+      function initFilters() {
+        document.querySelectorAll(".filter-control").forEach((panel) => {
+          const facet = panel.dataset.facet;
+          const popover = panel.querySelector(".filter-popover");
+
+          panel.querySelector(".filter-toggle").addEventListener("click", (e) => {
+            e.stopPropagation();
+            const opening = popover.classList.contains("hidden");
+            closeAllFilterPopovers();
+            if (opening) {
+              popover.classList.remove("hidden");
+              panel.querySelector(".filter-search").focus();
+            }
+          });
+
+          // Bound to the container, not each checkbox - the list is
+          // re-rendered on every tick, so per-checkbox listeners would
+          // need re-attaching each time.
+          panel.querySelector(".filter-options").addEventListener("change", (e) => {
+            const box = e.target.closest("input[type=checkbox]");
+            if (!box) return;
+            const picked = filterSelected[facet];
+            if (box.checked) picked.add(box.dataset.value);
+            else picked.delete(box.dataset.value);
+            render();
+          });
+
+          panel.querySelector(".filter-search").addEventListener("input", renderFilters);
+          panel.querySelector(".filter-clear").addEventListener("click", () => {
+            filterSelected[facet].clear();
+            render();
+          });
+          // Clicks inside the popover shouldn't reach the document
+          // handler that closes it.
+          popover.addEventListener("click", (e) => e.stopPropagation());
+        });
+
+        document.getElementById("clear-filters").addEventListener("click", () => {
+          for (const f of Object.keys(FILTERS)) filterSelected[f].clear();
+          render();
+        });
+        document.addEventListener("click", closeAllFilterPopovers);
+      }
+
+      // Closes the Columns popover too, so at most one popover in this
+      // toolbar is ever open - they'd otherwise overlap, since both
+      // anchor to the same row.
+      function closeAllFilterPopovers() {
+        document
+          .querySelectorAll(".filter-popover")
+          .forEach((p) => p.classList.add("hidden"));
+        document.getElementById("columns-popover")?.classList.add("hidden");
       }
 
       function render() {
+        renderFilters();
         const rows = currentRows();
 
+        // Says how many are showing whenever anything is narrowing the
+        // list - "1,832 registered" on its own would be misleading next
+        // to a filtered table.
+        const total = allVehicles.length;
         document.getElementById("summary-count").textContent =
-          `${allVehicles.length} vehicle${allVehicles.length === 1 ? "" : "s"} registered across all operators`;
+          rows.length === total
+            ? `${total} vehicle${total === 1 ? "" : "s"} registered across all operators`
+            : `${rows.length} of ${total} vehicles shown`;
 
         const host = document.getElementById("vehicle-list");
 
