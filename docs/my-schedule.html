@@ -168,6 +168,11 @@
 
       <div class="kpis" id="kpis"></div>
 
+      <div class="field" style="max-width: 380px; margin: 4px 0 14px">
+        <label for="board-search">Filter</label>
+        <input id="board-search" placeholder="Operator, destination, plate, or trip no.…" />
+      </div>
+
       <div class="hidden" id="message"></div>
       <div id="grid"></div>
     </main>
@@ -243,7 +248,9 @@
       }
 
       function exportCsv() {
-        const rows = [...lastDayBookings]
+        // Matches what is on screen, filter included.
+        const rows = lastDayBookings
+          .filter(matchesBoardFilter)
           .sort((a, b) => a.slot - b.slot)
           .map(bookingToCsvRow);
         downloadCsv(
@@ -270,6 +277,7 @@
         load();
       });
       document.getElementById("export-csv").addEventListener("click", exportCsv);
+      document.getElementById("board-search").addEventListener("input", renderBoard);
 
       // Strips the "Gate "/"Bay " prefix a PIDS board doesn't repeat on
       // every row (the column header already says what it is) - falls
@@ -374,7 +382,7 @@
           )
           .join("");
 
-        renderBoard(bookings);
+        renderBoard();
       }
 
       // Groups bookings by slot (skipping any slot with nothing
@@ -382,16 +390,30 @@
       // and renders one time-divider row per group, PIDS-style. On the
       // "All trips" view, this operator's own rows are highlighted so
       // they're easy to pick out of the full board.
-      function renderBoard(bookings) {
+      // Filters lastDayBookings by the board's search box before
+      // grouping. A day here can run to several hundred rows (366 on a
+      // busy date), which is a lot to scan for one operator's trip.
+      function matchesBoardFilter(b) {
+        const q = document.getElementById('board-search').value.trim().toLowerCase();
+        if (!q) return true;
+        return [b.operator_name, b.trade_name, b.route, b.plate_no, b.trip_number, b.bays?.name]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q));
+      }
+
+      function renderBoard() {
+        const bookings = lastDayBookings.filter(matchesBoardFilter);
         const host = document.getElementById("grid");
 
         if (bookings.length === 0) {
           host.innerHTML = `
             <div class="pids-wrap">
               <p class="pids-empty">${
-                viewMode === "mine"
-                  ? "No confirmed trips for this date."
-                  : "No trips scheduled for this date."
+                lastDayBookings.length > 0
+                  ? "No trips match this filter."
+                  : viewMode === "mine"
+                    ? "No confirmed trips for this date."
+                    : "No trips scheduled for this date."
               }</p>
             </div>`;
           return;

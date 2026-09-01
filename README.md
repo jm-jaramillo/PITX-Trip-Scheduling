@@ -1140,6 +1140,7 @@ docs/                        THE SITE ITSELF (served by GitHub Pages)
   vehicles-database.html     Staff: every registered vehicle, any status, searchable, column toggle, CSV export
   transfer-approvals.html    Staff: pending booking-transfer queue (search, bulk actions, decided log)
   schedule.html              Staff: airport-style departures board, one day at a time (CSV export)
+  utilization.html           Staff: gate occupancy + busiest hours over a date range, plus vehicles blocked by an unlinked route (CSV export)
   bays.html                  Staff: manage the bay list (add, rename, activate/deactivate)
   operator-profiles.html     Staff: read-only view of every operator's company profile (sortable, CSV export)
   accounts.html              Staff: create/delete/reset-password logins (via Edge Functions)

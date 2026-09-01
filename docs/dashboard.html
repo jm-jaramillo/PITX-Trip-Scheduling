@@ -52,6 +52,26 @@
             <div class="slot-picker" id="slot-picker"></div>
           </div>
 
+          <div class="field span-all repeat-box">
+            <label class="repeat-toggle">
+              <input type="checkbox" id="repeat_enabled" />
+              <span>Repeat this trip on other days</span>
+            </label>
+            <div class="hidden" id="repeat-options">
+              <p class="fineprint" style="margin-top: 0">
+                Books the same route and time on every selected weekday, from
+                the date above through the end date. Days already booked at
+                that time, or too close to departure, are skipped.
+              </p>
+              <div class="repeat-days" id="repeat-days"></div>
+              <div class="field" style="max-width: 220px; margin-bottom: 0">
+                <label for="repeat_until">Repeat until</label>
+                <input id="repeat_until" type="date" />
+              </div>
+              <p class="fineprint" id="repeat-preview"></p>
+            </div>
+          </div>
+
           <div class="span-all">
             <p class="fineprint">
               You'll assign a vehicle's plate number to this trip later, any
@@ -75,8 +95,9 @@
         <div>
           <h2 style="margin: 0">My requests</h2>
           <p class="fineprint" style="margin: 2px 0 0">
-            Today and future only - past requests are on
-            <a href="request-history.html">History</a>.
+            Today and future only.
+            <a href="request-history.html">History</a> has every request you've
+            made, browsable by month.
           </p>
         </div>
         <div class="mode-switch" role="tablist" id="status-filter">
@@ -184,6 +205,7 @@
         gateForRoute,
         formatSlotStart,
         todayISO,
+        addDays,
         statusBadge,
         bookingOperatorHtml,
         escapeHtml,
@@ -208,6 +230,16 @@
       let pendingTransferBookingIds = new Set();
       let operatorAccounts = [];
       let activeBays = []; // { id, gate } - active bays only, for the gate-full hint
+      // Repeat-booking state. Declared up here with the rest of the
+      // module state because initForm() -> initRepeatControls() reads
+      // both at module top-level, which would otherwise run while these
+      // are still in their temporal dead zone (same class of bug as
+      // #37/#39/#46/#52/#66/#69/#75/#79 - hit again writing this).
+      const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      // Which weekdays the repeat applies to. Seeded from the start date
+      // on first open, so the common "same day every week" case needs no
+      // clicks at all.
+      let repeatDays = new Set();
 
       // Route dropdown groups: matches how staff assign bays, and keeps
       // 80+ routes from being one unmanageable flat list.
@@ -750,7 +782,10 @@
         document.getElementById("route").addEventListener("change", () => {
           checkGateFullness();
           checkSlotOccupancy();
+          updateRepeatPreview();
         });
+
+        initRepeatControls();
 
         const dateInput = document.getElementById("booking_date");
         dateInput.min = todayISO();
@@ -763,11 +798,13 @@
           populateSlotOptions();
           checkGateFullness();
           checkSlotOccupancy();
+          updateRepeatPreview();
         });
 
         document.getElementById("slot").addEventListener("change", () => {
           checkGateFullness();
           checkSlotOccupancy();
+          updateRepeatPreview();
         });
 
         document
@@ -889,6 +926,10 @@
         const errorEl = document.getElementById("form-error");
         const okEl = document.getElementById("form-ok");
         const submitBtn = document.getElementById("submit");
+        // Text cleared as well as hidden - a stale message left in the
+        // node reads as current if the next render only toggles classes.
+        errorEl.textContent = "";
+        okEl.textContent = "";
         errorEl.className = "inline-error hidden";
         okEl.className = "inline-ok hidden";
 
@@ -924,6 +965,14 @@
           );
         }
 
+        const slot = Number(slotRaw);
+        const dates = repeatDates(bookingDate, slot);
+        if (dates.length === 0) {
+          return fail(
+            "Every repeat date is either already booked at this time or too close to departure - nothing left to submit."
+          );
+        }
+
         submitBtn.disabled = true;
         submitBtn.textContent = "Submitting…";
 
@@ -931,36 +980,170 @@
         // the plate is filled in later (any time up to the day of the
         // trip) via the "Set plate" action, which goes through
         // request_booking_change() (migration 0039).
-        const { error } = await supabase.from("bookings").insert({
-          operator_id: profile.id,
-          operator_name: profile.operator_name,
-          route,
-          booking_date: bookingDate,
-          slot: Number(slotRaw),
-          status: "pending",
-        });
+        //
+        // One insert for the whole set: a partial success would otherwise
+        // leave the operator guessing which days actually went through.
+        const { error } = await supabase.from("bookings").insert(
+          dates.map((d) => ({
+            operator_id: profile.id,
+            operator_name: profile.operator_name,
+            route,
+            booking_date: d,
+            slot,
+            status: "pending",
+          }))
+        );
 
         submitBtn.disabled = false;
         submitBtn.textContent = "Request slot";
 
         if (error) {
-          // The client-side check above should catch this first - this
+          // The client-side checks above should catch this first - this
           // only fires on a race (e.g. the clock crossed 2 hours between
           // page load and submit).
           return fail(
             error.code === "42501" || /row-level security/i.test(error.message)
-              ? "Couldn't submit - that slot is now within 2 hours. Please recheck and try again."
+              ? "Couldn't submit - one of those slots is now within 2 hours. Please recheck and try again."
               : error.message
           );
         }
 
+        const skipped = plannedRepeatDates(bookingDate).length - dates.length;
         okEl.textContent =
-          "Request submitted. PITX staff will review it shortly.";
+          dates.length === 1
+            ? "Request submitted. PITX staff will review it shortly."
+            : `${dates.length} requests submitted${
+                skipped > 0 ? ` (${skipped} date${skipped === 1 ? "" : "s"} skipped)` : ""
+              }. PITX staff will review them shortly.`;
         okEl.className = "inline-ok";
         document.getElementById("route").value = "";
         populateSlotOptions();
         document.getElementById("gate-full-hint").className = "hint hidden";
+        document.getElementById("slot-occupancy").className = "fineprint hidden";
+        document.getElementById("route-conflict-hint").className = "hint hidden";
         await loadRequests();
+        updateRepeatPreview();
+      }
+
+      /* ------------------------------------------------ repeat booking */
+
+      function isoWeekday(iso) {
+        const [y, m, d] = iso.split("-").map(Number);
+        return new Date(y, m - 1, d, 12).getDay();
+      }
+
+      function initRepeatControls() {
+        const box = document.getElementById("repeat_enabled");
+        const opts = document.getElementById("repeat-options");
+        const until = document.getElementById("repeat_until");
+
+        document.getElementById("repeat-days").innerHTML = WEEKDAY_LABELS.map(
+          (label, i) =>
+            `<button type="button" class="repeat-day" data-weekday="${i}">${label}</button>`
+        ).join("");
+
+        document.querySelectorAll("[data-weekday]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const d = Number(btn.dataset.weekday);
+            if (repeatDays.has(d)) repeatDays.delete(d);
+            else repeatDays.add(d);
+            btn.classList.toggle("is-on", repeatDays.has(d));
+            updateRepeatPreview();
+          });
+        });
+
+        box.addEventListener("change", () => {
+          opts.classList.toggle("hidden", !box.checked);
+          if (box.checked) {
+            const start = document.getElementById("booking_date").value;
+            if (repeatDays.size === 0 && start) {
+              repeatDays.add(isoWeekday(start));
+              syncRepeatDayButtons();
+            }
+            if (!until.value && start) until.value = addDays(start, 27);
+          }
+          updateRepeatPreview();
+        });
+
+        until.addEventListener("change", updateRepeatPreview);
+      }
+
+      function syncRepeatDayButtons() {
+        document.querySelectorAll("[data-weekday]").forEach((btn) => {
+          btn.classList.toggle("is-on", repeatDays.has(Number(btn.dataset.weekday)));
+        });
+      }
+
+      // Every date the current repeat settings *intend* to book, before
+      // any eligibility filtering - used to report how many got skipped.
+      function plannedRepeatDates(startDate) {
+        if (!document.getElementById("repeat_enabled").checked) return [startDate];
+
+        const until = document.getElementById("repeat_until").value;
+        if (!until || until < startDate || repeatDays.size === 0) return [startDate];
+
+        // Hard ceiling so a mis-typed end date can't try to insert years
+        // of rows in one go.
+        const MAX_DATES = 60;
+        const out = [];
+        for (let d = startDate; d <= until && out.length < MAX_DATES; d = addDays(d, 1)) {
+          if (repeatDays.has(isoWeekday(d))) out.push(d);
+        }
+        return out;
+      }
+
+      // The subset actually submittable: still outside the lead-time
+      // window, and not already booked by this operator at the same
+      // route+slot (re-submitting a day they already hold would just
+      // create a duplicate request for staff to sort out).
+      function repeatDates(startDate, slot) {
+        const route = document.getElementById("route").value.trim();
+        const existing = new Set(
+          allBookings
+            .filter(
+              (b) =>
+                b.slot === slot &&
+                b.route === route &&
+                (b.status === "pending" || b.status === "approved")
+            )
+            .map((b) => b.booking_date)
+        );
+
+        return plannedRepeatDates(startDate).filter(
+          (d) =>
+            !existing.has(d) &&
+            slotStartMillis(d, slot) - Date.now() >= BOOKING_LEAD_TIME_MS
+        );
+      }
+
+      function updateRepeatPreview() {
+        const el = document.getElementById("repeat-preview");
+        const box = document.getElementById("repeat_enabled");
+        const start = document.getElementById("booking_date").value;
+        const slotRaw = document.getElementById("slot").value;
+
+        if (!box.checked || !start) {
+          el.textContent = "";
+          return;
+        }
+        if (repeatDays.size === 0) {
+          el.textContent = "Pick at least one weekday.";
+          return;
+        }
+        if (slotRaw === "") {
+          el.textContent = "Pick a time slot to see how many trips this books.";
+          return;
+        }
+
+        const planned = plannedRepeatDates(start);
+        const usable = repeatDates(start, Number(slotRaw));
+        const skipped = planned.length - usable.length;
+        el.textContent =
+          `Books ${usable.length} trip${usable.length === 1 ? "" : "s"}` +
+          (usable.length ? ` (${usable[0]} to ${usable[usable.length - 1]})` : "") +
+          (skipped > 0
+            ? ` - ${skipped} skipped: already booked at this time, or too close to departure.`
+            : ".");
       }
 
       async function loadRequests() {

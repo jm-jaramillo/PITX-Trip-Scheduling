@@ -178,8 +178,9 @@
               .select("id, username, operator_name")
               .eq("role", "operator")
               .order("operator_name", { ascending: true, nullsFirst: false })
-              .order("username", { ascending: true }),
-            supabase.from("operator_profiles").select("*"),
+              .order("username", { ascending: true })
+              .range(0, 4999),
+            supabase.from("operator_profiles").select("*").range(0, 4999),
           ]);
 
         if (opError || profError) {

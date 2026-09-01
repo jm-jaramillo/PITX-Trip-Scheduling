@@ -1602,6 +1602,58 @@ dialog.details-dialog {
   color: #fff;
 }
 
+/* "Repeat this trip" on the booking form - operators run fixed weekly
+   schedules, so booking a week used to mean seven identical passes
+   through the form. */
+.repeat-box {
+  border: 1px solid var(--border, #d7dbe3);
+  border-radius: var(--r-card-sm, 16px);
+  padding: 12px 14px;
+  background: var(--ground, #f4f5f7);
+}
+
+.repeat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--title, #14192b);
+  cursor: pointer;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.repeat-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+
+.repeat-day {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #d7dbe3);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text, #1f2430);
+  cursor: pointer;
+}
+
+.repeat-day:hover {
+  border-color: var(--blue, #2f5fd0);
+}
+
+.repeat-day.is-on {
+  background: var(--blue, #2f5fd0);
+  border-color: var(--blue, #2f5fd0);
+  color: #fff;
+}
+
 /* Advisory, not blocking - e.g. "this gate is full, try a different
    time" on the booking form. Amber rather than .warn's red since the
    operator can still submit; it's a nudge, not an error. */

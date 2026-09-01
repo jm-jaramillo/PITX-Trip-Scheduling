@@ -79,6 +79,7 @@
         renderNav,
         showMessage,
         escapeHtml,
+        fetchAllRows,
       } from "./assets/app.js";
       import { SUPABASE_URL } from "./assets/config.js";
 
@@ -110,10 +111,13 @@
       }
 
       async function load() {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, username, role, operator_name, created_at")
-          .order("created_at", { ascending: false });
+        const { data } = await fetchAllRows((from, to) =>
+          supabase
+            .from("profiles")
+            .select("id, username, role, operator_name, created_at")
+            .order("created_at", { ascending: false })
+            .range(from, to)
+        );
 
         allProfiles = data ?? [];
         render();

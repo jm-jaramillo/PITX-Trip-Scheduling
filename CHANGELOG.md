@@ -3166,6 +3166,98 @@ month navigation, and both My schedule views.
 
 ---
 
+### 87. Every suggestion from the #86 test pass, applied (1 Sep)
+
+Ten items, migration `0045` plus the client work. All the new
+time-dependent behaviour follows this app's existing "no scheduled
+server-side execution" pattern - idempotent sync RPCs called on nav
+render, exactly like `sync_expiry_notifications()` (0024) - rather than
+introducing cron.
+
+**Booking**
+1. **Repeat a trip across days.** Operators run fixed weekly schedules,
+   and booking a week meant seven identical passes through the form (I
+   did exactly that in #86 and it was the clearest friction in the app).
+   The request form now has a "Repeat this trip on other days" block:
+   weekday toggles (seeded from the start date, so "same day every week"
+   needs no clicks), an end date (defaulting to +4 weeks), and a live
+   preview of how many trips it will book. All dates go in one insert.
+   Dates already booked at that route+time, or now inside the 2-hour
+   lockout, are skipped and reported rather than failing the batch.
+   Capped at 60 dates so a mistyped end date can't fan out unbounded.
+
+**Correctness**
+2. **Unbounded-query sweep**, closing the bug class behind #86's headline
+   fix. New shared `fetchAllRows()` helper pages past PostgREST's silent
+   1,000-row cap; applied to the pending queue, the approved-bookings
+   conflict lookup, cancellation requests, staff Overview's pending list,
+   and the accounts list. `operator-profiles.html` got explicit ranges.
+   (`vehicles-database.html` already paged correctly - that was the
+   model.)
+3. **Bulk approve now matches single approve.** Bulk considered only
+   gate bays and skipped when the gate was full, while the single-row
+   dropdown falls back to any free bay - the two paths disagreed about
+   the same request. Bulk now uses the same `suggested[0] ?? other[0]`
+   pick and reports which ones landed outside their usual gate.
+
+**Staff**
+4. **Staff-side plate entry** (`staff_set_booking_plate()`). Since #81
+   made the plate optional at booking, a trip could reach departure with
+   no vehicle and nobody at the terminal could record one -
+   `request_booking_change()` is operator-scoped. Same eligibility and
+   back-to-back rules as the operator's own path, enforced in the RPC.
+5. **Auto-expiry for past-dated pending requests**
+   (`expire_stale_pending_bookings()`, run on staff nav render). They sat
+   in the queue forever and were still approvable - staff could "approve"
+   a trip that had already not happened. Closed as rejected with an
+   explicit system reason; `decided_by` stays null, which no staff
+   rejection ever has, so the two are distinguishable.
+6. **Success confirmations on approve/reject.** The card vanishing was
+   the only feedback, and it looked identical whether the action landed
+   or the row was decided out from under you.
+7. **New Utilization page** - trips and slot occupancy per gate over a
+   date range, busiest hours, and CSV export. Aggregated server-side
+   (`utilization_by_gate()`) rather than pulling every booking to count
+   in the browser - the same trap #86 fixed. Against real data it
+   immediately showed twin 6 AM / 5 PM peaks and that most trips land in
+   bays with no gate mapping.
+8. **Unlinked-route report**, on the same page
+   (`vehicles_with_unlinked_route()`). 54 approved vehicles (~3%) carry a
+   route that isn't one of the terminal's - free text left from the
+   masterlist import (`PALAWAN`, `GUIMARAS ISLAND`, `NEGROS OCCI.`) or
+   null - which makes them permanently unbookable with nothing in the
+   operator's UI explaining why.
+
+**Operator**
+9. **Plate-missing reminders** (`sync_plate_missing_notifications()`).
+   #83's red banner only helps an operator who opens the app; this pushes
+   an approved-trip-with-no-vehicle into their notification panel, for
+   today and tomorrow only (a reminder three weeks out is noise).
+10. **Board filter** on both PIDS boards, and clearer History framing.
+    A day runs to several hundred rows (366 on a real date) with no way
+    to find one trip; the filter matches operator, destination, plate,
+    trip no. or bay, and CSV export follows it. History's copy now says
+    it's the complete archive including upcoming trips, rather than
+    implying past-only while showing future rows.
+
+Also fixed while in here: another temporal-dead-zone crash (the repeat
+controls' `const`s were read by `initForm()` before their declaration -
+same class as #37/#39/#46/#52/#66/#69/#75/#79), and stale hidden text
+left in the booking form's message elements.
+
+Verified live against `ceresgoldstar.ops` / `pitx.admin`: a 6-trip
+Tue/Thu/Sat repeat booked in one submit and correctly skipped all 6 on a
+re-submit; auto-expiry closed the one stale request and left zero behind;
+the plate reminder fired with the right bay and stayed at exactly one row
+across reloads; staff plate entry accepted the operator's own vehicle and
+rejected another operator's; the board filter went 366 → 8 → no-match →
+366. Every row the test created was removed afterwards (2,798 bookings
+before and after, zero pre-existing rows left modified - the one
+production request auto-expiry legitimately closed was restored to
+pending).
+
+---
+
 ## What the app does now
 
 **Operators** — fill in a one-time company profile (Operator, trade name/
@@ -3176,7 +3268,8 @@ Details - Case No., Franchise, Sticker No., Body Number, trade name, CPC/
 OR-CR validity, CPC Extension of Validity, Route, Origin, Destination;
 Vehicle Details - MV File #, Chassis No., Year, Make, Bus Type, Seating
 capacity, Seat configuration; Remarks); request a 15-minute trip slot by
-picking a destination and time (no plate yet); assign the plate later,
+picking a destination and time (no plate yet), optionally repeating it
+across chosen weekdays in one go; assign the plate later,
 any time up to the day of the trip, from a dropdown of their *approved*,
 CPC-current vehicles; see status, assigned bay, and any rejection note;
 filter today-and-future requests by status, sortable by date, with past
@@ -3189,10 +3282,11 @@ airport-style PIDS board.
 
 **PITX staff** — approve or reject vehicle registrations, booking
 requests (assigning an available bay on approval), and cancellation
-requests for already-approved bookings; view an airport-style departures
-board of the day's confirmed trips (Arriving/Departed/Cancelled), grouped
-by time, with inline bay reassignment; add/deactivate bays; create
-operator and staff logins.
+requests for already-approved bookings; record a plate on an operator's
+behalf; view an airport-style departures board of the day's confirmed
+trips (Arriving/Departed/Cancelled), grouped by time, filterable, with
+inline bay reassignment; review gate utilization and busiest hours over a
+date range; add/deactivate bays; create operator and staff logins.
 
 **Enforced by the database, not just the UI**
 

@@ -67,6 +67,7 @@
         renderNav,
         formatSlotStart,
         formatDateTime,
+        fetchAllRows,
         compareBayNames,
         gateForRoute,
         showMessage,
@@ -120,15 +121,18 @@
 
       async function load() {
         const [pendingRes, baysRes, cancelCountRes] = await Promise.all([
-          supabase
-            .from("bookings")
-            .select(
-              "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, revision_count, previously_approved, last_edited_at"
-            )
-            .eq("status", "pending")
-            .is("cancellation_requested_at", null)
-            .order("booking_date", { ascending: true })
-            .order("slot", { ascending: true }),
+          fetchAllRows((from, to) =>
+            supabase
+              .from("bookings")
+              .select(
+                "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, revision_count, previously_approved, last_edited_at"
+              )
+              .eq("status", "pending")
+              .is("cancellation_requested_at", null)
+              .order("booking_date", { ascending: true })
+              .order("slot", { ascending: true })
+              .range(from, to)
+          ),
           supabase
             .from("bays")
             .select("id, name, gate")
@@ -160,11 +164,14 @@
         const queueDates = [...new Set(pendingRequests.map((b) => b.booking_date))];
         pendingTaken = new Map();
         if (queueDates.length > 0) {
-          const { data: approvedRows } = await supabase
-            .from("bookings")
-            .select("booking_date, slot, assigned_bay_id")
-            .eq("status", "approved")
-            .in("booking_date", queueDates);
+          const { data: approvedRows } = await fetchAllRows((from, to) =>
+            supabase
+              .from("bookings")
+              .select("booking_date, slot, assigned_bay_id")
+              .eq("status", "approved")
+              .in("booking_date", queueDates)
+              .range(from, to)
+          );
 
           for (const row of approvedRows ?? []) {
             const key = `${row.booking_date}|${row.slot}`;
@@ -184,13 +191,16 @@
 
       async function loadCancellations() {
         const host = document.getElementById("cancellations");
-        const { data, error } = await supabase
-          .from("bookings")
-          .select(
-            "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, cancellation_requested_at, cancellation_reason"
-          )
-          .not("cancellation_requested_at", "is", null)
-          .order("cancellation_requested_at", { ascending: true });
+        const { data, error } = await fetchAllRows((from, to) =>
+          supabase
+            .from("bookings")
+            .select(
+              "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, cancellation_requested_at, cancellation_reason"
+            )
+            .not("cancellation_requested_at", "is", null)
+            .order("cancellation_requested_at", { ascending: true })
+            .range(from, to)
+        );
 
         if (error) {
           host.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
@@ -393,11 +403,18 @@
                     <input placeholder="Reason (optional)" />
                     <button type="submit" class="btn-danger-outline">Reject</button>
                   </form>
+                  <button type="button" class="btn-link" data-setplate="${escapeHtml(
+                    b.id
+                  )}">${b.plate_no ? "Change plate" : "Set plate"}</button>
                 </div>
               </div>
             `;
           })
           .join("");
+
+        host.querySelectorAll("[data-setplate]").forEach((btn) => {
+          btn.addEventListener("click", () => setPlate(btn.dataset.setplate));
+        });
 
         host.querySelectorAll("[data-approve]").forEach((form) => {
           form.addEventListener("submit", (e) => {
@@ -472,6 +489,9 @@
 
         let approvedCount = 0;
         const skipped = [];
+        // Approved, but into a bay outside the route's usual gate -
+        // worth calling out so staff can move it if they'd rather.
+        const offGate = [];
 
         for (const id of ids) {
           const booking = pendingRequests.find((b) => b.id === id);
@@ -480,15 +500,21 @@
             continue;
           }
 
-          const { gate, suggested } = bayChoicesFor(booking);
-          const bay = suggested[0];
+          // Same fallback the single-row approve dropdown pre-selects
+          // (`suggested[0] ?? other[0]`) - bulk used to consider only
+          // gate bays and skip outright when the gate was full, so the
+          // two paths disagreed about the same request. Staff can still
+          // reassign afterwards from the Schedule board; refusing to
+          // approve a request that has a perfectly usable bay free was
+          // the worse default (#87).
+          const { gate, suggested, other, autoPick } = bayChoicesFor(booking);
+          const bay = autoPick;
           if (!bay) {
-            skipped.push(
-              `${booking.operator_name} (${
-                gate ? `no suggested bay left at ${gate}` : "route has no gate match"
-              })`
-            );
+            skipped.push(`${booking.operator_name} (no bay free at that time)`);
             continue;
+          }
+          if (gate && suggested.length === 0) {
+            offGate.push(`${booking.operator_name} → ${bay.name} (${gate} full)`);
           }
 
           const { data, error } = await supabase
@@ -517,11 +543,16 @@
           pendingTaken.get(key).add(bay.id);
         }
 
+        const parts = [`Approved ${approvedCount} request(s).`];
+        if (offGate.length > 0) {
+          parts.push(`Assigned outside the usual gate: ${offGate.join("; ")}.`);
+        }
+        if (skipped.length > 0) {
+          parts.push(`Skipped ${skipped.length}: ${skipped.join("; ")}`);
+        }
         showMessage(
           "message",
-          skipped.length === 0
-            ? `Approved ${approvedCount} request(s).`
-            : `Approved ${approvedCount}, skipped ${skipped.length}: ${skipped.join("; ")}`,
+          parts.join(" "),
           skipped.length === 0 ? "ok" : "error"
         );
         await load();
@@ -618,13 +649,29 @@
         }
         if (!data || data.length === 0) {
           showMessage("message", "That request was already decided on.");
+          await load();
+          return;
         }
+
+        // The card vanishing is the only other feedback staff get, which
+        // reads the same whether the approve landed or the row was
+        // decided out from under them - say which it was.
+        const booking = pendingRequests.find((b) => b.id === bookingId);
+        const bay = pendingBays.find((y) => y.id === Number(bayIdRaw));
+        showMessage(
+          "message",
+          `Approved ${booking ? booking.operator_name : "request"}${
+            bay ? ` into ${bay.name}` : ""
+          }.`,
+          "ok"
+        );
         await load();
       }
 
       async function reject(bookingId, reason) {
         showMessage("message", "");
-        await supabase
+        const booking = pendingRequests.find((b) => b.id === bookingId);
+        const { error } = await supabase
           .from("bookings")
           .update({
             status: "rejected",
@@ -634,6 +681,48 @@
           })
           .eq("id", bookingId)
           .eq("status", "pending");
+
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        showMessage(
+          "message",
+          `Rejected ${booking ? booking.operator_name : "request"}.`,
+          "ok"
+        );
+        await load();
+      }
+
+      // Staff-side plate entry (migration 0045). An operator can leave a
+      // trip without a vehicle right up to departure (#81 made the plate
+      // optional at booking time), and until now nobody at the terminal
+      // could record it on their behalf. Same eligibility and
+      // back-to-back rules as the operator's own path - enforced in the
+      // RPC, not here.
+      async function setPlate(bookingId) {
+        const booking = pendingRequests.find((b) => b.id === bookingId);
+        const entered = prompt(
+          `Plate number for ${booking ? booking.operator_name : "this booking"}` +
+            `${booking ? ` (${booking.route})` : ""}:`,
+          booking?.plate_no ?? ""
+        );
+        if (entered === null) return;
+
+        showMessage("message", "");
+        const { error } = await supabase.rpc("staff_set_booking_plate", {
+          p_booking_id: bookingId,
+          p_plate_no: entered,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        showMessage(
+          "message",
+          entered.trim() ? `Plate set to ${entered.trim()}.` : "Plate cleared.",
+          "ok"
+        );
         await load();
       }
     </script>

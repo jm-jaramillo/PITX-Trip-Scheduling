@@ -434,6 +434,7 @@ const STAFF_LINKS = [
   { href: "vehicles-database.html", label: "Vehicles" },
   { href: "transfer-approvals.html", label: "Transfer approvals" },
   { href: "schedule.html", label: "Schedule" },
+  { href: "utilization.html", label: "Utilization" },
   { href: "bays.html", label: "Bays" },
   { href: "operator-profiles.html", label: "Operator profiles" },
   { href: "accounts.html", label: "Accounts" },
@@ -510,10 +511,27 @@ async function initNotifications(profile) {
   const badge = document.getElementById("notif-badge");
   if (!bell || !panel || !badge) return;
 
-  // Best-effort - if this fails (e.g. offline), the panel just shows
+  // Best-effort - if these fail (e.g. offline), the panel just shows
   // whatever notifications already exist rather than blocking on it.
+  //
+  // This app has no scheduled server-side execution, so anything that
+  // becomes true with the passage of time rather than in response to an
+  // event gets synced here, on nav render. All three are idempotent
+  // (ON CONFLICT DO NOTHING / a WHERE that stops matching once applied),
+  // so running them on every page load is cheap and never duplicates.
   try {
-    await supabase.rpc("sync_expiry_notifications");
+    await Promise.all([
+      // Vehicle CPC / OR-CR approaching expiry (migration 0024).
+      supabase.rpc("sync_expiry_notifications"),
+      // Approved trip tomorrow-or-today with no vehicle assigned (0045).
+      supabase.rpc("sync_plate_missing_notifications"),
+      // Pending requests whose date has passed - staff-only, since it
+      // writes to other operators' rows and only matters to the queue
+      // it's clearing (0045).
+      profile.role === "staff"
+        ? supabase.rpc("expire_stale_pending_bookings")
+        : Promise.resolve(),
+    ]);
   } catch {
     /* ignore - see comment above */
   }
@@ -767,6 +785,45 @@ export function applyVehicleHighlightFromQuery(openDetails) {
   row.classList.add("row-highlighted");
   row.scrollIntoView({ behavior: "smooth", block: "center" });
   openDetails(vehicleId);
+}
+
+/**
+ * Runs a Supabase select to completion, paging past PostgREST's default
+ * 1,000-row response cap.
+ *
+ * That cap is silent - a query matching 3,000 rows returns 1,000 with no
+ * error and no flag - which is exactly how the bay-conflict bug in #86
+ * survived: staff.html fetched "every approved booking" and quietly got
+ * only the oldest 1,000, so its taken-bay set was empty for every date
+ * that mattered. Any list that grows with usage has to page rather than
+ * assume one round trip is the whole answer.
+ *
+ * Pass a function that takes (from, to) and returns the ranged query, so
+ * this can re-issue it per page:
+ *
+ *   const rows = await fetchAllRows((from, to) =>
+ *     supabase.from("bookings").select("id, slot").range(from, to)
+ *   );
+ *
+ * Returns { data, error } like a normal Supabase call - `data` is every
+ * row across all pages, or null if any page errored.
+ */
+export async function fetchAllRows(buildQuery, pageSize = 1000) {
+  const all = [];
+  let from = 0;
+
+  for (;;) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+
+    all.push(...(data ?? []));
+    // A short page means this was the last one. An exactly-full page is
+    // ambiguous, so it costs one more (empty) request to be sure.
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return { data: all, error: null };
 }
 
 export function showMessage(id, text, kind = "error") {

@@ -134,6 +134,7 @@
         todayISO,
         slotStartMillis,
         BOOKING_LEAD_TIME_MS,
+        fetchAllRows,
         formatSlotStart,
         bookingOperatorHtml,
       } from "./assets/app.js";
@@ -168,10 +169,13 @@
           transfersAwaitingOperatorRes,
           approvedTodayRes,
         ] = await Promise.all([
-          supabase
-            .from("bookings")
-            .select("id, operator_name, trade_name, route, plate_no, booking_date, slot")
-            .eq("status", "pending"),
+          fetchAllRows((from, to) =>
+            supabase
+              .from("bookings")
+              .select("id, operator_name, trade_name, route, plate_no, booking_date, slot")
+              .eq("status", "pending")
+              .range(from, to)
+          ),
           supabase
             .from("vehicles")
             .select("id", { count: "exact", head: true })
@@ -334,6 +338,7 @@
           { href: "vehicles-database.html", label: "Vehicles" },
           { href: "transfer-approvals.html", label: "Transfer approvals" },
           { href: "schedule.html", label: "Schedule" },
+          { href: "utilization.html", label: "Utilization" },
           { href: "bays.html", label: "Bays" },
           { href: "operator-profiles.html", label: "Operator profiles" },
           { href: "accounts.html", label: "Accounts" },

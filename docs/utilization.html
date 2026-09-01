@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Utilization · PITX Trip Scheduling</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+    <style>
+      /* A bar per gate per day, drawn with plain divs rather than a chart
+         library - the app has no build step and no external runtime
+         dependencies beyond Supabase, and this is a single stacked bar. */
+      .util-bar-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 220px;
+      }
+      .util-bar {
+        flex: 1;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--ground-alt, #eef0f3);
+        overflow: hidden;
+      }
+      .util-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--blue, #2f5fd0);
+      }
+      .util-bar-fill.is-high {
+        background: var(--amber-ink, #a15c00);
+      }
+      .util-bar-fill.is-full {
+        background: var(--red-ink, #9c1f22);
+      }
+      .util-pct {
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        font-size: 12px;
+        min-width: 42px;
+        text-align: right;
+      }
+      .util-section {
+        margin-top: 34px;
+      }
+
+      /* Same section heading overview.html defines locally - both pages
+         are staff dashboards built from the shared card/table classes
+         plus a couple of page-local extras. */
+      .section-head {
+        margin: 28px 0 10px;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: oklch(52% 0.02 260);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="nav" id="nav"></header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Transport Operations &middot; Reporting</p>
+          <h1>Utilization</h1>
+          <p class="subtle">
+            How hard each gate is working over a date range, and any data
+            that's quietly blocking operators from booking.
+          </p>
+        </div>
+        <div class="toolbar">
+          <input type="date" id="from" />
+          <input type="date" id="to" />
+          <button type="button" class="btn-outline" id="apply">Apply</button>
+          <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="hidden" id="message"></div>
+
+      <p class="section-head">By gate</p>
+      <div id="by-gate"></div>
+
+      <p class="section-head util-section">Busiest times</p>
+      <div id="by-slot"></div>
+
+      <p class="section-head util-section">Vehicles blocked by an unlinked route</p>
+      <div id="unlinked"></div>
+    </main>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        todayISO,
+        addDays,
+        formatSlotStart,
+        showMessage,
+        escapeHtml,
+        downloadCsv,
+        fetchAllRows,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      // Module-level state, declared before the init calls below run -
+      // same temporal-dead-zone care every other page in this app takes.
+      let gateRows = [];
+      let slotRows = [];
+
+      const fromInput = document.getElementById("from");
+      const toInput = document.getElementById("to");
+      // Default to the last 30 days, the window most "how are we doing"
+      // questions are actually about.
+      toInput.value = todayISO();
+      fromInput.value = addDays(todayISO(), -29);
+
+      document.getElementById("apply").addEventListener("click", load);
+      document.getElementById("export-csv").addEventListener("click", exportCsv);
+
+      await load();
+      await loadUnlinked();
+
+      async function load() {
+        showMessage("message", "");
+        const from = fromInput.value;
+        const to = toInput.value;
+        if (!from || !to || from > to) {
+          showMessage("message", "Pick a start date on or before the end date.");
+          return;
+        }
+
+        // Aggregated server-side (migration 0045) rather than pulling
+        // every booking in the range and counting in the browser - the
+        // same unbounded-fetch trap #86 fixed on the approvals page.
+        const { data, error } = await supabase.rpc("utilization_by_gate", {
+          p_from: from,
+          p_to: to,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        gateRows = data ?? [];
+
+        await loadSlotProfile(from, to);
+        renderKpis();
+        renderByGate();
+        renderBySlot();
+      }
+
+      // Which times of day are busiest across the range. Needs the raw
+      // slots rather than the gate aggregate, but only two small columns,
+      // and paged so a wide range can't silently truncate.
+      async function loadSlotProfile(from, to) {
+        const { data, error } = await fetchAllRows((a, b) =>
+          supabase
+            .from("bookings")
+            .select("slot")
+            .eq("status", "approved")
+            .gte("booking_date", from)
+            .lte("booking_date", to)
+            .range(a, b)
+        );
+        if (error) {
+          showMessage("message", error.message);
+          slotRows = [];
+          return;
+        }
+        slotRows = data ?? [];
+      }
+
+      function renderKpis() {
+        const trips = gateRows.reduce((n, r) => n + Number(r.trips), 0);
+        const cancelled = gateRows.reduce((n, r) => n + Number(r.cancelled), 0);
+        const days = new Set(gateRows.map((r) => r.booking_date)).size;
+        const capacity = gateRows.reduce((n, r) => n + Number(r.slot_capacity), 0);
+        const pct = capacity > 0 ? Math.round((trips / capacity) * 1000) / 10 : 0;
+
+        document.getElementById("kpis").innerHTML = [
+          { label: "Approved trips", value: trips, unit: "trips" },
+          { label: "Cancelled after approval", value: cancelled, unit: "trips" },
+          { label: "Days with activity", value: days, unit: "days" },
+          { label: "Slot occupancy", value: `${pct}%`, unit: "of capacity" },
+        ]
+          .map(
+            (k) => `
+            <div class="kpi">
+              <div class="kpi-label">${escapeHtml(k.label)}</div>
+              <div class="kpi-value">
+                <strong>${escapeHtml(String(k.value))}</strong><span>${escapeHtml(k.unit)}</span>
+              </div>
+            </div>`
+          )
+          .join("");
+      }
+
+      // Rolled up per gate across the whole range - the per-day rows the
+      // RPC returns are the input, but "which gate is under pressure" is
+      // the question, and one row per gate answers it directly.
+      function gateTotals() {
+        const byGate = new Map();
+        for (const r of gateRows) {
+          const cur = byGate.get(r.gate) ?? {
+            gate: r.gate,
+            trips: 0,
+            cancelled: 0,
+            capacity: 0,
+            bays: Number(r.bays_at_gate),
+            days: new Set(),
+          };
+          cur.trips += Number(r.trips);
+          cur.cancelled += Number(r.cancelled);
+          cur.capacity += Number(r.slot_capacity);
+          cur.days.add(r.booking_date);
+          byGate.set(r.gate, cur);
+        }
+        return [...byGate.values()].sort((a, b) => b.trips - a.trips);
+      }
+
+      function barHtml(pct) {
+        const cls = pct >= 90 ? " is-full" : pct >= 60 ? " is-high" : "";
+        return `
+          <div class="util-bar-wrap">
+            <div class="util-bar">
+              <div class="util-bar-fill${cls}" style="width:${Math.min(pct, 100)}%"></div>
+            </div>
+            <span class="util-pct">${pct}%</span>
+          </div>`;
+      }
+
+      function renderByGate() {
+        const host = document.getElementById("by-gate");
+        const totals = gateTotals();
+
+        if (totals.length === 0) {
+          host.innerHTML = `<p class="empty">No approved trips in this range.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Gate</th><th>Bays</th><th>Approved trips</th>
+                  <th>Cancelled</th><th>Avg trips / day</th><th>Slot occupancy</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${totals
+                  .map((t) => {
+                    const pct =
+                      t.capacity > 0 ? Math.round((t.trips / t.capacity) * 1000) / 10 : 0;
+                    const perDay = t.days.size
+                      ? Math.round((t.trips / t.days.size) * 10) / 10
+                      : 0;
+                    return `
+                  <tr>
+                    <td data-label="Gate">${escapeHtml(t.gate)}</td>
+                    <td data-label="Bays">${t.bays}</td>
+                    <td data-label="Approved trips">${t.trips}</td>
+                    <td data-label="Cancelled">${t.cancelled}</td>
+                    <td data-label="Avg trips / day">${perDay}</td>
+                    <td data-label="Slot occupancy">${barHtml(pct)}</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function renderBySlot() {
+        const host = document.getElementById("by-slot");
+        if (slotRows.length === 0) {
+          host.innerHTML = `<p class="empty">No approved trips in this range.</p>`;
+          return;
+        }
+
+        // Grouped by hour rather than by 15-minute slot - 96 rows of
+        // mostly-similar numbers doesn't answer "when are we busy".
+        const byHour = new Map();
+        for (const r of slotRows) {
+          const hour = Math.floor(r.slot / 4);
+          byHour.set(hour, (byHour.get(hour) ?? 0) + 1);
+        }
+        const peak = Math.max(...byHour.values());
+        const hours = [...byHour.entries()].sort((a, b) => a[0] - b[0]);
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Hour</th><th>Approved trips</th><th>Relative volume</th></tr>
+              </thead>
+              <tbody>
+                ${hours
+                  .map(
+                    ([hour, count]) => `
+                  <tr>
+                    <td data-label="Hour">${escapeHtml(formatSlotStart(hour * 4))}</td>
+                    <td data-label="Approved trips">${count}</td>
+                    <td data-label="Relative volume">${barHtml(
+                      Math.round((count / peak) * 1000) / 10
+                    )}</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      // Approved vehicles whose `route` isn't one of the app's canonical
+      // routes (free text left over from the masterlist import, or null).
+      // They can never be picked for a booking and nothing in the
+      // operator's UI explains why - found in the #86 test pass.
+      async function loadUnlinked() {
+        const host = document.getElementById("unlinked");
+        const { data, error } = await supabase.rpc("vehicles_with_unlinked_route");
+        if (error) {
+          host.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+          return;
+        }
+
+        const rows = data ?? [];
+        if (rows.length === 0) {
+          host.innerHTML = `<p class="empty">Every approved vehicle has a bookable route.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <p class="hint">
+            ${
+              rows.length === 1
+                ? "1 approved vehicle can't be used for any booking, because the route recorded against it isn't one of the terminal's routes. Fix its route on"
+                : `${rows.length} approved vehicles can't be used for any booking, because the routes recorded against them aren't the terminal's routes. Fix their routes on`
+            }
+            <a href="vehicles-database.html">Vehicles</a> to make
+            ${rows.length === 1 ? "it" : "them"} bookable.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Operator</th><th>Plate No.</th><th>Route on file</th></tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map(
+                    (v) => `
+                  <tr>
+                    <td data-label="Operator">${escapeHtml(
+                      v.operator_name || v.username
+                    )}</td>
+                    <td data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
+                    <td data-label="Route on file">${
+                      v.route
+                        ? escapeHtml(v.route)
+                        : `<span class="subtle">Not set</span>`
+                    }</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function exportCsv() {
+        const rows = gateTotals().map((t) => [
+          t.gate,
+          t.bays,
+          t.trips,
+          t.cancelled,
+          t.days.size ? Math.round((t.trips / t.days.size) * 10) / 10 : 0,
+          t.capacity > 0 ? Math.round((t.trips / t.capacity) * 1000) / 10 : 0,
+        ]);
+        downloadCsv(
+          `utilization-${fromInput.value}-to-${toInput.value}.csv`,
+          ["Gate", "Bays", "Approved trips", "Cancelled", "Avg trips / day", "Slot occupancy %"],
+          rows
+        );
+      }
+    </script>
+  </body>
+</html>
