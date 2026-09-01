@@ -8,13 +8,15 @@
     "create-staff": "node scripts/create-staff.mjs",
     "create-operator": "node scripts/create-operator.mjs",
     "delete-account": "node scripts/delete-account.mjs",
-    "migrate": "node scripts/run-migration.mjs"
+    "migrate": "node scripts/run-migration.mjs",
+    "import-vehicles": "node scripts/import-vehicle-masterlist.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "xlsx": "^0.18.5"
   }
 }

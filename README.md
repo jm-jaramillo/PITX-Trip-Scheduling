@@ -3,8 +3,9 @@
 Provincial bus operators request a 15-minute trip slot; PITX staff review
 and approve/reject each request, assigning a specific bay on approval.
 
-- **Operators** submit a request: Route (picked from the fixed list of
-  PITX-served provincial routes), Date, and a 15-minute time slot
+- **Operators** submit a request: Destination (picked from the list of
+  destinations their own registered vehicles are franchised for - see
+  "Routes come from the vehicle masterlist"), Date, and a 15-minute time slot
   (12:00-12:15 AM, 12:15-12:30 AM, ... 96 slots a day, the terminal runs
   24/7) - no plate at booking time; that's picked from their approved
   vehicles later, any time up to the day of the trip. The Operator name
@@ -222,6 +223,78 @@ Then open <http://localhost:3100>. (Opening the HTML files directly via
 
 `npm install` is only needed for the `create-staff` / `migrate` helper
 scripts - the site itself has no dependencies to install.
+
+---
+
+## Routes come from the vehicle masterlist
+
+A route **is** a destination. The list of bookable destinations, each
+destination's gate, and every operator's fleet all come from one file -
+the PITX *Vehicle Masterlist Database* workbook - and specifically from
+its **Database** sheet only. The workbook's other sheets (Destination
+List, Bay, Operator and Trade) are working notes and are deliberately
+ignored.
+
+| Workbook column | Where it lands |
+|---|---|
+| `Destination` | `vehicles.destination` **and** `vehicles.route`, and the `ROUTES` list in [`docs/assets/app.js`](docs/assets/app.js) |
+| `Gate Assignment` | `ROUTE_GATES` - the gate staff are offered first when approving |
+| `Operator Name` / `Trade Name` | matched to an existing operator account (see below); `Trade Name` is also stored on the vehicle |
+| `Plate No.`, `Chassis No.`, `Body No.`, `Sticker No.`, `Case No.`, `Franchise` | the matching `vehicles` columns |
+| `CPC Validity`, `OR/CR Validity`, `CPC Extension of Validity?`, `CPC EOV Validity` | eligibility dates - an expired CPC makes a vehicle unbookable |
+| `Remarks` | `vehicles.remarks` |
+
+Because `route` and `destination` are the same value, the two filters
+that were already in place do the work with no extra machinery:
+
+- the booking form's destination dropdown is built from
+  `routesWithRegisteredVehicle()`, so an operator only ever sees
+  destinations **their own** vehicles are franchised for; and
+- once a destination is picked, the plate dropdown offers only vehicles
+  registered for that destination - enforced server-side too, by
+  `vehicle_matches_route()` in `bookings_insert_own` and
+  `request_booking_change()`.
+
+### Re-importing
+
+```bash
+DATABASE_URL="postgresql://..." npm run import-vehicles -- "path/to/Vehicle Masterlist Database.xlsx"
+```
+
+Dry run by default: it reports what it would do and writes
+`_routes.generated.json` for inspection. Add `--apply` to actually reset
+the table. One run rewrites the `vehicles` table, `ROUTES`, `ROUTE_GATES`
+and `route_trip_codes` from the same read, so those four can't drift
+apart.
+
+**Operators are matched by plate number, not by name.** The workbook's
+operator names don't line up with the app's account names (111 distinct
+names against 78 accounts, plus variants like `BICOL ISAROG TRANSPORT
+SYSTEM INC` vs `...INC.`), and name matching produced wrong answers -
+`GOLDTRANS BTS` matched *Eastern* Goldtrans. Instead each workbook plate
+is looked up against the account that already owns it, and the whole
+Operator+Trade group goes wherever the majority of its plates already
+live. Name similarity is only a fallback for plates never seen before.
+A consequence worth knowing: **the first import into an empty database
+has no plates to match against**, so it falls back to names entirely and
+should be spot-checked.
+
+### Rows the import can't use
+
+The workbook is a live working document, so some rows can't be imported
+cleanly. The script counts each case rather than failing:
+
+- **No destination** - the vehicle is imported but has no route, so it
+  can't be booked. These are listed by operator and plate on the staff
+  **Utilization** page's unlinked-route report, which is the working
+  list for the next cleanup pass.
+- **Duplicate plate for the same operator** - usually the operator-name
+  variants above. Collapsed to one row, keeping whichever carries more
+  data.
+- **No operator at all** - skipped.
+- **`CPC Extension of Validity? = Yes` with no date** - recorded as *no*
+  extension, since the database requires a date whenever the flag is set
+  and inventing one would misstate the vehicle's eligibility.
 
 ---
 
@@ -1164,5 +1237,6 @@ scripts/
   create-operator.mjs        Create an operator account (until the Edge Function is deployed)
   delete-account.mjs         Delete an account (until the Edge Function is deployed)
   run-migration.mjs          Apply migrations over a Postgres connection
+  import-vehicle-masterlist.mjs  Reset vehicles + routes from the masterlist workbook (dry run unless --apply)
   serve-docs.mjs             Serve docs/ locally, like GitHub Pages does
 ```

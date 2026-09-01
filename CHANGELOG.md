@@ -13,7 +13,8 @@ Live: <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>
 |---|---|
 | Who requests | Provincial bus operators |
 | Who approves | PITX staff |
-| Request fields | Operator, Route, Plate No., Date, Hour |
+| Request fields | Operator, Destination, Date, 15-minute slot (plate assigned later) |
+| Route basis | The vehicle masterlist Destination column - a route IS a destination, and each operator only sees the destinations their own vehicles are franchised for (changed 1 Sep, #88) |
 | Slot length | 30 minutes, 24/7 (48 slots/day; originally 1 hour, changed 13 Aug) |
 | Bay selection | Operators do **not** pick a bay; staff assign one on approval |
 | Capacity | Active bay count caps approvals per hour |
@@ -3258,7 +3259,74 @@ pending).
 
 ---
 
+### 88. Vehicle database reset from Masterlist v6; Destination is now the route (1 Sep)
+
+The operator supplied a cleaned (still in-progress) `Vehicle Masterlist
+Database - MERGED v6.xlsx` and asked for the app's vehicle database to be
+reset to it, with the workbook's **Destination** column as the basis for
+trip-scheduling routes - while keeping the existing rule that an operator
+only sees the destinations they actually serve.
+
+**Route model changed.** Until now `vehicles.route` held a curated
+canonical route string and `destination` was a separate descriptive
+field. They are now the same thing: every vehicle's `route` is set to its
+own `Destination`. Nothing downstream needed rewriting for this - the
+"a vehicle can only be booked on its own route" rule is plain equality
+(`vehicle_matches_route()`, migration 0031), and the booking form's route
+dropdown was already narrowed to routes the operator has a registered
+vehicle for. Pointing both at Destination makes that filter mean
+"destinations this operator is franchised to serve" automatically.
+
+New `scripts/import-vehicle-masterlist.mjs` (`npm run import-vehicles`)
+reads **only the Database sheet** - the workbook's other sheets
+(Destination List, Bay, Operator and Trade) are working notes, not source
+of truth - and rewrites the vehicles table, ROUTES, ROUTE_GATES and
+`route_trip_codes` from one read, so those four can't drift apart. It
+runs as a dry run by default and needs `--apply` to write.
+
+**Operators are resolved by plate, not by name.** The workbook has 111
+distinct operator names against the app's 78 accounts, with variants like
+"BICOL ISAROG TRANSPORT SYSTEM INC" vs "...INC." (which is also what
+produced 74 apparent duplicate plates). Name matching left 22 pairs
+uncertain and several plainly wrong - "GOLDTRANS BTS" matched *Eastern*
+Goldtrans. Matching each workbook plate against the account that already
+owns it resolved 121 of 122 pairs and 1,908 of 1,910 rows exactly, with
+name similarity kept only as a fallback for never-before-seen plates.
+
+Result: **1,832 vehicles** (76 duplicate rows collapsed, 2 skipped - the
+workbook's only rows with no operator at all), **103 destinations**, 88 of
+them carrying a gate from the workbook's own "Gate Assignment" column
+rather than inferred from province. 13 accounts gained vehicles and none
+lost their fleet. 80 rows answer "CPC Extension of Validity? = Yes"
+without a date; those are recorded as no extension rather than inventing
+one (the column has a CHECK requiring the date), and the count is
+reported by the script.
+
+Two things worth knowing:
+
+- **All 2,798 existing bookings reference old route names**, but every one
+  of them is historical - zero are today or future - so nothing
+  actionable was disrupted. They still display correctly; route is just
+  stored text on a booking.
+- **24 vehicles have no destination in the workbook** and so can't be
+  booked. They're listed by operator and plate on the Utilization page's
+  unlinked-route report (#87), which is exactly the working list for the
+  next cleanup pass. This is down from 54 before the reset, and all 24
+  are now genuinely blank rather than unmatched free text - the old
+  `PALAWAN` / `GUIMARAS ISLAND` / `NEGROS OCCI.` vehicles are bookable
+  now that Destination defines the routes.
+
+Verified live end to end: CERES-GOLDSTAR's route dropdown showed exactly
+its 10 destinations gate-grouped (ungated SAN JOSE under "Other"); a
+booking to GUIMARAS ISLAND - previously unbookable - went through, its
+plate dropdown offered only that destination's 9 vehicles, and staff saw
+it as Gate 4 with Bay 18 pre-selected. Test booking removed afterwards
+(2,798 bookings before and after).
+
+---
+
 ## What the app does now
+
 
 **Operators** — fill in a one-time company profile (Operator, trade name/
 code, logo, owner, booking system, up to 5 contact persons); register

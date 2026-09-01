@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Regenerated on demand by scripts/import-vehicle-masterlist.mjs
+_routes.generated.json
