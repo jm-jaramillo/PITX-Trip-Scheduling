@@ -3467,52 +3467,49 @@ error rather than failing silently.
 1. ~~Point GitHub Pages at `/docs`.~~ **Done** — live at
    <https://jm-jaramillo.github.io/PITX-Trip-Scheduling/>.
 
-2. **Deploy the Edge Functions** so staff can create *and delete* accounts
-   in-app. Not done yet (confirmed: the `create-account` endpoint 404s as
-   of this writing; `delete-account` is new as of #29 and hasn't been
-   attempted):
+2. **Deploy the four Edge Functions** so staff can create, delete, and
+   reset passwords for accounts in-app, and so operators can request a
+   password reset from the sign-in page. **Still not done** - re-checked
+   1 Sep and all four endpoints 404:
 
    ```bash
    npx supabase login
    npx supabase link --project-ref nuezknlzwfkfxlicrgol
    npx supabase functions deploy create-account
    npx supabase functions deploy delete-account
+   npx supabase functions deploy reset-password
+   npx supabase functions deploy request-password-reset
    ```
 
    Until then, use `npm run create-staff` / `npm run create-operator` /
-   `npm run delete-account` locally.
+   `npm run delete-account` locally. Note this is the only item on this
+   list that needs *your* Supabase credentials - it can't be done from
+   the database connection string alone.
 
 ---
 
 ## Known gaps
 
-- **Operators can't cancel an *approved* booking** — only pending ones. If a
-  bus won't arrive for a confirmed slot, there's no operator-side way to
-  release that bay.
 - **No forced password change** on first login; staff-set temporary
   passwords stay valid indefinitely and are visible on-screen when created.
-- **Test data and test accounts** (`pitx.admin`, `genesis.ops`, and sample
-  bookings/vehicles) are still in the database, and their credentials have
-  been shared in this chat. Change those passwords or remove the accounts
-  before real use.
+- **Shared credentials.** `pitx.admin` and the operator accounts use
+  passwords that have been typed into this chat (`TestPass123` and
+  variants). Change them before real use. The *data* is no longer test
+  data - bookings were wiped clean on 1 Sep (#88's note) and every
+  vehicle now comes from the real masterlist - but the logins are still
+  the ones from development.
 - **No audit trail** beyond `decided_by` / `decided_at` and a revision
   counter — there's no history of what a booking's or vehicle's previous
   values were.
-- **No notifications** — operators must open the app to see a decision on
-  a booking or a vehicle.
+- **Notifications are in-app only** — there's a bell in the nav (migration
+  `0024`), but nothing reaches an operator by email or SMS, so they still
+  have to open the app to find out a decision was made.
 - **A booking's plate number is plain text, not linked to a vehicle
   record.** If the vehicle it came from is later edited or rejected, the
   booking itself is untouched — there's no way to see which bookings used
   which vehicle registration.
 - **No limit on vehicles per operator**, and no per-operator cap on
   concurrent pending vehicle submissions.
-- **The receiving operator has no in-app acceptance step for a transfer.**
-  Whoever currently owns the booking just types in the other operator's
-  username and plate; PITX staff are the only check that the "internal
-  agreement" is real before the booking silently moves to a different
-  account. There's also no notice to the *original* operator once staff
-  approve it — the booking simply stops appearing in their "My requests"
-  list.
 - **A transfer only remembers one hop back.** If a booking is transferred
   twice, the schedule/dashboard strikethrough shows only the immediately
   preceding operator, not the full chain.
@@ -3523,13 +3520,12 @@ error rather than failing silently.
 - **Fonts load from Google Fonts at runtime** (Manrope/Inter) — an external
   dependency GitHub Pages doesn't control. Fine unless the terminal network
   blocks it, in which case pages fall back to the system font.
-- **The Edge Function still isn't deployed** (see "Outstanding" below), so
-  account creation from the in-app Accounts page doesn't work yet — use
-  `npm run create-staff` locally in the meantime.
-- **No staff-facing view of operator profiles.** Staff can read the
-  `operator_profiles` table (RLS already allows it), but there's no page
-  showing it yet — only the operator who owns a profile can currently see
-  it in the UI.
+- **None of the four Edge Functions are deployed** (see "Outstanding"
+  above; re-confirmed 1 Sep - all four 404), so creating, deleting, and
+  resetting accounts from the in-app Accounts page doesn't work, and
+  neither does the sign-in page's "Forgot password?" link. Use
+  `npm run create-staff` / `create-operator` / `delete-account` locally
+  in the meantime.
 - **Vehicle fields changed twice in one day** (0006 added franchise
   number/body number/seat configuration; 0008 replaced them). Anyone who
   registered a vehicle under the old field set lost that data on the 0008

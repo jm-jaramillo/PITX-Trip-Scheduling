@@ -10,18 +10,25 @@ and approve/reject each request, assigning a specific bay on approval.
   24/7) - no plate at booking time; that's picked from their approved
   vehicles later, any time up to the day of the trip. The Operator name
   isn't a form field, it's whatever's on the account
-  (`profiles.operator_name`). They can filter their own request list by
-  status (All / Approved / Pending / Declined), cancel a pending request
-  instantly or request cancellation of an already-approved one (needs
-  staff approval), hand an already-booked slot to another operator (see
-  "Transferring a booking"), and see their own confirmed trips - or every
-  operator's - as an airport-style board on **My schedule**.
+  (`profiles.operator_name`). A trip can also be repeated across chosen
+  weekdays in one submission. They can filter their own request list by
+  status (All / Approved / Pending / Declined) - which shows today and
+  future, with everything older browsable by month on **History** -
+  cancel a pending request instantly or request cancellation of an
+  already-approved one (needs staff approval), hand an already-booked
+  slot to another operator (see "Transferring a booking"), and see their
+  own confirmed trips - or every operator's - as an airport-style board
+  on **My schedule**.
 - **PITX staff** see every pending request, approve it (picking one of the
   bays not already taken for that slot) or reject it with an optional
   note, review and approve/decline cancellation requests for approved
-  bookings, view the day's confirmed trips as an airport-style departures
-  board, manage the bay list, browse every operator's company profile,
-  and create or delete login accounts (there is no self-signup).
+  bookings, record a plate on an operator's behalf, view the day's
+  confirmed trips as an airport-style departures board, review gate
+  **Utilization** over a date range (plus the vehicles a missing route is
+  keeping unbookable), browse the full vehicle database filtered by
+  operator / trade name / destination, manage the bay list, browse every
+  operator's company profile, and create or delete login accounts (there
+  is no self-signup).
 
 ## How it's built
 
@@ -52,7 +59,15 @@ that key never reaches the browser.
 
 ### 2. Set up the database
 
-Open the project's **SQL Editor** and run, in order:
+**Use the migration runner** (further down this section) rather than
+pasting files by hand - there are **45 migrations** now, and it applies
+them in order and records what it's already run.
+
+The numbered list below covers the first 20, which is where the schema
+takes its shape; everything after that is incremental and documented per
+change in [`CHANGELOG.md`](CHANGELOG.md). It's deliberately not kept as a
+running index of all 45 - `supabase/migrations/` in filename order is
+the authoritative list, and the runner reads it directly.
 
 1. [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) -
    creates the `profiles`, `bays`, and `bookings` tables plus RLS policies.
@@ -106,13 +121,18 @@ Open the project's **SQL Editor** and run, in order:
 20. [`supabase/migrations/0020_bay_gates.sql`](supabase/migrations/0020_bay_gates.sql) -
    adds `bays.gate`, tags Gates 2/4's existing bays, and adds the bays
    (21-23, 33-36) the gate guide references that didn't exist yet.
-21. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
+21. `0021` onwards - LTFRB status, notifications, trip numbers, the
+   vehicle-registration redesign, 15-minute slots, the 2-hour booking
+   lockout, plate-assigned-later, approval-gated cancellation, and the
+   reporting RPCs. See [`CHANGELOG.md`](CHANGELOG.md) for what each one
+   changed and why.
+22. [`supabase/seed.sql`](supabase/seed.sql) - optional starter data:
    20 bays named "Bay 1".."Bay 20". Skip it and add bays from the app's
    **Bays** page instead if you prefer.
 
-Or, with the Postgres connection string from **Project Settings -> Database
+With the Postgres connection string from **Project Settings -> Database
 -> Connection string** (use the **pooler** string unless your network has
-IPv6 egress), apply both in one command:
+IPv6 egress), apply everything in one command:
 
 ```bash
 DATABASE_URL="postgresql://postgres.<ref>:<password>@<pooler-host>:6543/postgres" \
@@ -170,6 +190,12 @@ Edge Function - the only endpoint in the app meant to be reachable while
 signed out, since that's exactly the situation where nothing else works.
 Until each is deployed, its action shows "Could not reach the ... service"
 and every other feature still works.
+
+> **Status (1 Sep 2026): none of the four are deployed yet** - all four
+> endpoints return 404. This is the one outstanding setup step in the
+> whole project, and the only one that needs your own Supabase login
+> rather than the database connection string. Account management works
+> from the command line in the meantime (see the scripts above).
 
 ```bash
 npm install -g supabase          # or: npx supabase
