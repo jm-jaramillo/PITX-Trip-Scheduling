@@ -421,10 +421,14 @@ export async function signOut() {
 
 /* -------------------------------------------------------------------- nav */
 
+// "My requests" and "History" (dashboard.html / request-history.html)
+// used to be separate sidebar entries; they're now tabs on
+// operator-overview.html (#91 follow-up) rather than pages of their own,
+// so they no longer get their own sidebar link. Both URLs still work -
+// they're now thin redirects into the right tab - for old bookmarks and
+// the notification links this app already writes.
 const OPERATOR_LINKS = [
   { href: "operator-overview.html", label: "Overview", icon: "&#128202;" },
-  { href: "dashboard.html", label: "My requests", icon: "&#128203;" },
-  { href: "request-history.html", label: "History", icon: "&#128197;" },
   { href: "my-schedule.html", label: "My schedule", icon: "&#128198;" },
   { href: "vehicles.html", label: "My vehicles", icon: "&#128652;" },
   { href: "operator-profile.html", label: "Operator profile", icon: "&#127970;" },
@@ -443,7 +447,7 @@ const STAFF_LINKS = [
   { href: "accounts.html", label: "Accounts", icon: "&#128100;" },
 ];
 
-function initials(name) {
+export function initials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
   return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();

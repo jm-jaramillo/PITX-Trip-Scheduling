@@ -20,6 +20,13 @@
         display: block;
         text-decoration: none;
         color: inherit;
+        border: none;
+        background: none;
+        padding: 0;
+        width: 100%;
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
       }
       .kpi-link:hover .kpi {
         border-color: var(--title, #333);
@@ -61,7 +68,7 @@
         border-radius: 10px;
         padding: 8px 12px;
       }
-      .lockout-list a {
+      .lockout-list button.btn-link {
         color: inherit;
         font-weight: 700;
         text-decoration: underline;
@@ -85,6 +92,10 @@
         font-weight: 700;
         font-size: 14px;
         transition: border-color 0.15s ease;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        font-family: inherit;
       }
       .quick-link:hover {
         border-color: var(--title);
@@ -111,25 +122,239 @@
           <h1>Overview</h1>
           <p class="subtle">
             A quick snapshot of your own requests, fleet, and anything
-            approaching its booking-lockout window - plus quick links to
-            every operator page.
+            approaching its booking-lockout window - plus your requests and
+            history, all in one place.
           </p>
         </div>
       </div>
 
-      <div class="kpis" id="kpis"></div>
+      <div class="mode-switch" role="tablist" id="view-tabs">
+        <button type="button" class="mode-tab is-active" data-view="overview">Overview</button>
+        <button type="button" class="mode-tab" data-view="requests">My requests</button>
+        <button type="button" class="mode-tab" data-view="history">History</button>
+      </div>
 
-      <p class="section-head">Approaching lockout</p>
-      <div id="lockout"></div>
+      <div class="tab-panel is-active" id="panel-overview" data-panel="overview">
+        <div class="kpis" id="kpis"></div>
 
-      <p class="section-head">Quick links</p>
-      <div class="quick-links" id="quick-links"></div>
+        <p class="section-head">Approaching lockout</p>
+        <div id="lockout"></div>
+
+        <p class="section-head">Quick links</p>
+        <div class="quick-links" id="quick-links"></div>
+      </div>
+
+      <div class="tab-panel" id="panel-requests" data-panel="requests">
+      <div id="incoming-transfers"></div>
+      <div class="hidden" id="page-message"></div>
+
+      <p class="warn hidden" id="plate-needed-banner"></p>
+
+      <div class="toolbar" style="justify-content: space-between; margin-top: 0">
+        <div>
+          <h2 style="margin: 0">My requests</h2>
+          <p class="fineprint" style="margin: 2px 0 0">
+            Today and future only.
+            <button type="button" class="btn-link" data-switch-tab="history">History</button> has every request you have made, browsable by month.
+          </p>
+        </div>
+        <div class="mode-switch" role="tablist" id="status-filter">
+          <button type="button" class="mode-tab is-active" data-filter="all">All</button>
+          <button type="button" class="mode-tab" data-filter="approved">Approved</button>
+          <button type="button" class="mode-tab" data-filter="pending">Pending</button>
+          <button type="button" class="mode-tab" data-filter="rejected">Declined</button>
+        </div>
+        <div class="toolbar" style="margin: 0">
+          <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
+          <button type="button" class="btn-primary" id="new-request">+ New request</button>
+        </div>
+      </div>
+      <div id="requests"></div>
+      </div>
+
+      <!-- ----------------------------------------- new request dialog -->
+      <dialog id="booking-dialog">
+        <h2 class="dialog-title">Request a trip</h2>
+        <p class="subtle">
+          Pick a 15-minute time slot. PITX staff review each request and
+          assign a bay on approval.
+        </p>
+        <form class="grid grid-2 grid-4" id="booking-form">
+          <div class="field">
+            <label for="route">Route</label>
+            <select id="route" name="route" required></select>
+            <p class="fineprint hidden" id="no-vehicles-note">
+              No approved vehicles yet.
+              <a href="vehicles.html">Register one</a> - PITX staff need to
+              approve it before you can request a trip on its route.
+            </p>
+          </div>
+
+          <div class="field">
+            <label for="booking_date">Date</label>
+            <input id="booking_date" name="booking_date" type="date" required />
+          </div>
+
+          <div class="field span-all">
+            <label>Time slot</label>
+            <input type="hidden" id="slot" name="slot" />
+            <div class="slot-picker" id="slot-picker"></div>
+          </div>
+
+          <div class="field span-all repeat-box">
+            <label class="repeat-toggle">
+              <input type="checkbox" id="repeat_enabled" />
+              <span>Repeat this trip on other days</span>
+            </label>
+            <div class="hidden" id="repeat-options">
+              <p class="fineprint" style="margin-top: 0">
+                Books the same route and time on every selected weekday, from
+                the date above through the end date. Days already booked at
+                that time, or too close to departure, are skipped.
+              </p>
+              <div class="repeat-days" id="repeat-days"></div>
+              <div class="field" style="max-width: 220px; margin-bottom: 0">
+                <label for="repeat_until">Repeat until</label>
+                <input id="repeat_until" type="date" />
+              </div>
+              <p class="fineprint" id="repeat-preview"></p>
+            </div>
+          </div>
+
+          <div class="span-all">
+            <p class="fineprint">
+              You'll assign a vehicle's plate number to this trip later, any
+              time up to the day of the trip.
+            </p>
+            <p class="fineprint hidden" id="slot-occupancy"></p>
+            <p class="hint hidden" id="route-conflict-hint"></p>
+            <p class="hint hidden" id="gate-full-hint"></p>
+            <p class="inline-error hidden" id="form-error"></p>
+            <p class="inline-ok hidden" id="form-ok"></p>
+          </div>
+
+          <div class="dialog-actions span-all">
+            <button type="button" class="btn-outline" id="booking-cancel">Cancel</button>
+            <button type="submit" class="btn-primary" id="submit">
+              Request slot
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      <div class="tab-panel" id="panel-history" data-panel="history">
+      <div class="toolbar" style="justify-content: space-between">
+        <p class="subtle" style="margin: 0">
+          Every request you've made, one month at a time - including ones
+          still ahead of you. To act on an upcoming request (set its plate,
+          change it, cancel it), use the My requests tab above.
+        </p>
+        <div class="toolbar" style="margin: 0">
+          <button type="button" class="btn-outline" id="hist-prev-month">&larr; Prev month</button>
+          <input type="month" id="hist-month-input" />
+          <button type="button" class="btn-outline" id="hist-next-month">Next month &rarr;</button>
+          <button type="button" class="btn-outline" id="hist-export-csv">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="toolbar" style="justify-content: flex-start; margin-top: 18px">
+        <div class="mode-switch" role="tablist" id="hist-status-filter">
+          <button type="button" class="mode-tab is-active" data-filter="all">All</button>
+          <button type="button" class="mode-tab" data-filter="approved">Approved</button>
+          <button type="button" class="mode-tab" data-filter="pending">Pending</button>
+          <button type="button" class="mode-tab" data-filter="rejected">Declined</button>
+          <button type="button" class="mode-tab" data-filter="cancelled">Cancelled</button>
+        </div>
+      </div>
+
+      <div id="hist-requests"></div>
+      </div>
     </main>
       </div>
     </div>
-      </div>
-    </div>
 
+    <dialog id="transfer-dialog">
+      <form id="transfer-form">
+        <h2 class="dialog-title">Transfer this booking to another operator</h2>
+        <p class="subtle" id="transfer-context"></p>
+        <p class="subtle">
+          Use this when you have an internal agreement with another
+          operator to cover this slot. PITX staff still need to approve the
+          handoff before it takes effect.
+        </p>
+
+        <div class="dialog-grid">
+          <div class="field">
+            <label for="transfer_username">Receiving operator</label>
+            <select id="transfer_username" required></select>
+          </div>
+          <div class="field">
+            <label for="transfer_plate_no">Their plate no.</label>
+            <select id="transfer_plate_no" required></select>
+          </div>
+          <div class="field span-all">
+            <label for="transfer_reason">Reason (optional)</label>
+            <input id="transfer_reason" />
+          </div>
+        </div>
+
+        <p class="inline-error hidden" id="transfer-error"></p>
+
+        <div class="dialog-actions">
+          <button type="button" class="btn-outline" id="transfer-cancel">
+            Cancel
+          </button>
+          <button type="submit" class="btn-primary" id="transfer-save">
+            Submit for approval
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="edit-dialog">
+      <form id="edit-form">
+        <h2 class="dialog-title">Change this request</h2>
+        <p class="subtle" id="edit-context"></p>
+
+        <p class="warn hidden" id="edit-warning">
+          Changing the route, date or time sends this booking back to PITX
+          staff for approval and releases the assigned bay in the meantime
+          &mdash; another operator may be approved into it. Setting the plate
+          number alone does not affect its approval.
+        </p>
+
+        <div class="dialog-grid">
+          <div class="field">
+            <label for="edit_route">Route</label>
+            <select id="edit_route" required></select>
+          </div>
+          <div class="field">
+            <label for="edit_plate_no">Plate No.</label>
+            <select id="edit_plate_no"></select>
+          </div>
+          <div class="field">
+            <label for="edit_booking_date">Date</label>
+            <input id="edit_booking_date" type="date" required />
+          </div>
+          <div class="field span-all">
+            <label>Time slot</label>
+            <input type="hidden" id="edit_slot" />
+            <div class="slot-picker" id="edit-slot-picker"></div>
+          </div>
+        </div>
+
+        <p class="inline-error hidden" id="edit-error"></p>
+
+        <div class="dialog-actions">
+          <button type="button" class="btn-outline" id="edit-cancel">
+            Cancel
+          </button>
+          <button type="submit" class="btn-primary" id="edit-save">
+            Submit for approval
+          </button>
+        </div>
+      </form>
+    </dialog>
     <script type="module">
       import {
         supabase,
@@ -141,218 +366,1992 @@
         slotStartMillis,
         BOOKING_LEAD_TIME_MS,
         formatSlotStart,
+        SLOTS,
+        ROUTES,
+        ROUTE_GATES,
+        gateForRoute,
+        statusBadge,
+        bookingOperatorHtml,
+        showMessage,
+        downloadCsv,
       } from "./assets/app.js";
 
       const profile = await guardPage("operator");
       if (!profile) throw new Error("unauthorised");
       renderNav(profile);
 
-      // Half the booking-lockout window - requests inside this band are
-      // still pending but will lose their lead time soon, so they're
-      // surfaced here rather than only showing up once the operator
-      // happens to check My requests.
-      const URGENT_WINDOW_MS = BOOKING_LEAD_TIME_MS / 2;
+      initTabs();
+      overviewTab(profile);
+      requestsTab(profile);
+      historyTab(profile);
 
-      // Both derived from BOOKING_LEAD_TIME_MS rather than written out,
-      // so the copy can't drift from the actual rule the way a hardcoded
-      // "4-hour" did when the lockout dropped to 2 hours (#86).
-      const LOCKOUT_HOURS = BOOKING_LEAD_TIME_MS / 3600000;
-      const URGENT_HOURS = URGENT_WINDOW_MS / 3600000;
-      const plural = (n) => (n === 1 ? "" : "s");
+      /* -------------------------------------------------------- tabs */
 
-      renderQuickLinks();
-      await load();
+      // Overview/My requests/History used to be three separate pages
+      // (operator-overview.html, dashboard.html, request-history.html);
+      // they're folded into one page as tabs here (#91 follow-up).
+      // dashboard.html and request-history.html still exist as thin
+      // redirects to this page (old bookmarks and the notifications this
+      // app already sends with a hardcoded `link` still land somewhere
+      // real) - see those files' own comments.
+      //
+      // All three tabs load their data up front rather than on first
+      // view - same total work the three separate pages already did,
+      // just co-located, and it keeps "switch tab" instant with nothing
+      // left to fetch.
+      function switchTab(view) {
+        document.querySelectorAll("#view-tabs [data-view]").forEach((btn) => {
+          btn.classList.toggle("is-active", btn.dataset.view === view);
+        });
+        document.querySelectorAll(".tab-panel").forEach((panel) => {
+          panel.classList.toggle("is-active", panel.dataset.panel === view);
+        });
+      }
 
-      async function load() {
-        const today = todayISO();
-        const expirySoon = addDays(today, 30);
-
-        const [
-          pendingBookingsRes,
-          approvedUpcomingRes,
-          vehicleCountRes,
-          expiringVehiclesRes,
-        ] = await Promise.all([
-          supabase
-            .from("bookings")
-            .select("id, operator_name, route, plate_no, booking_date, slot")
-            .eq("operator_id", profile.id)
-            .eq("status", "pending"),
-          supabase
-            .from("bookings")
-            .select("id", { count: "exact", head: true })
-            .eq("operator_id", profile.id)
-            .eq("status", "approved")
-            .gte("booking_date", today),
-          supabase
-            .from("vehicles")
-            .select("id", { count: "exact", head: true })
-            .eq("operator_id", profile.id),
-          // Same 30-day "soon" window expiryCell()/sync_expiry_notifications()
-          // use elsewhere, kept in sync here rather than inventing a
-          // different threshold. Only approved vehicles count - pending/
-          // rejected ones aren't in active service yet.
-          supabase
-            .from("vehicles")
-            .select("id, cpc_validity, orcr_validity")
-            .eq("operator_id", profile.id)
-            .eq("status", "approved")
-            .or(
-              `and(cpc_validity.lte.${expirySoon}),and(orcr_validity.lte.${expirySoon})`
-            ),
-        ]);
-
-        const pendingBookings = pendingBookingsRes.data ?? [];
-
-        // The OR-based filter above (cpc OR orcr <= soon) can include a
-        // vehicle where only the *other* date happens to be null and thus
-        // not <= soon; re-check both fields client-side against the same
-        // window so the count is exact.
-        const expiringVehicles = (expiringVehiclesRes.data ?? []).filter(
-          (v) =>
-            (v.cpc_validity && v.cpc_validity <= expirySoon) ||
-            (v.orcr_validity && v.orcr_validity <= expirySoon)
-        );
-
-        renderKpis({
-          pendingCount: pendingBookings.length,
-          approvedUpcoming: approvedUpcomingRes.count ?? 0,
-          vehicleCount: vehicleCountRes.count ?? 0,
-          expiringCount: expiringVehicles.length,
+      function initTabs() {
+        document.querySelectorAll("#view-tabs [data-view]").forEach((btn) => {
+          btn.addEventListener("click", () => switchTab(btn.dataset.view));
+        });
+        // Any in-page link that wants to jump to another tab (the KPI
+        // tiles, the lockout list, "History" under My requests) uses this
+        // instead of a page navigation now that they're the same page.
+        document.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-switch-tab]");
+          if (!btn) return;
+          e.preventDefault();
+          switchTab(btn.dataset.switchTab);
         });
 
-        renderLockout(pendingBookings);
+        const params = new URLSearchParams(location.search);
+        const initial = params.get("tab");
+        if (initial === "requests" || initial === "history") switchTab(initial);
       }
 
-      function renderKpis({
-        pendingCount,
-        approvedUpcoming,
-        vehicleCount,
-        expiringCount,
-      }) {
-        const tiles = [
-          {
-            label: "Pending requests",
-            value: pendingCount,
-            unit: "requests",
-            href: "dashboard.html",
-          },
-          {
-            label: "Approved upcoming",
-            value: approvedUpcoming,
-            unit: "bookings",
-            href: "my-schedule.html",
-          },
-          {
-            label: "Registered vehicles",
-            value: vehicleCount,
-            unit: "vehicles",
-            href: "vehicles.html",
-          },
-          {
-            label: "Vehicles expiring soon",
-            value: expiringCount,
-            unit: "vehicles",
-            href: "vehicles.html",
-          },
-        ];
+      /* ----------------------------------------------------- overview */
 
-        document.getElementById("kpis").innerHTML = tiles
-          .map(
-            (k) => `
-            <a class="kpi-link" href="${escapeHtml(k.href)}">
-              <div class="kpi">
-                <div class="kpi-label">${escapeHtml(k.label)}</div>
-                <div class="kpi-value">
-                  <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
+      async function overviewTab(profile) {
+        // Half the booking-lockout window - requests inside this band are
+        // still pending but will lose their lead time soon, so they're
+        // surfaced here rather than only showing up once the operator
+        // happens to check My requests.
+        const URGENT_WINDOW_MS = BOOKING_LEAD_TIME_MS / 2;
+
+        // Both derived from BOOKING_LEAD_TIME_MS rather than written out,
+        // so the copy can't drift from the actual rule the way a hardcoded
+        // "4-hour" did when the lockout dropped to 2 hours (#86).
+        const LOCKOUT_HOURS = BOOKING_LEAD_TIME_MS / 3600000;
+        const URGENT_HOURS = URGENT_WINDOW_MS / 3600000;
+        const plural = (n) => (n === 1 ? "" : "s");
+
+        renderQuickLinks();
+        await load();
+
+        async function load() {
+          const today = todayISO();
+          const expirySoon = addDays(today, 30);
+
+          const [
+            pendingBookingsRes,
+            approvedUpcomingRes,
+            vehicleCountRes,
+            expiringVehiclesRes,
+          ] = await Promise.all([
+            supabase
+              .from("bookings")
+              .select("id, operator_name, route, plate_no, booking_date, slot")
+              .eq("operator_id", profile.id)
+              .eq("status", "pending"),
+            supabase
+              .from("bookings")
+              .select("id", { count: "exact", head: true })
+              .eq("operator_id", profile.id)
+              .eq("status", "approved")
+              .gte("booking_date", today),
+            supabase
+              .from("vehicles")
+              .select("id", { count: "exact", head: true })
+              .eq("operator_id", profile.id),
+            // Same 30-day "soon" window expiryCell()/sync_expiry_notifications()
+            // use elsewhere, kept in sync here rather than inventing a
+            // different threshold. Only approved vehicles count - pending/
+            // rejected ones aren't in active service yet.
+            supabase
+              .from("vehicles")
+              .select("id, cpc_validity, orcr_validity")
+              .eq("operator_id", profile.id)
+              .eq("status", "approved")
+              .or(
+                `and(cpc_validity.lte.${expirySoon}),and(orcr_validity.lte.${expirySoon})`
+              ),
+          ]);
+
+          const pendingBookings = pendingBookingsRes.data ?? [];
+
+          // The OR-based filter above (cpc OR orcr <= soon) can include a
+          // vehicle where only the *other* date happens to be null and thus
+          // not <= soon; re-check both fields client-side against the same
+          // window so the count is exact.
+          const expiringVehicles = (expiringVehiclesRes.data ?? []).filter(
+            (v) =>
+              (v.cpc_validity && v.cpc_validity <= expirySoon) ||
+              (v.orcr_validity && v.orcr_validity <= expirySoon)
+          );
+
+          renderKpis({
+            pendingCount: pendingBookings.length,
+            approvedUpcoming: approvedUpcomingRes.count ?? 0,
+            vehicleCount: vehicleCountRes.count ?? 0,
+            expiringCount: expiringVehicles.length,
+          });
+
+          renderLockout(pendingBookings);
+        }
+
+        function renderKpis({
+          pendingCount,
+          approvedUpcoming,
+          vehicleCount,
+          expiringCount,
+        }) {
+          const tiles = [
+            {
+              label: "Pending requests",
+              value: pendingCount,
+              unit: "requests",
+              tab: "requests",
+            },
+            {
+              label: "Approved upcoming",
+              value: approvedUpcoming,
+              unit: "bookings",
+              href: "my-schedule.html",
+            },
+            {
+              label: "Registered vehicles",
+              value: vehicleCount,
+              unit: "vehicles",
+              href: "vehicles.html",
+            },
+            {
+              label: "Vehicles expiring soon",
+              value: expiringCount,
+              unit: "vehicles",
+              href: "vehicles.html",
+            },
+          ];
+
+          document.getElementById("kpis").innerHTML = tiles
+            .map((k) =>
+              k.tab
+                ? `
+              <button type="button" class="kpi-link" data-switch-tab="${escapeHtml(k.tab)}">
+                <div class="kpi">
+                  <div class="kpi-label">${escapeHtml(k.label)}</div>
+                  <div class="kpi-value">
+                    <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
+                  </div>
                 </div>
+              </button>`
+                : `
+              <a class="kpi-link" href="${escapeHtml(k.href)}">
+                <div class="kpi">
+                  <div class="kpi-label">${escapeHtml(k.label)}</div>
+                  <div class="kpi-value">
+                    <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
+                  </div>
+                </div>
+              </a>`
+            )
+            .join("");
+        }
+
+        function renderLockout(pendingBookings) {
+          const now = Date.now();
+          const urgent = pendingBookings
+            .map((b) => {
+              const timeToSlot = slotStartMillis(b.booking_date, b.slot) - now;
+              // Not "time until the slot starts" - time until this request
+              // hits the booking lockout and can no longer be changed at
+              // all. A request 2h50m from its slot is 50m from that
+              // deadline, not "50m away" itself - subtracting the lockout
+              // window is what turns "time to slot" into "time to act".
+              return { ...b, remainingMs: timeToSlot - BOOKING_LEAD_TIME_MS };
+            })
+            // Not yet locked out (still approvable) and inside the urgent
+            // half of the window before it becomes un-approvable.
+            .filter((b) => b.remainingMs >= 0 && b.remainingMs <= URGENT_WINDOW_MS)
+            .sort((a, b) => a.remainingMs - b.remainingMs);
+
+          const host = document.getElementById("lockout");
+
+          if (urgent.length === 0) {
+            host.innerHTML = `
+              <div class="lockout-card is-calm">
+                <p class="lockout-title">Nothing approaching lockout</p>
+                <p class="subtle" style="margin: 0">
+                  None of your pending requests are within ${URGENT_HOURS}
+                  hour${plural(URGENT_HOURS)} of their ${LOCKOUT_HOURS}-hour
+                  booking-lockout window.
+                </p>
               </div>
-            </a>`
-          )
-          .join("");
-      }
+            `;
+            return;
+          }
 
-      function renderLockout(pendingBookings) {
-        const now = Date.now();
-        const urgent = pendingBookings
-          .map((b) => {
-            const timeToSlot = slotStartMillis(b.booking_date, b.slot) - now;
-            // Not "time until the slot starts" - time until this request
-            // hits the booking lockout and can no longer be changed at
-            // all. A request 2h50m from its slot is 50m from that
-            // deadline, not "50m away" itself - subtracting the lockout
-            // window is what turns "time to slot" into "time to act".
-            return { ...b, remainingMs: timeToSlot - BOOKING_LEAD_TIME_MS };
-          })
-          // Not yet locked out (still approvable) and inside the urgent
-          // half of the window before it becomes un-approvable.
-          .filter((b) => b.remainingMs >= 0 && b.remainingMs <= URGENT_WINDOW_MS)
-          .sort((a, b) => a.remainingMs - b.remainingMs);
-
-        const host = document.getElementById("lockout");
-
-        if (urgent.length === 0) {
           host.innerHTML = `
-            <div class="lockout-card is-calm">
-              <p class="lockout-title">Nothing approaching lockout</p>
-              <p class="subtle" style="margin: 0">
-                None of your pending requests are within ${URGENT_HOURS}
-                hour${plural(URGENT_HOURS)} of their ${LOCKOUT_HOURS}-hour
-                booking-lockout window.
+            <div class="lockout-card is-urgent">
+              <p class="lockout-title">
+                ${urgent.length} pending request${urgent.length === 1 ? "" : "s"}
+                approaching lockout
               </p>
+              <ul class="lockout-list">
+                ${urgent
+                  .map((b) => {
+                    const hoursLeft = (b.remainingMs / 3600000).toFixed(1);
+                    return `
+                      <li>
+                        <span>
+                          ${escapeHtml(b.route)} &middot; ${escapeHtml(
+                            b.plate_no
+                          )}
+                          &middot; ${escapeHtml(b.booking_date)} ${escapeHtml(
+                            formatSlotStart(b.slot)
+                          )}
+                          &middot; ${hoursLeft}h left
+                        </span>
+                        <button type="button" class="btn-link" data-switch-tab="requests">View &rarr;</button>
+                      </li>
+                    `;
+                  })
+                  .join("")}
+              </ul>
             </div>
           `;
+        }
+
+        function renderQuickLinks() {
+          const links = [
+            { label: "My requests", tab: "requests" },
+            { label: "History", tab: "history" },
+            { href: "my-schedule.html", label: "My schedule" },
+            { href: "vehicles.html", label: "My vehicles" },
+            { href: "operator-profile.html", label: "Operator profile" },
+          ];
+
+          document.getElementById("quick-links").innerHTML = links
+            .map((l) =>
+              l.tab
+                ? `<button type="button" class="quick-link" data-switch-tab="${escapeHtml(l.tab)}">${escapeHtml(l.label)}</button>`
+                : `<a class="quick-link" href="${escapeHtml(l.href)}">${escapeHtml(l.label)}</a>`
+            )
+            .join("");
+        }
+      }
+
+      async function requestsTab(profile) {
+      // Module-level state must be declared before the init calls below run,
+      // otherwise `let` bindings are still in their temporal dead zone.
+      const dialog = document.getElementById("edit-dialog");
+      const transferDialog = document.getElementById("transfer-dialog");
+      let bookingsById = new Map(); // keyed by id so the dialog can prefill
+      let allBookings = [];
+      let statusFilter = "all";
+      // Soonest-first by default - the Date column header toggles this.
+      let dateSortAscending = true;
+      let editingId = null;
+      let transferringId = null;
+      let approvedVehicles = [];
+      let pendingTransferBookingIds = new Set();
+      let operatorAccounts = [];
+      let activeBays = []; // { id, gate } - active bays only, for the gate-full hint
+      // Repeat-booking state. Declared up here with the rest of the
+      // module state because initForm() -> initRepeatControls() reads
+      // both at module top-level, which would otherwise run while these
+      // are still in their temporal dead zone (same class of bug as
+      // #37/#39/#46/#52/#66/#69/#75/#79 - hit again writing this).
+      const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      // Which weekdays the repeat applies to. Seeded from the start date
+      // on first open, so the common "same day every week" case needs no
+      // clicks at all.
+      let repeatDays = new Set();
+
+      // Route dropdown groups: matches how staff assign bays, and keeps
+      // 80+ routes from being one unmanageable flat list.
+      const GATE_GROUP_LABELS = {
+        "Gate 5": "North (Gate 5)",
+        "Gate 2": "Cavite / Batangas / Laguna / Quezon / Mindoro (Gate 2)",
+        "Gate 4": "Bicol / Visayas / Mindanao (Gate 4)",
+      };
+
+        await Promise.all([loadApprovedVehicles(), loadActiveBays()]);
+        initForm();
+        initEditDialog();
+        initTransferDialog();
+        initStatusFilter();
+        await Promise.all([loadRequests(), loadIncomingTransfers()]);
+
+      /* ------------------------------------------- incoming transfers */
+
+      // Transfers another operator wants to hand *to* this account - needs
+      // this operator's own confirmation before PITX staff can approve it
+      // (migration 0012). Kept separate from "My requests" since it isn't
+      // this operator's own booking yet.
+      async function loadIncomingTransfers() {
+        // Reads booking_date/slot/route/from_operator_name straight off
+        // booking_transfers rather than joining to bookings/profiles -
+        // this operator doesn't own the booking yet and can't read the
+        // sender's profile row either, so both joins would come back null
+        // under RLS (see migrations 0013/0014).
+        const { data, error } = await supabase
+          .from("booking_transfers")
+          .select(
+            "id, new_plate_no, reason, created_at, booking_date, slot, route, from_operator_name"
+          )
+          .eq("to_operator_id", profile.id)
+          .eq("status", "pending")
+          .eq("recipient_response", "pending")
+          .order("created_at", { ascending: true });
+
+        const host = document.getElementById("incoming-transfers");
+        if (error || !data || data.length === 0) {
+          host.innerHTML = "";
           return;
         }
 
         host.innerHTML = `
-          <div class="lockout-card is-urgent">
-            <p class="lockout-title">
-              ${urgent.length} pending request${urgent.length === 1 ? "" : "s"}
-              approaching lockout
+          <div class="card" style="margin-bottom: 24px">
+            <h2 style="margin-top: 0">Incoming transfer requests</h2>
+            <p class="subtle">
+              Another operator wants to hand you one of their slots. Confirm
+              only if you've actually agreed to cover it - PITX staff still
+              need to approve it afterward.
             </p>
-            <ul class="lockout-list">
-              ${urgent
-                .map((b) => {
-                  const hoursLeft = (b.remainingMs / 3600000).toFixed(1);
-                  return `
-                    <li>
-                      <span>
-                        ${escapeHtml(b.route)} &middot; ${escapeHtml(
-                          b.plate_no
-                        )}
-                        &middot; ${escapeHtml(b.booking_date)} ${escapeHtml(
-                          formatSlotStart(b.slot)
-                        )}
-                        &middot; ${hoursLeft}h left
-                      </span>
-                      <a href="dashboard.html">View &rarr;</a>
-                    </li>
-                  `;
-                })
-                .join("")}
-            </ul>
+            <p class="inline-error hidden" id="incoming-transfer-error"></p>
+            ${data
+              .map((t) => {
+                const fromLabel = t.from_operator_name || "Operator";
+                return `
+                  <div class="request-card">
+                    <div class="request-head">
+                      <div>
+                        <p class="request-who">${escapeHtml(fromLabel)} &rarr; you</p>
+                        <p class="subtle">
+                          ${escapeHtml(t.booking_date)} &middot; ${escapeHtml(formatSlotStart(t.slot))}${
+                            t.route ? ` &middot; ${escapeHtml(t.route)}` : ""
+                          }
+                        </p>
+                        <p class="subtle">Your plate would be ${escapeHtml(t.new_plate_no)}</p>
+                        ${t.reason ? `<p class="subtle">Reason: ${escapeHtml(t.reason)}</p>` : ""}
+                      </div>
+                    </div>
+                    <div class="request-actions">
+                      <form data-accept="${escapeHtml(t.id)}">
+                        <button type="submit" class="btn-approve">Confirm</button>
+                      </form>
+                      <form data-decline="${escapeHtml(t.id)}">
+                        <input placeholder="Reason (optional)" />
+                        <button type="submit" class="btn-danger-outline">Decline</button>
+                      </form>
+                    </div>
+                  </div>
+                `;
+              })
+              .join("")}
           </div>
         `;
+
+        host.querySelectorAll("[data-accept]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            respondToTransfer(form.dataset.accept, "accept");
+          });
+        });
+        host.querySelectorAll("[data-decline]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            respondToTransfer(
+              form.dataset.decline,
+              "decline",
+              form.querySelector("input").value.trim()
+            );
+          });
+        });
       }
 
-      function renderQuickLinks() {
-        const links = [
-          { href: "dashboard.html", label: "My requests" },
-          { href: "request-history.html", label: "History" },
-          { href: "my-schedule.html", label: "My schedule" },
-          { href: "vehicles.html", label: "My vehicles" },
-          { href: "operator-profile.html", label: "Operator profile" },
-        ];
+      async function respondToTransfer(transferId, action, reason) {
+        const { error } =
+          action === "accept"
+            ? await supabase.rpc("accept_booking_transfer", { p_transfer_id: transferId })
+            : await supabase.rpc("decline_booking_transfer", {
+                p_transfer_id: transferId,
+                p_reason: reason || null,
+              });
+        if (error) {
+          showMessage("incoming-transfer-error", error.message);
+          return;
+        }
+        await loadIncomingTransfers();
+      }
 
-        document.getElementById("quick-links").innerHTML = links
+      function initStatusFilter() {
+        document.querySelectorAll("#status-filter [data-filter]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            statusFilter = btn.dataset.filter;
+            document
+              .querySelectorAll("#status-filter [data-filter]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            renderRequestsTable();
+          });
+        });
+        document
+          .getElementById("export-csv")
+          .addEventListener("click", exportRequestsCsv);
+      }
+
+      const REQUESTS_CSV_HEADERS = [
+        "Date",
+        "Time slot",
+        "Route",
+        "Plate No.",
+        "Status",
+        "Assigned bay",
+        "Trip No.",
+        "Note",
+      ];
+
+      // Exports exactly what's currently on screen under the active status
+      // filter - reuses the already-loaded allBookings array (same one
+      // renderRequestsTable() reads from) rather than refetching from
+      // Supabase just for the export.
+      function exportRequestsCsv() {
+        const filtered =
+          statusFilter === "all"
+            ? allBookings
+            : allBookings.filter((b) => b.status === statusFilter);
+        const sortDir = dateSortAscending ? 1 : -1;
+        const bookings = [...filtered].sort(
+          (a, b) =>
+            sortDir *
+            (a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot)
+        );
+        const rows = bookings.map((b) => [
+          b.booking_date ?? "",
+          formatSlotStart(b.slot),
+          b.route ?? "",
+          b.plate_no ?? "",
+          b.status ?? "",
+          b.bays?.name ?? "",
+          b.trip_number ?? "",
+          b.rejection_reason ?? "",
+        ]);
+        downloadCsv(
+          `my-requests-${statusFilter}.csv`,
+          REQUESTS_CSV_HEADERS,
+          rows
+        );
+      }
+
+      // Only approved vehicles show up here - a vehicle stops appearing the
+      // moment it's edited (back to pending) until PITX staff re-approve it.
+      // Vehicles from the LTFRB masterlist import (migration 0021) also
+      // need an eligible ltfrb_status - inactive/no_record units are kept
+      // out of the plate list even if `status` is approved. Vehicles an
+      // operator registered directly have ltfrb_status = null, which is
+      // always eligible (that column only applies to the import).
+      async function loadApprovedVehicles() {
+        // A vehicle whose CPC (or, if it has one, its CPC Extension of
+        // Validity) has expired is excluded the same way an
+        // LTFRB-ineligible one is - kept in lockstep with the
+        // bookings_insert_own RLS policy and request_booking_change(),
+        // the actual enforcement (migration 0035).
+        const today = todayISO();
+        const { data } = await supabase
+          .from("vehicles")
+          .select("plate_no, body_number, route")
+          .eq("operator_id", profile.id)
+          .eq("status", "approved")
+          .or("ltfrb_status.is.null,ltfrb_status.in.(active,ltfrb_verified)")
+          .or(`cpc_validity.is.null,cpc_validity.gte.${today}`)
+          .or(`cpc_eov.eq.false,cpc_eov_validity.is.null,cpc_eov_validity.gte.${today}`)
+          .order("plate_no");
+        approvedVehicles = data ?? [];
+      }
+
+      // A vehicle's own `route` is set by the masterlist data-linking
+      // pass (see CHANGELOG.md #58) to the exact canonical route string
+      // in ROUTES - not free text - so a plain equality check is enough.
+      //
+      // This replaces three rounds of word-overlap fuzzy matching (#48,
+      // #51, #56, #59) that compared significant-word tokens between a
+      // vehicle's route and a booking's route. That approach made sense
+      // back when `vehicles.route` was still an unlinked franchise
+      // sentence like "TABACO, ALBAY- PASAY CITY", but every fuzzy-match
+      // refinement kept surfacing new false positives once the data
+      // itself became a clean canonical string (accented town names
+      // tokenizing to nothing, "SAN"/"SANTA" bleeding unrelated towns
+      // into each other, province names matching across different
+      // towns). Restarted (#60) as plain equality now that matching the
+      // data exactly is all that's needed.
+      function vehicleMatchesRoute(vehicle, bookingRoute) {
+        return Boolean(vehicle.route) && vehicle.route === bookingRoute;
+      }
+
+      // The Route dropdown itself is narrowed to routes at least one of
+      // the operator's own vehicles is registered for (e.g. Genesis
+      // Transport only sees Balanga, Clark, Mariveles) - never a route
+      // they have no way to actually fulfill anyway, since #51 already
+      // requires a matching vehicle to submit. Never locks an operator
+      // out entirely, though: with no vehicles yet, or with vehicles
+      // whose route text doesn't match any canonical route at all, this
+      // falls back to the full list rather than showing nothing - the
+      // no-vehicles messaging elsewhere on this form already covers the
+      // first case, and the second is rare enough (bad/unlinked vehicle
+      // route data) that hiding every route would be worse than showing
+      // routes #51 will still reject at submit time.
+      function routesWithRegisteredVehicle() {
+        if (approvedVehicles.length === 0) return ROUTES;
+        const matching = ROUTES.filter((r) =>
+          approvedVehicles.some((v) => vehicleMatchesRoute(v, r))
+        );
+        return matching.length > 0 ? matching : ROUTES;
+      }
+
+      // The transfer dialog's "Receiving operator" dropdown - other
+      // operator accounts, via a narrow SECURITY DEFINER function rather
+      // than a direct profiles query (RLS only lets an operator read their
+      // own row). See migration 0011.
+      //
+      // Narrowed to only operators with an approved vehicle registered
+      // for the *booking being transferred*'s route (migration 0032) -
+      // there's no point offering an operator who could never actually
+      // take this booking, same "must be registered for the route"
+      // requirement #51/#60 already enforce for the original operator.
+      // Route-specific, so this is loaded fresh each time the dialog
+      // opens (see openTransfer()), not once at page load.
+      async function loadOperatorAccounts(route) {
+        const { data } = await supabase.rpc("list_operator_accounts", {
+          p_route: route,
+        });
+        operatorAccounts = data ?? [];
+      }
+
+      // Only id + gate, and only active bays - enough to work out per-gate
+      // capacity for the "this gate is full, try a different time" hint
+      // below. Loaded once; bay counts don't change while this page is open.
+      async function loadActiveBays() {
+        const { data } = await supabase
+          .from("bays")
+          .select("id, gate")
+          .eq("is_active", true);
+        activeBays = data ?? [];
+      }
+
+      function gateBayIds(gate) {
+        return activeBays.filter((b) => b.gate === gate).map((b) => b.id);
+      }
+
+      // Advisory only - staff can still assign a bay from another gate (see
+      // staff.html), so this never blocks submitting. It just saves the
+      // operator a round trip: if their route's gate has no bay left at the
+      // chosen time, suggest nearby times that still have room in it.
+      async function checkGateFullness() {
+        const hintEl = document.getElementById("gate-full-hint");
+        const route = document.getElementById("route").value;
+        const bookingDate = document.getElementById("booking_date").value;
+        const slotRaw = document.getElementById("slot").value;
+        const gate = route ? gateForRoute(route) : null;
+
+        if (!bookingDate || slotRaw === "") {
+          hintEl.className = "hint hidden";
+          return;
+        }
+
+        // Gate-scoped bays when the route maps to one; otherwise fall back
+        // to every active bay, so routes without a mapped gate still get a
+        // real fullness check instead of no feedback at all.
+        const relevantIds = gate ? gateBayIds(gate) : activeBays.map((b) => b.id);
+        const scopeLabel = gate ? escapeHtml(gate) : "the terminal";
+        if (relevantIds.length === 0) {
+          hintEl.className = "hint hidden";
+          return;
+        }
+
+        const { data } = await supabase
+          .from("bookings")
+          .select("slot, assigned_bay_id")
+          .eq("booking_date", bookingDate)
+          .eq("status", "approved");
+
+        const takenPerSlot = new Map();
+        for (const row of data ?? []) {
+          if (row.assigned_bay_id && relevantIds.includes(row.assigned_bay_id)) {
+            takenPerSlot.set(row.slot, (takenPerSlot.get(row.slot) ?? 0) + 1);
+          }
+        }
+        const isFull = (s) => (takenPerSlot.get(s) ?? 0) >= relevantIds.length;
+
+        const slot = Number(slotRaw);
+        if (!isFull(slot)) {
+          hintEl.className = "hint hidden";
+          return;
+        }
+
+        // Nearest open slots for this gate first, so the suggestion is the
+        // smallest possible change to the operator's original request.
+        const candidates = SLOTS.filter((s) => s !== slot)
+          .filter(
+            (s) => slotStartMillis(bookingDate, s) - Date.now() >= BOOKING_LEAD_TIME_MS
+          )
+          .filter((s) => !isFull(s))
+          .sort((a, b) => Math.abs(a - slot) - Math.abs(b - slot))
+          .slice(0, 3);
+
+        hintEl.innerHTML =
+          `${scopeLabel} has no open bays at ${escapeHtml(
+            formatSlotStart(slot)
+          )} on this date - you can still submit and staff may assign a ` +
+          `different gate, but you'll have better luck at: ` +
+          (candidates.length
+            ? candidates
+                .map(
+                  (s) =>
+                    `<button type="button" class="btn-link" data-suggest-slot="${s}">${escapeHtml(
+                      formatSlotStart(s)
+                    )}</button>`
+                )
+                .join(", ")
+            : "no other time today - try a different date.");
+        hintEl.className = "hint";
+
+        hintEl.querySelectorAll("[data-suggest-slot]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            document.getElementById("slot").value = btn.dataset.suggestSlot;
+            syncSlotPickerSelection("slot-picker", "slot");
+            checkGateFullness();
+            checkSlotOccupancy();
+          });
+        });
+      }
+
+      // Lets an operator see who else is already scheduled at the time
+      // they're about to request - other operators' destinations aren't
+      // secret, an airport departures board shows the same thing. Always
+      // informational (the list shows regardless of route); additionally,
+      // if any of those other bookings share this exact route, that's
+      // called out and nearby conflict-free times for this route are
+      // suggested - two buses to the same place at the same minute is
+      // usually a mistake, not a plan, but it's still just a suggestion,
+      // not a block (staff can still approve both).
+      async function checkSlotOccupancy() {
+        const listEl = document.getElementById("slot-occupancy");
+        const hintEl = document.getElementById("route-conflict-hint");
+        const route = document.getElementById("route").value;
+        const bookingDate = document.getElementById("booking_date").value;
+        const slotRaw = document.getElementById("slot").value;
+
+        if (!bookingDate || slotRaw === "") {
+          listEl.className = "fineprint hidden";
+          hintEl.className = "hint hidden";
+          return;
+        }
+        const slot = Number(slotRaw);
+
+        // list_bookings_for_date() (migration 0044), not a direct table
+        // select - a pending booking is otherwise private to its own
+        // operator (bookings_select RLS), and this needs to see other
+        // operators' pending requests too, since flagging a same-route/
+        // same-time clash before either is approved is the whole point.
+        // One call for the whole date (not just this slot) - reused below
+        // to also work out conflict-free alternate slots for this route.
+        const { data } = await supabase.rpc("list_bookings_for_date", {
+          p_date: bookingDate,
+        });
+
+        const rows = data ?? [];
+        const atThisSlot = rows.filter((r) => r.slot === slot);
+
+        if (atThisSlot.length === 0) {
+          listEl.className = "fineprint hidden";
+        } else {
+          listEl.innerHTML =
+            `Also scheduled at ${escapeHtml(formatSlotStart(slot))}: ` +
+            atThisSlot
+              .map((r) => {
+                const label = `${escapeHtml(r.trade_name || r.operator_name)} → ${escapeHtml(
+                  r.route
+                )}`;
+                return route && r.route === route ? `<strong>${label}</strong>` : label;
+              })
+              .join(", ");
+          listEl.className = "fineprint";
+        }
+
+        const sameRouteHere = route
+          ? atThisSlot.filter((r) => r.route === route)
+          : [];
+
+        if (!route || sameRouteHere.length === 0) {
+          hintEl.className = "hint hidden";
+          return;
+        }
+
+        const takenSlotsForRoute = new Set(
+          rows.filter((r) => r.route === route).map((r) => r.slot)
+        );
+        const candidates = SLOTS.filter((s) => s !== slot)
+          .filter(
+            (s) => slotStartMillis(bookingDate, s) - Date.now() >= BOOKING_LEAD_TIME_MS
+          )
+          .filter((s) => !takenSlotsForRoute.has(s))
+          .sort((a, b) => Math.abs(a - slot) - Math.abs(b - slot))
+          .slice(0, 3);
+
+        hintEl.innerHTML =
+          `${sameRouteHere.length} other operator${
+            sameRouteHere.length === 1 ? "" : "s"
+          } already scheduled to ${escapeHtml(route)} at ${escapeHtml(
+            formatSlotStart(slot)
+          )} - you can still submit, but a different time avoids departing ` +
+          `alongside them: ` +
+          (candidates.length
+            ? candidates
+                .map(
+                  (s) =>
+                    `<button type="button" class="btn-link" data-suggest-route-slot="${s}">${escapeHtml(
+                      formatSlotStart(s)
+                    )}</button>`
+                )
+                .join(", ")
+            : "no other time today - try a different date.");
+        hintEl.className = "hint";
+
+        hintEl.querySelectorAll("[data-suggest-route-slot]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            document.getElementById("slot").value = btn.dataset.suggestRouteSlot;
+            syncSlotPickerSelection("slot-picker", "slot");
+            checkGateFullness();
+            checkSlotOccupancy();
+          });
+        });
+      }
+
+      // Hard filter, not a suggestion - a booking can only use a vehicle
+      // registered for that route (enforced server-side too, in
+      // bookings_insert_own and request_booking_change() - migration
+      // 0026 - since this client-side filter is only ever UX, never the
+      // actual protection). Once a route is picked, only vehicles whose
+      // own route matches it are even offered; with none, the dropdown
+      // disables with an explanatory placeholder instead of falling back
+      // to the full list.
+      function plateOptionsHtml(selected, vehicles = approvedVehicles, bookingRoute = null) {
+        const pool = bookingRoute
+          ? vehicles.filter((v) => vehicleMatchesRoute(v, bookingRoute))
+          : vehicles;
+
+        if (pool.length === 0) {
+          return `<option value="" disabled selected>${
+            bookingRoute
+              ? "No vehicle registered for this route"
+              : "No approved vehicles"
+          }</option>`;
+        }
+
+        const optionHtml = (v) =>
+          `<option value="${escapeHtml(v.plate_no)}"${
+            v.plate_no === selected ? " selected" : ""
+          }>${escapeHtml(v.plate_no)}${
+            v.body_number ? ` — Body No. ${escapeHtml(v.body_number)}` : ""
+          }</option>`;
+
+        const placeholder = `<option value="" disabled${
+          selected ? "" : " selected"
+        }>Select a vehicle</option>`;
+
+        return placeholder + pool.map(optionHtml).join("");
+      }
+
+      // Grouped by gate (matching how staff assign bays). `routes`
+      // defaults to the full canonical list, but both callers narrow it
+      // to routesWithRegisteredVehicle() - the operator's own routes are
+      // the only ones they can actually book anyway (#51).
+      function routeOptionsHtml(selected, routes = ROUTES) {
+        const byGate = new Map();
+        for (const r of routes) {
+          const gate = ROUTE_GATES[r] ?? "Other";
+          if (!byGate.has(gate)) byGate.set(gate, []);
+          byGate.get(gate).push(r);
+        }
+
+        const groupsHtml = [...byGate.entries()]
           .map(
-            (l) =>
-              `<a class="quick-link" href="${escapeHtml(l.href)}">${escapeHtml(
-                l.label
-              )}</a>`
+            ([gate, routes]) => `
+              <optgroup label="${escapeHtml(GATE_GROUP_LABELS[gate] ?? gate)}">
+                ${routes
+                  .map(
+                    (r) =>
+                      `<option value="${escapeHtml(r)}"${
+                        r === selected ? " selected" : ""
+                      }>${escapeHtml(r)}</option>`
+                  )
+                  .join("")}
+              </optgroup>`
           )
           .join("");
+
+        return (
+          `<option value="" disabled${selected ? "" : " selected"}>Select a route</option>` +
+          groupsHtml
+        );
+      }
+
+      function initForm() {
+        document.getElementById("route").innerHTML = routeOptionsHtml(
+          null,
+          routesWithRegisteredVehicle()
+        );
+        document.getElementById("route").addEventListener("change", () => {
+          checkGateFullness();
+          checkSlotOccupancy();
+          updateRepeatPreview();
+        });
+
+        initRepeatControls();
+
+        const dateInput = document.getElementById("booking_date");
+        dateInput.min = todayISO();
+        dateInput.value = todayISO();
+
+        populateSlotOptions();
+        // The set of slots still >= 2 hours out depends on which date is
+        // picked, so refresh the list whenever the date changes.
+        dateInput.addEventListener("change", () => {
+          populateSlotOptions();
+          checkGateFullness();
+          checkSlotOccupancy();
+          updateRepeatPreview();
+        });
+
+        document.getElementById("slot").addEventListener("change", () => {
+          checkGateFullness();
+          checkSlotOccupancy();
+          updateRepeatPreview();
+        });
+
+        document
+          .getElementById("no-vehicles-note")
+          .classList.toggle("hidden", approvedVehicles.length > 0);
+
+        // The account has no operator name to stamp on a booking with -
+        // shouldn't happen for a normally-created account, but block
+        // submitting rather than silently failing the NOT NULL insert. A
+        // vehicle is no longer required at booking time - the plate is
+        // filled in later - but the route list is still narrowed to
+        // routes the operator has a registered vehicle for (see
+        // routesWithRegisteredVehicle()), so an operator with none simply
+        // has no route to pick yet.
+        const canSubmit = Boolean(profile.operator_name);
+        document.getElementById("submit").disabled = !canSubmit;
+        if (!profile.operator_name) {
+          showMessage(
+            "form-error",
+            "Your account has no operator name set - ask PITX staff to add one before you can request a slot.",
+            "error"
+          );
+        }
+
+        document
+          .getElementById("booking-form")
+          .addEventListener("submit", submitBooking);
+
+        // The form used to sit inline on the page; it's a dialog now (#91
+        // follow-up) so requesting a trip doesn't compete for space with
+        // the requests table below it.
+        const bookingDialog = document.getElementById("booking-dialog");
+        document.getElementById("new-request").addEventListener("click", () => {
+          bookingDialog.showModal();
+        });
+        document.getElementById("booking-cancel").addEventListener("click", () => {
+          bookingDialog.close();
+        });
+      }
+
+      // Renders a set of slots as hourly mini-cards - a heading per hour
+      // (9:00 AM) with a row of clickable quarter-hour ticks inside it
+      // (9:00, 9:15, 9:30, 9:45) - rather than one long flat list of 96
+      // options, so scanning a day's worth of 15-minute slots reads as
+      // 24 small groups instead of a single unwieldy dropdown. Shared by
+      // the request form's picker and the edit dialog's, so the two
+      // can't drift into different markup/behavior.
+      //
+      // `hiddenInputId` is a plain hidden <input> (not a <select>) that
+      // holds the actual selected slot value - every other bit of logic
+      // in this file (checkGateFullness, submitBooking, saveEdit, the
+      // "try a different time" suggestion buttons) reads/writes that
+      // input directly and is unaffected by how the picker itself is
+      // drawn.
+      function renderSlotPicker(pickerId, hiddenInputId, availableSlots, onPick) {
+        const picker = document.getElementById(pickerId);
+        const hiddenInput = document.getElementById(hiddenInputId);
+
+        if (availableSlots.length === 0) {
+          picker.innerHTML = `<p class="fineprint">No times left today.</p>`;
+          return;
+        }
+
+        const byHour = new Map();
+        for (const s of availableSlots) {
+          const hour = Math.floor(s / 4);
+          if (!byHour.has(hour)) byHour.set(hour, []);
+          byHour.get(hour).push(s);
+        }
+
+        picker.innerHTML = [...byHour.entries()]
+          .map(
+            ([hour, slots]) => `
+          <div class="slot-hour-card">
+            <p class="slot-hour-label">${escapeHtml(formatSlotStart(hour * 4))}</p>
+            <div class="slot-hour-ticks">
+              ${slots
+                .map(
+                  (s) => `
+                <button
+                  type="button"
+                  class="slot-tick${String(s) === hiddenInput.value ? " is-selected" : ""}"
+                  data-slot="${s}"
+                >${escapeHtml(formatSlotStart(s))}</button>`
+                )
+                .join("")}
+            </div>
+          </div>`
+          )
+          .join("");
+
+        picker.querySelectorAll("[data-slot]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            picker.querySelectorAll(".slot-tick").forEach((b) => b.classList.remove("is-selected"));
+            btn.classList.add("is-selected");
+            hiddenInput.value = btn.dataset.slot;
+            hiddenInput.dispatchEvent(new Event("change"));
+            onPick?.();
+          });
+        });
+      }
+
+      // Re-highlights whichever tick matches the hidden input's current
+      // value - needed after something other than a direct click sets it
+      // (the "try a different time" suggestion buttons in
+      // checkGateFullness(), or opening the edit dialog on an existing
+      // booking).
+      function syncSlotPickerSelection(pickerId, hiddenInputId) {
+        const value = document.getElementById(hiddenInputId).value;
+        document.querySelectorAll(`#${pickerId} .slot-tick`).forEach((btn) => {
+          btn.classList.toggle("is-selected", btn.dataset.slot === value);
+        });
+      }
+
+      // Only offers slots that are still >= 2 hours out for the selected
+      // date - mirrors the same rule enforced server-side (migration
+      // 0039), so operators never see a time they'd just be told to pick
+      // again after submitting.
+      function populateSlotOptions() {
+        const bookingDate = document.getElementById("booking_date").value;
+        const available = SLOTS.filter(
+          (s) => slotStartMillis(bookingDate, s) - Date.now() >= BOOKING_LEAD_TIME_MS
+        );
+        document.getElementById("slot").value = "";
+        renderSlotPicker("slot-picker", "slot", available);
+      }
+
+      async function submitBooking(event) {
+        event.preventDefault();
+        const errorEl = document.getElementById("form-error");
+        const okEl = document.getElementById("form-ok");
+        const submitBtn = document.getElementById("submit");
+        // Text cleared as well as hidden - a stale message left in the
+        // node reads as current if the next render only toggles classes.
+        errorEl.textContent = "";
+        okEl.textContent = "";
+        errorEl.className = "inline-error hidden";
+        okEl.className = "inline-ok hidden";
+
+        const route = document.getElementById("route").value.trim();
+        const bookingDate = document.getElementById("booking_date").value;
+        const slotRaw = document.getElementById("slot").value;
+
+        function fail(message) {
+          errorEl.textContent = message;
+          errorEl.className = "inline-error";
+        }
+
+        if (!profile.operator_name) {
+          return fail(
+            "Your account has no operator name set - ask PITX staff to add one before you can request a slot."
+          );
+        }
+        if (!route || !bookingDate || slotRaw === "") {
+          return fail("Please fill in every field.");
+        }
+        if (bookingDate < todayISO()) {
+          return fail("Booking date can't be in the past.");
+        }
+        // Mirrors the DB-enforced rule (migration 0039) so operators get an
+        // immediate answer instead of a raw RLS-violation error - the
+        // database check is still what actually protects this.
+        if (
+          slotStartMillis(bookingDate, Number(slotRaw)) - Date.now() <
+          BOOKING_LEAD_TIME_MS
+        ) {
+          return fail(
+            "Bookings must be made at least 2 hours before the scheduled time. Please choose a later slot."
+          );
+        }
+
+        const slot = Number(slotRaw);
+        const dates = repeatDates(bookingDate, slot);
+        if (dates.length === 0) {
+          return fail(
+            "Every repeat date is either already booked at this time or too close to departure - nothing left to submit."
+          );
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Submitting…";
+
+        // No plate_no here - the operator picks a destination and time only;
+        // the plate is filled in later (any time up to the day of the
+        // trip) via the "Set plate" action, which goes through
+        // request_booking_change() (migration 0039).
+        //
+        // One insert for the whole set: a partial success would otherwise
+        // leave the operator guessing which days actually went through.
+        const { error } = await supabase.from("bookings").insert(
+          dates.map((d) => ({
+            operator_id: profile.id,
+            operator_name: profile.operator_name,
+            route,
+            booking_date: d,
+            slot,
+            status: "pending",
+          }))
+        );
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Request slot";
+
+        if (error) {
+          // The client-side checks above should catch this first - this
+          // only fires on a race (e.g. the clock crossed 2 hours between
+          // page load and submit).
+          return fail(
+            error.code === "42501" || /row-level security/i.test(error.message)
+              ? "Couldn't submit - one of those slots is now within 2 hours. Please recheck and try again."
+              : error.message
+          );
+        }
+
+        const skipped = plannedRepeatDates(bookingDate).length - dates.length;
+        const confirmation =
+          dates.length === 1
+            ? "Request submitted. PITX staff will review it shortly."
+            : `${dates.length} requests submitted${
+                skipped > 0 ? ` (${skipped} date${skipped === 1 ? "" : "s"} skipped)` : ""
+              }. PITX staff will review them shortly.`;
+        // The form lives in a dialog now (#91 follow-up) - close it on
+        // success and surface the confirmation on the page behind it,
+        // since #form-ok is inside the dialog and wouldn't be seen once
+        // it's closed. A failed submit leaves the dialog open instead
+        // (see fail() above), with the error shown inline as before.
+        document.getElementById("booking-dialog").close();
+        showMessage("page-message", confirmation, "ok");
+        document.getElementById("route").value = "";
+        populateSlotOptions();
+        document.getElementById("gate-full-hint").className = "hint hidden";
+        document.getElementById("slot-occupancy").className = "fineprint hidden";
+        document.getElementById("route-conflict-hint").className = "hint hidden";
+        await loadRequests();
+        updateRepeatPreview();
+      }
+
+      /* ------------------------------------------------ repeat booking */
+
+      function isoWeekday(iso) {
+        const [y, m, d] = iso.split("-").map(Number);
+        return new Date(y, m - 1, d, 12).getDay();
+      }
+
+      function initRepeatControls() {
+        const box = document.getElementById("repeat_enabled");
+        const opts = document.getElementById("repeat-options");
+        const until = document.getElementById("repeat_until");
+
+        document.getElementById("repeat-days").innerHTML = WEEKDAY_LABELS.map(
+          (label, i) =>
+            `<button type="button" class="repeat-day" data-weekday="${i}">${label}</button>`
+        ).join("");
+
+        document.querySelectorAll("[data-weekday]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const d = Number(btn.dataset.weekday);
+            if (repeatDays.has(d)) repeatDays.delete(d);
+            else repeatDays.add(d);
+            btn.classList.toggle("is-on", repeatDays.has(d));
+            updateRepeatPreview();
+          });
+        });
+
+        box.addEventListener("change", () => {
+          opts.classList.toggle("hidden", !box.checked);
+          if (box.checked) {
+            const start = document.getElementById("booking_date").value;
+            if (repeatDays.size === 0 && start) {
+              repeatDays.add(isoWeekday(start));
+              syncRepeatDayButtons();
+            }
+            if (!until.value && start) until.value = addDays(start, 27);
+          }
+          updateRepeatPreview();
+        });
+
+        until.addEventListener("change", updateRepeatPreview);
+      }
+
+      function syncRepeatDayButtons() {
+        document.querySelectorAll("[data-weekday]").forEach((btn) => {
+          btn.classList.toggle("is-on", repeatDays.has(Number(btn.dataset.weekday)));
+        });
+      }
+
+      // Every date the current repeat settings *intend* to book, before
+      // any eligibility filtering - used to report how many got skipped.
+      function plannedRepeatDates(startDate) {
+        if (!document.getElementById("repeat_enabled").checked) return [startDate];
+
+        const until = document.getElementById("repeat_until").value;
+        if (!until || until < startDate || repeatDays.size === 0) return [startDate];
+
+        // Hard ceiling so a mis-typed end date can't try to insert years
+        // of rows in one go.
+        const MAX_DATES = 60;
+        const out = [];
+        for (let d = startDate; d <= until && out.length < MAX_DATES; d = addDays(d, 1)) {
+          if (repeatDays.has(isoWeekday(d))) out.push(d);
+        }
+        return out;
+      }
+
+      // The subset actually submittable: still outside the lead-time
+      // window, and not already booked by this operator at the same
+      // route+slot (re-submitting a day they already hold would just
+      // create a duplicate request for staff to sort out).
+      function repeatDates(startDate, slot) {
+        const route = document.getElementById("route").value.trim();
+        const existing = new Set(
+          allBookings
+            .filter(
+              (b) =>
+                b.slot === slot &&
+                b.route === route &&
+                (b.status === "pending" || b.status === "approved")
+            )
+            .map((b) => b.booking_date)
+        );
+
+        return plannedRepeatDates(startDate).filter(
+          (d) =>
+            !existing.has(d) &&
+            slotStartMillis(d, slot) - Date.now() >= BOOKING_LEAD_TIME_MS
+        );
+      }
+
+      function updateRepeatPreview() {
+        const el = document.getElementById("repeat-preview");
+        const box = document.getElementById("repeat_enabled");
+        const start = document.getElementById("booking_date").value;
+        const slotRaw = document.getElementById("slot").value;
+
+        if (!box.checked || !start) {
+          el.textContent = "";
+          return;
+        }
+        if (repeatDays.size === 0) {
+          el.textContent = "Pick at least one weekday.";
+          return;
+        }
+        if (slotRaw === "") {
+          el.textContent = "Pick a time slot to see how many trips this books.";
+          return;
+        }
+
+        const planned = plannedRepeatDates(start);
+        const usable = repeatDates(start, Number(slotRaw));
+        const skipped = planned.length - usable.length;
+        el.textContent =
+          `Books ${usable.length} trip${usable.length === 1 ? "" : "s"}` +
+          (usable.length ? ` (${usable[0]} to ${usable[usable.length - 1]})` : "") +
+          (skipped > 0
+            ? ` - ${skipped} skipped: already booked at this time, or too close to departure.`
+            : ".");
+      }
+
+      async function loadRequests() {
+        // "My requests" is today-and-future only - anything before today
+        // is history, not something to act on, and belongs on
+        // request-history.html instead (see #84).
+        const [{ data }, { data: transfers }] = await Promise.all([
+          supabase
+            .from("bookings")
+            .select(
+              "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, cancellation_requested_at, cancellation_reason, bays ( id, name )"
+            )
+            .eq("operator_id", profile.id)
+            .gte("booking_date", todayISO())
+            .order("booking_date", { ascending: true })
+            .order("slot", { ascending: true }),
+          // Bookings this operator has already asked to hand off, still
+          // awaiting a staff decision - editing/cancelling/re-transferring
+          // while that's in review would race with the approval.
+          supabase
+            .from("booking_transfers")
+            .select("booking_id")
+            .eq("from_operator_id", profile.id)
+            .eq("status", "pending"),
+        ]);
+
+        allBookings = data ?? [];
+        bookingsById = new Map(allBookings.map((b) => [b.id, b]));
+        pendingTransferBookingIds = new Set(
+          (transfers ?? []).map((t) => t.booking_id)
+        );
+        renderPlateNeededBanner();
+        renderRequestsTable();
+      }
+
+      // A top-of-page callout, on top of the per-row highlighting in
+      // renderRequestsTable() - an approved trip with no plate on file is
+      // the one state an operator must not overlook, so it gets flagged
+      // even if the status filter is currently hiding that row (e.g.
+      // filtered to "Pending"). Independent of statusFilter on purpose.
+      function renderPlateNeededBanner() {
+        const bannerEl = document.getElementById("plate-needed-banner");
+        const needPlate = allBookings.filter(
+          (b) => b.status === "approved" && !b.plate_no
+        );
+
+        if (needPlate.length === 0) {
+          bannerEl.className = "warn hidden";
+          return;
+        }
+
+        bannerEl.innerHTML =
+          `⚠ ${needPlate.length} approved trip${needPlate.length === 1 ? "" : "s"} still ` +
+          `${needPlate.length === 1 ? "needs" : "need"} a plate number - staff already ` +
+          `assigned a bay, but the trip won't be recognized at the terminal without one: ` +
+          needPlate
+            .map(
+              (b) =>
+                `<button type="button" class="btn-link" style="color:inherit;text-decoration:underline" data-setplate="${escapeHtml(
+                  b.id
+                )}">${escapeHtml(b.booking_date)}, ${escapeHtml(formatSlotStart(b.slot))} → ${escapeHtml(
+                  b.route
+                )}</button>`
+            )
+            .join(", ");
+        bannerEl.className = "warn";
+
+        bannerEl.querySelectorAll("[data-setplate]").forEach((btn) => {
+          btn.addEventListener("click", () => openEdit(btn.dataset.setplate));
+        });
+      }
+
+      function renderRequestsTable() {
+        const filtered =
+          statusFilter === "all"
+            ? allBookings
+            : allBookings.filter((b) => b.status === statusFilter);
+        // Client-side, not re-fetched - allBookings is already loaded, and
+        // there's nothing here a server sort would do better.
+        const sortDir = dateSortAscending ? 1 : -1;
+        const bookings = [...filtered].sort(
+          (a, b) =>
+            sortDir *
+            (a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot)
+        );
+        const host = document.getElementById("requests");
+
+        if (bookings.length === 0) {
+          host.innerHTML = `<p class="empty">${
+            allBookings.length === 0
+              ? "No booking requests yet."
+              : "No requests match this filter."
+          }</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="sortable" data-sort="date">Date${
+                    dateSortAscending ? " &#9650;" : " &#9660;"
+                  }</th><th>Time slot</th><th>Operator</th><th>Route</th>
+                  <th>Plate No.</th><th>Status</th><th>Assigned bay</th><th>Trip No.</th>
+                  <th>Note</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${bookings
+                  .map((b) => {
+                    // Only live bookings can be changed; rejected/cancelled
+                    // ones are closed - the operator submits a new request.
+                    // Once within 2 hours of the scheduled slot, it's also
+                    // locked - too close to change (matches migration 0039).
+                    const withinLockout =
+                      slotStartMillis(b.booking_date, b.slot) - Date.now() <
+                      BOOKING_LEAD_TIME_MS;
+                    const transferPending = pendingTransferBookingIds.has(b.id);
+                    const cancellationPending = Boolean(b.cancellation_requested_at);
+                    const live = b.status === "pending" || b.status === "approved";
+                    const editable =
+                      live && !withinLockout && !transferPending && !cancellationPending;
+                    // Setting the plate is exempt from the 2-hour lockout -
+                    // that's the whole point of filling it in on the day of
+                    // the trip - but still blocked while a cancellation is
+                    // pending, since the trip may not happen at all.
+                    const canSetPlate = live && !transferPending && !cancellationPending;
+                    // Approved and still no plate is the one state an
+                    // operator must not miss - pending isn't confirmed
+                    // yet, so there's no rush; approved means staff
+                    // already assigned a bay for a trip nothing will
+                    // actually show up for without a plate on file.
+                    const needsPlateUrgently = b.status === "approved" && !b.plate_no;
+                    return `
+                  <tr${needsPlateUrgently ? ' class="row-alert"' : ""}>
+                    <td data-label="Date">${escapeHtml(b.booking_date)}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlotStart(b.slot))}</td>
+                    <td data-label="Operator">${bookingOperatorHtml(b)}</td>
+                    <td data-label="Route">${escapeHtml(b.route)}</td>
+                    <td data-label="Plate No.">${
+                      b.plate_no
+                        ? escapeHtml(b.plate_no)
+                        : needsPlateUrgently
+                          ? `<span class="plate-needed">⚠ Plate needed</span>`
+                          : `<span class="subtle">Not set yet</span>`
+                    }</td>
+                    <td data-label="Status">${statusBadge(b.status)}${
+                      b.revision_count > 0
+                        ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
+                        : ""
+                    }${
+                      transferPending
+                        ? `<span class="revised" title="A transfer request for this booking is awaiting PITX staff review">transfer&nbsp;pending</span>`
+                        : ""
+                    }${
+                      cancellationPending
+                        ? `<span class="revised" title="${escapeHtml(
+                            b.cancellation_reason || "No reason given"
+                          )}">cancellation&nbsp;pending</span>`
+                        : ""
+                    }</td>
+                    <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
+                    <td data-label="Trip No.">${escapeHtml(b.trip_number ?? "—")}</td>
+                    <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
+                    <td><div class="row-actions">${
+                      canSetPlate
+                        ? needsPlateUrgently
+                          ? `<button type="button" class="btn-alert" data-setplate="${escapeHtml(
+                              b.id
+                            )}">Set plate now</button>`
+                          : `<button type="button" class="btn-link" data-setplate="${escapeHtml(
+                              b.id
+                            )}">${b.plate_no ? "Change plate" : "Set plate"}</button>`
+                        : ""
+                    }${
+                      editable
+                        ? `<button type="button" class="btn-link" data-edit="${escapeHtml(
+                            b.id
+                          )}">Change</button>`
+                        : ""
+                    }${
+                      editable
+                        ? `<button type="button" class="btn-link" data-transfer="${escapeHtml(
+                            b.id
+                          )}">Transfer</button>`
+                        : ""
+                    }${
+                      // A still-pending request never had anything approved
+                      // to lose, so cancelling it is instant, no staff
+                      // review needed - only an approved booking goes
+                      // through the request/approve flow (migration 0041).
+                      b.status === "pending" && !transferPending
+                        ? `<button type="button" class="btn-link danger" data-cancel="${escapeHtml(
+                            b.id
+                          )}">Cancel</button>`
+                        : ""
+                    }${
+                      b.status === "approved" && !transferPending && !cancellationPending
+                        ? `<button type="button" class="btn-link danger" data-reqcancel="${escapeHtml(
+                            b.id
+                          )}">Request cancellation</button>`
+                        : ""
+                    }${
+                      cancellationPending
+                        ? `<button type="button" class="btn-link" data-withdrawcancel="${escapeHtml(
+                            b.id
+                          )}">Withdraw cancellation</button>`
+                        : ""
+                    }</div></td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        host.querySelector("[data-sort='date']").addEventListener("click", () => {
+          dateSortAscending = !dateSortAscending;
+          renderRequestsTable();
+        });
+        host.querySelectorAll("[data-cancel]").forEach((btn) => {
+          btn.addEventListener("click", () => cancelBooking(btn.dataset.cancel));
+        });
+        host.querySelectorAll("[data-reqcancel]").forEach((btn) => {
+          btn.addEventListener("click", () => requestCancellation(btn.dataset.reqcancel));
+        });
+        host.querySelectorAll("[data-withdrawcancel]").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            withdrawCancellationRequest(btn.dataset.withdrawcancel)
+          );
+        });
+        host.querySelectorAll("[data-edit], [data-setplate]").forEach((btn) => {
+          btn.addEventListener("click", () =>
+            openEdit(btn.dataset.edit ?? btn.dataset.setplate)
+          );
+        });
+        host.querySelectorAll("[data-transfer]").forEach((btn) => {
+          btn.addEventListener("click", () => openTransfer(btn.dataset.transfer));
+        });
+      }
+
+      /* -------------------------------------------------- transfer dialog */
+
+      function initTransferDialog() {
+        document
+          .getElementById("transfer-cancel")
+          .addEventListener("click", () => transferDialog.close());
+        document
+          .getElementById("transfer-form")
+          .addEventListener("submit", saveTransfer);
+        // The plate dropdown depends on which operator is picked - it
+        // isn't known until then, since it's the *receiving* operator's
+        // own approved vehicles, not the sender's.
+        document
+          .getElementById("transfer_username")
+          .addEventListener("change", (e) => loadTransferPlateOptions(e.target.value));
+      }
+
+      function operatorOptionsHtml() {
+        if (operatorAccounts.length === 0) {
+          return `<option value="" disabled selected>No other operator has an approved vehicle for this route</option>`;
+        }
+        return (
+          `<option value="" disabled selected>Select an operator</option>` +
+          operatorAccounts
+            .map(
+              (o) =>
+                `<option value="${escapeHtml(o.username)}">${escapeHtml(
+                  o.operator_name || o.username
+                )}</option>`
+            )
+            .join("")
+        );
+      }
+
+      // Populates "Their plate no." from the chosen operator's own
+      // approved vehicles - via list_operator_vehicles() (migration 0016),
+      // since the sender can't read another operator's vehicles table
+      // directly (RLS only allows reading your own). Narrowed to just the
+      // vehicles registered for the booking's route (migration 0032) -
+      // same reasoning as the operator dropdown above.
+      async function loadTransferPlateOptions(toUsername) {
+        const plateSelect = document.getElementById("transfer_plate_no");
+        if (!toUsername) {
+          plateSelect.innerHTML = `<option value="" disabled selected>Pick an operator first</option>`;
+          plateSelect.disabled = true;
+          return;
+        }
+        plateSelect.innerHTML = `<option value="" disabled selected>Loading…</option>`;
+        plateSelect.disabled = true;
+
+        const booking = bookingsById.get(transferringId);
+        const { data } = await supabase.rpc("list_operator_vehicles", {
+          p_username: toUsername,
+          p_route: booking?.route ?? null,
+        });
+        const vehicles = data ?? [];
+
+        plateSelect.innerHTML =
+          vehicles.length === 0
+            ? `<option value="" disabled selected>No approved vehicles for this operator registered for this route</option>`
+            : `<option value="" disabled selected>Select a vehicle</option>` +
+              vehicles
+                .map(
+                  (v) =>
+                    `<option value="${escapeHtml(v.plate_no)}">${escapeHtml(v.plate_no)}${
+                      v.body_number ? ` — Body No. ${escapeHtml(v.body_number)}` : ""
+                    }</option>`
+                )
+                .join("");
+        plateSelect.disabled = vehicles.length === 0;
+      }
+
+      async function openTransfer(bookingId) {
+        const booking = bookingsById.get(bookingId);
+        if (!booking) return;
+        transferringId = bookingId;
+
+        const operatorSelect = document.getElementById("transfer_username");
+        operatorSelect.innerHTML = `<option value="" disabled selected>Loading…</option>`;
+        operatorSelect.disabled = true;
+        document.getElementById("transfer_plate_no").innerHTML =
+          `<option value="" disabled selected>Pick an operator first</option>`;
+        document.getElementById("transfer_plate_no").disabled = true;
+        document.getElementById("transfer_reason").value = "";
+        document.getElementById("transfer-context").textContent =
+          `${booking.booking_date}, ${formatSlotStart(booking.slot)} — ${booking.route}`;
+        document.getElementById("transfer-error").className = "inline-error hidden";
+        transferDialog.showModal();
+
+        // Loaded fresh per booking, not preloaded at page load - which
+        // operators qualify depends on this specific booking's route.
+        await loadOperatorAccounts(booking.route);
+        // The dialog may have been closed/reopened for a different
+        // booking while this was in flight - only apply it if it's still
+        // the one being transferred.
+        if (transferringId !== bookingId) return;
+        operatorSelect.innerHTML = operatorOptionsHtml();
+        operatorSelect.disabled = operatorAccounts.length === 0;
+      }
+
+      async function saveTransfer(event) {
+        event.preventDefault();
+        const errorEl = document.getElementById("transfer-error");
+        const saveBtn = document.getElementById("transfer-save");
+        errorEl.className = "inline-error hidden";
+
+        const toUsername = document.getElementById("transfer_username").value.trim();
+        const newPlateNo = document.getElementById("transfer_plate_no").value.trim();
+        const reason = document.getElementById("transfer_reason").value.trim();
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Submitting…";
+
+        // Cross-operator, so this goes through a SECURITY DEFINER function
+        // rather than a client-visible update - see migration 0010.
+        const { error } = await supabase.rpc("request_booking_transfer", {
+          p_booking_id: transferringId,
+          p_to_username: toUsername,
+          p_new_plate_no: newPlateNo,
+          p_reason: reason || null,
+        });
+
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Submit for approval";
+
+        if (error) {
+          errorEl.textContent = error.message;
+          errorEl.className = "inline-error";
+          return;
+        }
+
+        transferDialog.close();
+        await loadRequests();
+      }
+
+      /* ------------------------------------------------------ edit dialog */
+
+      function initEditDialog() {
+        // Not filtered by lead time the way the request form's picker is -
+        // request_booking_change() itself is the real check on save, same
+        // as before this became mini-cards (see saveEdit()'s own comment).
+        renderSlotPicker("edit-slot-picker", "edit_slot", SLOTS);
+
+        document
+          .getElementById("edit-cancel")
+          .addEventListener("click", () => dialog.close());
+        document
+          .getElementById("edit-form")
+          .addEventListener("submit", saveEdit);
+        // Re-group the plate dropdown live if the operator changes the
+        // route while editing - same behavior as the main booking form.
+        document.getElementById("edit_route").addEventListener("change", () => {
+          const plateSelect = document.getElementById("edit_plate_no");
+          const currentValue = plateSelect.value;
+          plateSelect.innerHTML = plateOptionsHtml(
+            currentValue || null,
+            approvedVehicles,
+            document.getElementById("edit_route").value || null
+          );
+        });
+      }
+
+      function openEdit(bookingId) {
+        const booking = bookingsById.get(bookingId);
+        if (!booking) return;
+        editingId = bookingId;
+
+        // Include the booking's current route even if it predates the
+        // fixed route list, or isn't one of the operator's own routes
+        // (e.g. a vehicle registration changed since this was booked) -
+        // same reasoning as the plate fallback right below - never
+        // silently lose it.
+        const routeSelect = document.getElementById("edit_route");
+        const editableRoutes = routesWithRegisteredVehicle();
+        const routeIsListed = editableRoutes.includes(booking.route);
+        routeSelect.innerHTML =
+          routeOptionsHtml(booking.route, editableRoutes) +
+          (routeIsListed
+            ? ""
+            : `<option value="${escapeHtml(booking.route)}" selected>${escapeHtml(
+                booking.route
+              )} (not in the current list)</option>`);
+
+        // Include the booking's current plate even if it's no longer an
+        // approved vehicle (e.g. that vehicle got edited/un-approved since),
+        // so re-opening this dialog never silently loses the value. No
+        // plate at all (still unset, per migration 0039) isn't "no longer
+        // approved" - it just hasn't been picked yet, so plateOptionsHtml's
+        // own placeholder option covers that case with nothing appended.
+        const plateSelect = document.getElementById("edit_plate_no");
+        const stillApproved =
+          !booking.plate_no ||
+          approvedVehicles.some((v) => v.plate_no === booking.plate_no);
+        plateSelect.innerHTML =
+          plateOptionsHtml(booking.plate_no, approvedVehicles, booking.route) +
+          (stillApproved
+            ? ""
+            : `<option value="${escapeHtml(booking.plate_no)}" selected>${escapeHtml(
+                booking.plate_no
+              )} (no longer approved)</option>`);
+
+        const dateInput = document.getElementById("edit_booking_date");
+        dateInput.min = todayISO();
+        dateInput.value = booking.booking_date;
+        document.getElementById("edit_slot").value = String(booking.slot);
+        syncSlotPickerSelection("edit-slot-picker", "edit_slot");
+
+        document.getElementById("edit-context").textContent =
+          `Currently ${booking.booking_date}, ${formatSlotStart(booking.slot)}` +
+          (booking.bays?.name ? ` in ${booking.bays.name}.` : ".");
+
+        // The warning only applies when there's an approved slot to lose.
+        document.getElementById("edit-warning").className =
+          booking.status === "approved" ? "warn" : "warn hidden";
+
+        document.getElementById("edit-error").className = "inline-error hidden";
+        dialog.showModal();
+      }
+
+      async function saveEdit(event) {
+        event.preventDefault();
+        const errorEl = document.getElementById("edit-error");
+        const saveBtn = document.getElementById("edit-save");
+        // Clear the text too, not just hide it - a stale message left in
+        // the node from a previous failed save would otherwise flash on
+        // the next failure before the new one is written.
+        errorEl.textContent = "";
+        errorEl.className = "inline-error hidden";
+
+        const newRoute = document.getElementById("edit_route").value;
+        const newBookingDate = document.getElementById("edit_booking_date").value;
+        const newSlot = Number(document.getElementById("edit_slot").value);
+
+        // A plate-only edit (route/date/slot unchanged) is exempt from the
+        // lead-time check server-side (migration 0039) - it's how an
+        // operator fills in the plate close to or even during the day of
+        // the trip, so this client-side mirror of that check must only
+        // fire for an actual route/date/slot change too.
+        const original = bookingsById.get(editingId);
+        const isMaterial =
+          !original ||
+          original.route !== newRoute ||
+          original.booking_date !== newBookingDate ||
+          original.slot !== newSlot;
+
+        // Immediate feedback for the common case; request_booking_change()
+        // is the real check, including for the booking's *current* slot,
+        // which this client-side check doesn't re-verify - the "Change"
+        // button is already hidden once that happens, so this only guards
+        // the new time being requested.
+        if (
+          isMaterial &&
+          slotStartMillis(newBookingDate, newSlot) - Date.now() < BOOKING_LEAD_TIME_MS
+        ) {
+          errorEl.textContent = "Please choose a time at least 2 hours from now.";
+          errorEl.className = "inline-error";
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Submitting…";
+
+        // Goes through the request_booking_change() function rather than a
+        // direct UPDATE: it decides the status/bay transition server-side so
+        // the client can't assign itself a bay. See migration 0002.
+        const { error } = await supabase.rpc("request_booking_change", {
+          p_booking_id: editingId,
+          p_route: newRoute,
+          p_plate_no: document.getElementById("edit_plate_no").value,
+          p_booking_date: newBookingDate,
+          p_slot: newSlot,
+        });
+
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Submit for approval";
+
+        if (error) {
+          errorEl.textContent = error.message;
+          errorEl.className = "inline-error";
+          return;
+        }
+
+        dialog.close();
+        await loadRequests();
+      }
+
+      // A still-pending request never had a bay or approval to lose, so
+      // this stays instant, no staff review (migration 0001, restored by
+      // 0041). Once approved, cancelling goes through staff review
+      // instead - see requestCancellation() below.
+      async function cancelBooking(bookingId) {
+        // Irreversible and immediate - a cancelled booking can't be
+        // reinstated, only re-requested (and the slot may be gone by
+        // then). Every other destructive action here either asks for a
+        // reason first or goes through staff, so this one shouldn't be
+        // the only single-click point of no return.
+        const b = bookingsById.get(bookingId);
+        const what = b
+          ? `${b.booking_date}, ${formatSlotStart(b.slot)} to ${b.route}`
+          : "this request";
+        if (!confirm(`Cancel ${what}?\n\nThis can't be undone - you'd have to submit a new request, and the slot may be taken by then.`)) {
+          return;
+        }
+        await supabase
+          .from("bookings")
+          .update({ status: "cancelled" })
+          .eq("id", bookingId)
+          .eq("operator_id", profile.id)
+          .eq("status", "pending");
+        await loadRequests();
+      }
+
+      async function requestCancellation(bookingId) {
+        const reason = prompt("Reason for cancelling (optional):") ?? "";
+        const { error } = await supabase.rpc("request_booking_cancellation", {
+          p_booking_id: bookingId,
+          p_reason: reason,
+        });
+        if (error) {
+          showMessage("form-error", error.message, "error");
+          document.getElementById("form-error").scrollIntoView({ block: "center" });
+        }
+        await loadRequests();
+      }
+
+      async function withdrawCancellationRequest(bookingId) {
+        const { error } = await supabase.rpc("cancel_booking_cancellation_request", {
+          p_booking_id: bookingId,
+        });
+        if (error) {
+          showMessage("form-error", error.message, "error");
+          document.getElementById("form-error").scrollIntoView({ block: "center" });
+        }
+        await loadRequests();
+      }
+      }
+
+      async function historyTab(profile) {
+      // Module-level state must be declared before the init calls below
+      // run, same reasoning as every other page in this app (see e.g.
+      // dashboard.html) - avoids reading a `let` still in its temporal
+      // dead zone.
+      let allBookings = [];
+      let statusFilter = "all";
+      let dateSortAscending = false; // most recent first makes more sense for history
+
+      const monthInput = document.getElementById("hist-month-input");
+      const fromQuery = new URLSearchParams(location.search).get("month");
+      let currentMonth = /^\d{4}-\d{2}$/.test(fromQuery ?? "")
+        ? fromQuery
+        : todayMonth();
+      monthInput.value = currentMonth;
+
+      function todayMonth() {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      }
+
+      function monthBounds(month) {
+        const [y, m] = month.split("-").map(Number);
+        const start = `${month}-01`;
+        const lastDay = new Date(y, m, 0).getDate();
+        const end = `${month}-${String(lastDay).padStart(2, "0")}`;
+        return { start, end };
+      }
+
+      function shiftMonth(month, delta) {
+        const [y, m] = month.split("-").map(Number);
+        const d = new Date(y, m - 1 + delta, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      }
+
+      monthInput.addEventListener("change", () => {
+        if (monthInput.value) {
+          currentMonth = monthInput.value;
+          load();
+        }
+      });
+      document.getElementById("hist-prev-month").addEventListener("click", () => {
+        currentMonth = shiftMonth(currentMonth, -1);
+        monthInput.value = currentMonth;
+        load();
+      });
+      document.getElementById("hist-next-month").addEventListener("click", () => {
+        currentMonth = shiftMonth(currentMonth, 1);
+        monthInput.value = currentMonth;
+        load();
+      });
+
+      document.querySelectorAll("#hist-status-filter [data-filter]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          statusFilter = btn.dataset.filter;
+          document
+            .querySelectorAll("#hist-status-filter [data-filter]")
+            .forEach((b) => b.classList.toggle("is-active", b === btn));
+          renderTable();
+        });
+      });
+
+      document.getElementById("hist-export-csv").addEventListener("click", exportCsv);
+
+      const CSV_HEADERS = [
+        "Date",
+        "Time slot",
+        "Route",
+        "Plate No.",
+        "Status",
+        "Assigned bay",
+        "Trip No.",
+        "Note",
+      ];
+
+      function sortedFiltered() {
+        const filtered =
+          statusFilter === "all"
+            ? allBookings
+            : allBookings.filter((b) => b.status === statusFilter);
+        const sortDir = dateSortAscending ? 1 : -1;
+        return [...filtered].sort(
+          (a, b) =>
+            sortDir *
+            (a.booking_date.localeCompare(b.booking_date) || a.slot - b.slot)
+        );
+      }
+
+      function exportCsv() {
+        const rows = sortedFiltered().map((b) => [
+          b.booking_date ?? "",
+          formatSlotStart(b.slot),
+          b.route ?? "",
+          b.plate_no ?? "",
+          b.status ?? "",
+          b.bays?.name ?? "",
+          b.trip_number ?? "",
+          b.rejection_reason ?? "",
+        ]);
+        downloadCsv(`request-history-${currentMonth}-${statusFilter}.csv`, CSV_HEADERS, rows);
+      }
+
+      await load();
+
+      async function load() {
+        const { start, end } = monthBounds(currentMonth);
+        const { data, error } = await supabase
+          .from("bookings")
+          .select(
+            "id, operator_name, previous_operator_name, trade_name, previous_trade_name, route, plate_no, booking_date, slot, status, rejection_reason, revision_count, trip_number, bays ( id, name )"
+          )
+          .eq("operator_id", profile.id)
+          .gte("booking_date", start)
+          .lte("booking_date", end);
+
+        if (error) {
+          document.getElementById("hist-requests").innerHTML =
+            `<p class="empty">Couldn't load history: ${escapeHtml(error.message)}</p>`;
+          return;
+        }
+
+        allBookings = data ?? [];
+        renderTable();
+      }
+
+      function renderTable() {
+        const host = document.getElementById("hist-requests");
+        const bookings = sortedFiltered();
+
+        if (bookings.length === 0) {
+          host.innerHTML = `<p class="empty">${
+            allBookings.length === 0
+              ? "No requests for this month."
+              : "No requests match this filter."
+          }</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="sortable" data-sort="date">Date${
+                    dateSortAscending ? " &#9650;" : " &#9660;"
+                  }</th><th>Time slot</th><th>Operator</th><th>Route</th>
+                  <th>Plate No.</th><th>Status</th><th>Assigned bay</th><th>Trip No.</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${bookings
+                  .map(
+                    (b) => `
+                  <tr>
+                    <td data-label="Date">${escapeHtml(b.booking_date)}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlotStart(b.slot))}</td>
+                    <td data-label="Operator">${bookingOperatorHtml(b)}</td>
+                    <td data-label="Route">${escapeHtml(b.route)}</td>
+                    <td data-label="Plate No.">${escapeHtml(b.plate_no ?? "—")}</td>
+                    <td data-label="Status">${statusBadge(b.status)}${
+                      b.revision_count > 0
+                        ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
+                        : ""
+                    }</td>
+                    <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
+                    <td data-label="Trip No.">${escapeHtml(b.trip_number ?? "—")}</td>
+                    <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        host.querySelector("[data-sort='date']").addEventListener("click", () => {
+          dateSortAscending = !dateSortAscending;
+          renderTable();
+        });
+      }
       }
     </script>
   </body>

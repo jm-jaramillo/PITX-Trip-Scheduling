@@ -3498,6 +3498,58 @@ Operators page as a card grid with a detail popup are still pending.
 
 ---
 
+### 92. The other three: merged Overview tabs, a request-slot dialog, and Operators as cards (2 Sep)
+
+The rest of the UI refresh started in #91, all built on top of the
+sidebar shell.
+
+**Operator side - My requests and History are now tabs on Overview.**
+`operator-overview.html` gained a tab bar (Overview / My requests /
+History); dashboard.html's full request form and requests table, and
+request-history.html's month browser, moved onto that one page as the
+other two tabs, each wrapped in its own `requestsTab()`/`historyTab()`
+function so neither's identically-named internals (`load`, `render*`,
+`export-csv`, `status-filter`, `requests`) collide - the History tab's
+handful of colliding IDs got a `hist-` prefix, everything else moved
+unchanged. `dashboard.html` and `request-history.html` themselves are
+now thin `location.replace` redirects into `operator-overview.html?tab=`
+rather than deleted - a few things still point at their names by URL
+(bookmarks, and the `link` column a couple of server-side notification
+functions write verbatim, migrations 0024/0045), and a redirect means
+none of those needed to change. `request-history.html?month=` deep
+links still work too - the stub forwards `month` onto the query string,
+and the History tab reads it same as before.
+
+**The request form is a dialog now, not an inline card.** "My
+requests" opens with a "+ New request" button instead of the form
+sitting open above the table; clicking it calls `showModal()` on what
+used to be an inline `.card`. A successful submit closes the dialog and
+shows the confirmation as a page-level message instead of inline inside
+it (the old `#form-ok` location isn't visible once the dialog closes);
+a failed one leaves the dialog open with the error shown inline as
+before, unchanged.
+
+**Staff's Operator profiles page is a card grid with a detail popup.**
+Replaced the operator-profiles.html table with `.record-card` tiles
+(initials avatar, company name, a "no profile yet" badge where that's
+missing) in a `.card-grid`, styled to read like the Megawide
+Stakeholder app's own card grid. Clicking a card opens a
+`.details-dialog` (the same read-only detail-dialog pattern
+vehicles.html already uses for a vehicle row) with the operator's full
+company profile, contacts, and signed logo link. Sorting by column
+doesn't carry over to a card grid, so that dropped in favour of a plain
+alphabetical order; search and the "Missing profile" filter are
+unchanged, and Export CSV still exports the same columns as before.
+
+Verified live for both roles: tab switching and its `?tab=`/redirect
+deep links, the request dialog opening/cancelling, an operator card
+opening its detail dialog with the right data - no console errors
+beyond one pre-login race already present before this change (a page
+loaded a beat before the session restored, caught and redirected by
+`guardPage()` the same as always).
+
+---
+
 ## What the app does now
 
 

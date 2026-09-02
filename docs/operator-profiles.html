@@ -56,6 +56,16 @@
       </div>
     </div>
 
+    <!-- ------------------------------------------------- details dialog -->
+    <dialog class="details-dialog" id="details-dialog">
+      <h2 class="dialog-title" id="details-title"></h2>
+      <p class="subtle" id="details-sub"></p>
+      <div id="details-body" class="details-grid"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-outline" id="details-close">Close</button>
+      </div>
+    </dialog>
+
     <script type="module">
       import {
         supabase,
@@ -64,6 +74,7 @@
         showMessage,
         escapeHtml,
         downloadCsv,
+        initials,
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
@@ -72,45 +83,14 @@
 
       let rows = [];
       let profileFilter = "all";
-      let sortKey = null;
-      let sortDir = "asc";
-      // The exact filtered/sorted set currently on screen - shared between
+      let rowsById = new Map();
+      // The exact filtered set currently on screen - shared between
       // render() and exportCsv() so the CSV always matches what's visible.
       // Must be declared up here, before the `await load()` a few lines
       // down - load() -> render() reads this at module top-level, which
       // would otherwise run while this `let` is still in its temporal
       // dead zone (same class of bug as #37/#39/#46/#52/#66).
       let lastVisibleRows = [];
-
-      // Operator (display name/username) and Company are sortable - click
-      // a header to sort by it, click again to flip direction. Everything
-      // else here is free text with no natural sort order worth adding.
-      const SORT_VALUE = {
-        operator: (r) => (r.operator_name || r.username)?.toUpperCase() ?? null,
-        company: (r) => r.companyProfile?.company_name?.toUpperCase() ?? null,
-      };
-
-      function sortTh(label, key) {
-        const active = sortKey === key;
-        const arrow = active ? (sortDir === "asc" ? " &#9650;" : " &#9660;") : "";
-        return `<th class="sortable" data-sort="${key}">${escapeHtml(label)}${arrow}</th>`;
-      }
-
-      function applySort(list) {
-        if (!sortKey) return list;
-        const getValue = SORT_VALUE[sortKey];
-        const dir = sortDir === "asc" ? 1 : -1;
-        return [...list].sort((a, b) => {
-          const av = getValue(a);
-          const bv = getValue(b);
-          if (av == null && bv == null) return 0;
-          if (av == null) return 1;
-          if (bv == null) return -1;
-          if (av < bv) return -1 * dir;
-          if (av > bv) return 1 * dir;
-          return 0;
-        });
-      }
 
       document.getElementById("search").addEventListener("input", render);
       document.querySelectorAll("#profile-filter [data-filter]").forEach((btn) => {
@@ -123,6 +103,7 @@
         });
       });
       document.getElementById("export-csv").addEventListener("click", exportCsv);
+      initDetailsDialog();
       await load();
 
       // A contact's plain-text one-liner ("Name (Position) · Number ·
@@ -198,6 +179,7 @@
           ...o,
           companyProfile: byOperatorId.get(o.id) ?? null,
         }));
+        rowsById = new Map(rows.map((r) => [r.id, r]));
 
         render();
       }
@@ -214,7 +196,9 @@
         if (profileFilter === "missing") {
           filtered = filtered.filter((r) => !r.companyProfile);
         }
-        filtered = applySort(filtered);
+        filtered = [...filtered].sort((a, b) =>
+          (a.operator_name || a.username).localeCompare(b.operator_name || b.username)
+        );
         lastVisibleRows = filtered;
 
         const withProfile = rows.filter((r) => r.companyProfile).length;
@@ -231,89 +215,85 @@
         }
 
         host.innerHTML = `
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  ${sortTh("Operator", "operator")}<th>Username</th>${sortTh("Company", "company")}
-                  <th>Trade Name</th><th>Operator/Trade Code</th><th>Logo</th>
-                  <th>Owner</th>
-                  <th>Booking system</th>
-                  <th>Contacts</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filtered
-                  .map((r) => {
-                    const p = r.companyProfile;
-                    const label = r.operator_name || r.username;
-                    return `
-                  <tr>
-                    <td class="cell-strong" data-label="Operator">${escapeHtml(label)}${
-                      p
-                        ? ""
-                        : `<span class="badge badge-pending" style="margin-left: 8px">no profile yet</span>`
-                    }</td>
-                    <td data-label="Username">@${escapeHtml(r.username)}</td>
-                    <td data-label="Company">${escapeHtml(p?.company_name || "—")}</td>
-                    <td data-label="Trade Name">${escapeHtml(p?.trade_name || "—")}</td>
-                    <td data-label="Operator/Trade Code">${escapeHtml(p?.operator_code || "—")}</td>
-                    <td data-label="Logo" data-logo-path="${escapeHtml(p?.logo_path ?? "")}">${
-                      p?.logo_path ? "&hellip;" : "—"
-                    }</td>
-                    <td data-label="Owner">${escapeHtml(p?.company_owner || "—")}</td>
-                    <td data-label="Booking system">${
-                      !p
-                        ? "—"
-                        : p.has_booking_system
-                          ? escapeHtml(p.booking_system_name || "Yes")
-                          : "No"
-                    }</td>
-                    <td data-label="Contacts">${
-                      (p?.contacts ?? []).length
-                        ? p.contacts
-                            .map((c) => escapeHtml(contactLine(c)))
-                            .filter(Boolean)
-                            .join("<br />")
-                        : "—"
-                    }</td>
-                  </tr>`;
-                  })
-                  .join("")}
-              </tbody>
-            </table>
+          <div class="card-grid">
+            ${filtered
+              .map((r) => {
+                const p = r.companyProfile;
+                const label = r.operator_name || r.username;
+                return `
+              <button type="button" class="record-card" data-open="${r.id}">
+                <span class="record-card-avatar">${escapeHtml(initials(label))}</span>
+                <span class="record-card-body">
+                  <span class="record-card-title">${escapeHtml(label)}</span>
+                  <span class="record-card-sub">${escapeHtml(p?.company_name || "@" + r.username)}</span>
+                  <span class="record-card-meta">${
+                    p
+                      ? escapeHtml(p.trade_name || "Profile on file")
+                      : `<span class="badge badge-pending">no profile yet</span>`
+                  }</span>
+                </span>
+              </button>`;
+              })
+              .join("")}
           </div>
         `;
 
-        host.querySelectorAll("[data-sort]").forEach((th) => {
-          th.addEventListener("click", () => {
-            const key = th.dataset.sort;
-            sortDir = sortKey === key && sortDir === "asc" ? "desc" : "asc";
-            sortKey = key;
-            render();
-          });
+        host.querySelectorAll("[data-open]").forEach((card) => {
+          card.addEventListener("click", () => openDetails(card.dataset.open));
         });
-
-        resolveLogoLinks();
       }
 
-      // Signed URLs are resolved after the table paints (rather than
-      // blocking the initial render on every row's storage round-trip),
-      // same pattern as vehicles-database.html's document links.
-      async function resolveLogoLinks() {
-        const cells = [...document.querySelectorAll("[data-logo-path]")].filter(
-          (cell) => cell.dataset.logoPath
-        );
-        await Promise.all(
-          cells.map(async (cell) => {
-            const { data } = await supabase.storage
-              .from("operator-docs")
-              .createSignedUrl(cell.dataset.logoPath, 300);
+      /* ----------------------------------------------- details dialog */
+
+      function initDetailsDialog() {
+        document
+          .getElementById("details-close")
+          .addEventListener("click", () => document.getElementById("details-dialog").close());
+      }
+
+      async function openDetails(operatorId) {
+        const r = rowsById.get(operatorId);
+        if (!r) return;
+        const p = r.companyProfile;
+        const label = r.operator_name || r.username;
+
+        document.getElementById("details-title").textContent = label;
+        document.getElementById("details-sub").textContent = `@${r.username}`;
+        document.getElementById("details-body").innerHTML = !p
+          ? `<div class="detail-item"><span class="detail-value">This operator hasn't submitted a company profile yet.</span></div>`
+          : `
+            <div class="detail-item"><span class="detail-label">Company</span><span class="detail-value">${escapeHtml(p.company_name || "—")}</span></div>
+            <div class="detail-item"><span class="detail-label">Trade name</span><span class="detail-value">${escapeHtml(p.trade_name || "—")}</span></div>
+            <div class="detail-item"><span class="detail-label">Operator/Trade code</span><span class="detail-value">${escapeHtml(p.operator_code || "—")}</span></div>
+            <div class="detail-item"><span class="detail-label">Owner</span><span class="detail-value">${escapeHtml(p.company_owner || "—")}</span></div>
+            <div class="detail-item"><span class="detail-label">Booking system</span><span class="detail-value">${
+              p.has_booking_system ? escapeHtml(p.booking_system_name || "Yes") : "No"
+            }</span></div>
+            <div class="detail-item"><span class="detail-label">Logo</span><span class="detail-value" id="details-logo" data-logo-path="${escapeHtml(p.logo_path ?? "")}">${
+              p.logo_path ? "&hellip;" : "—"
+            }</span></div>
+            <div class="detail-item detail-documents">
+              <span class="detail-label">Contacts</span>
+              <span class="detail-value">${
+                (p.contacts ?? []).length
+                  ? p.contacts.map((c) => escapeHtml(contactLine(c))).filter(Boolean).join("<br />")
+                  : "—"
+              }</span>
+            </div>
+          `;
+        document.getElementById("details-dialog").showModal();
+
+        if (p?.logo_path) {
+          const { data } = await supabase.storage
+            .from("operator-docs")
+            .createSignedUrl(p.logo_path, 300);
+          const cell = document.getElementById("details-logo");
+          if (cell) {
             cell.innerHTML = data?.signedUrl
               ? `<a href="${data.signedUrl}" target="_blank" rel="noopener">View logo</a>`
               : "—";
-          })
-        );
+          }
+        }
       }
     </script>
   </body>

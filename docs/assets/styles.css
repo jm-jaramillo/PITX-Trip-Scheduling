@@ -1649,6 +1649,93 @@ dialog.details-dialog {
   line-height: 1.6;
 }
 
+/* ------------------------------------------------------------ tab panels
+   (operator-overview.html - Overview/My requests/History folded into one
+   page as tabs, #91 follow-up). Reuses .mode-switch/.mode-tab for the tab
+   bar itself, same look as the in-page status filters already used
+   elsewhere - this just adds the show/hide behaviour for the panel each
+   tab controls. */
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.is-active {
+  display: block;
+}
+
+/* ------------------------------------------- clickable record card grid
+   (operator-profiles.html) - a name + a couple of lines of context per
+   card, click one for the full detail dialog. Same shape as the vehicle
+   / booking "details" dialog pattern above, just fronted by cards
+   instead of a table row. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.record-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card-sm);
+  padding: 14px 16px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.record-card:hover {
+  border-color: var(--blue);
+  box-shadow: 0 6px 18px -8px rgb(20 30 50 / 20%);
+}
+
+.record-card-avatar {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--blue-wash);
+  color: var(--blue-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.record-card-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.record-card-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-card-sub {
+  font-size: 12px;
+  color: var(--label);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-card-meta {
+  font-size: 11px;
+  color: var(--faint);
+  margin-top: 6px;
+}
+
 /* The time-slot picker on the booking request form and its edit dialog
    (dashboard.html) - an hour per mini-card, a clickable pill per
    15-minute tick inside it, instead of one long flat dropdown of 96
