@@ -3732,6 +3732,28 @@ on the right My schedule tab. No new console errors.
 
 ---
 
+### 98. Fixed: long company names spilling out of their card on Operator profiles (2 Sep)
+
+`.record-card-title`/`.record-card-sub` (the card grid built for #90's
+"staff Operators page as a card grid" ask) were `<span>`s given
+`overflow: hidden; text-overflow: ellipsis; white-space: nowrap` -
+which only ever clips a block/inline-block box. On a plain inline
+`<span>` those three rules are silent no-ops, so `white-space: nowrap`
+still forced the text onto one line but nothing clipped it - a long
+company name ("Erjohn and Almark Transit Corporation", "Cavite
+Batangas Transport Multipurpose Cooperative", "Tabaco Women's
+Transport Service Cooperative Inc" - several of the real 78 operators
+are this long) ran straight past the card's right edge instead of
+truncating with `…`.
+
+Fix is one property: `display: block` on both, so the box the other
+three rules were already written for actually exists. Verified live -
+scripted a full sweep of all 78 cards checking each title's right edge
+against its card's, zero still spill; the previously-worst offenders
+now truncate cleanly to one line.
+
+---
+
 ## What the app does now
 
 

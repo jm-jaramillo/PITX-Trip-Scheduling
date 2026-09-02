@@ -1713,6 +1713,14 @@ dialog.details-dialog {
 }
 
 .record-card-title {
+  /* Both this and .record-card-sub are <span>s, not block elements -
+     text-overflow only ever clips a block/inline-block box, so without
+     this the overflow/ellipsis rules below were silent no-ops and a
+     long company name (plenty of these are real - "Erjohn and Almark
+     Transit Corporation", "Cavite Batangas Transport Multipurpose
+     Cooperative") spilled straight out of the card instead of
+     truncating. Found on the staff Operator profiles page. */
+  display: block;
   font-size: 13.5px;
   font-weight: 700;
   color: var(--title);
@@ -1722,6 +1730,7 @@ dialog.details-dialog {
 }
 
 .record-card-sub {
+  display: block;
   font-size: 12px;
   color: var(--label);
   margin-top: 2px;
