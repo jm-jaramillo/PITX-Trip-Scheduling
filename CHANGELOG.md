@@ -3687,6 +3687,51 @@ toggle, no console errors.
 
 ---
 
+### 97. Quick links dropped from Overview; My requests/History moved to My schedule (2 Sep)
+
+Two more requested changes to the operator side, both about not
+repeating the sidebar:
+
+- **Quick links removed from operator-overview.html.** Every link it
+  offered (My schedule, My vehicles, Operator profile, plus My
+  requests/History before they moved) is already one click away in the
+  sidebar - the section was pointing at links that were already always
+  on screen.
+- **My requests and History moved from Overview to My schedule.**
+  `my-schedule.html` gained the same three-way pattern Overview used to
+  have: a **Schedule / My requests / History** tab bar, with the
+  existing board (date nav, My trips/All trips, filter, Export CSV)
+  now living inside the "Schedule" tab and the My requests/History
+  content moved over wholesale from operator-overview.html - same
+  markup, same `requestsTab()`/`historyTab()` functions, just relocated
+  and re-wired to My schedule's own tab bar instead. Schedule is the
+  default tab, matching the page's existing purpose.
+
+  The one id collision from the move (`export-csv` - My schedule's own
+  board export button and My requests' export button used the same
+  id) was resolved by renaming My requests' button to `req-export-csv`;
+  everything else moved without needing a rename.
+
+  Overview is now just the KPI row and Approaching lockout - nothing to
+  toggle, nothing to link to that isn't already in the sidebar. Its
+  "Pending requests" tile and the lockout list's "View →" link now
+  point at `my-schedule.html?tab=requests` (plain hrefs, since the
+  target moved to a different page) instead of the in-page tab-switch
+  they used before.
+
+  `dashboard.html` and `request-history.html` - already thin redirects
+  from #91 - now point at `my-schedule.html?tab=requests`/`?tab=history`
+  instead of operator-overview.html; the `month` deep-link
+  request-history.html forwards still works.
+
+Verified live: My schedule's three tabs all render with real data
+(Schedule board, My requests with the plate-needed banner and new
+request dialog, History with month navigation), Overview shows just
+the KPIs/lockout with correct links, and both old-page redirects land
+on the right My schedule tab. No new console errors.
+
+---
+
 ## What the app does now
 
 

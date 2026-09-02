@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>My requests · PITX Trip Scheduling</title>
     <!--
-      "My requests" used to be its own page; it's now the "My requests"
-      tab on operator-overview.html (#91 follow-up). This file is kept as
-      a redirect, not deleted, because a few things still point straight
+      "My requests" used to be its own page, then a tab on
+      operator-overview.html (#91), then a toggle there under Overview
+      (2 Sep). It's now on My schedule instead, alongside the Schedule
+      board and History (requested 2 Sep). This file is kept as a
+      redirect, not deleted, because a few things still point straight
       at "dashboard.html" by name: bookmarks, and the `link` column a
       handful of server-side notification functions write verbatim
       (migrations 0024, 0045 - sync_expiry_notifications() and
@@ -15,12 +17,12 @@
       would mean a migration; redirecting here instead means every old
       link still lands somewhere real, immediately, no DB change needed.
     -->
-    <meta http-equiv="refresh" content="0; url=operator-overview.html?tab=requests" />
+    <meta http-equiv="refresh" content="0; url=my-schedule.html?tab=requests" />
   </head>
   <body>
     <script>
-      location.replace("operator-overview.html?tab=requests");
+      location.replace("my-schedule.html?tab=requests");
     </script>
-    <p>Redirecting to <a href="operator-overview.html?tab=requests">My requests</a>…</p>
+    <p>Redirecting to <a href="my-schedule.html?tab=requests">My requests</a>…</p>
   </body>
 </html>

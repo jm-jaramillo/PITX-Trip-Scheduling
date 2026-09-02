@@ -422,11 +422,12 @@ export async function signOut() {
 /* -------------------------------------------------------------------- nav */
 
 // "My requests" and "History" (dashboard.html / request-history.html)
-// used to be separate sidebar entries; they're now tabs on
-// operator-overview.html (#91 follow-up) rather than pages of their own,
-// so they no longer get their own sidebar link. Both URLs still work -
-// they're now thin redirects into the right tab - for old bookmarks and
-// the notification links this app already writes.
+// used to be separate sidebar entries; they're now a toggle on My
+// schedule (moved there 2 Sep, after living on operator-overview.html
+// as tabs - #91 - and then a toggle under Overview), so they no longer
+// get their own sidebar link. Both URLs still work - they're now thin
+// redirects into the right My schedule tab - for old bookmarks and the
+// notification links this app already writes.
 const OPERATOR_LINKS = [
   { href: "operator-overview.html", label: "Overview", icon: "&#128202;" },
   { href: "my-schedule.html", label: "My schedule", icon: "&#128198;" },

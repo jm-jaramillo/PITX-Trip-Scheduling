@@ -6,7 +6,7 @@
     <title>History · PITX Trip Scheduling</title>
     <!-- See dashboard.html's comment - same reasoning, kept as a redirect
          rather than deleted so old links still land somewhere real. -->
-    <meta http-equiv="refresh" content="0; url=operator-overview.html?tab=history" />
+    <meta http-equiv="refresh" content="0; url=my-schedule.html?tab=history" />
   </head>
   <body>
     <script>
@@ -16,9 +16,9 @@
       // query param on load.
       const month = new URLSearchParams(location.search).get("month");
       location.replace(
-        "operator-overview.html?tab=history" + (month ? "&month=" + encodeURIComponent(month) : "")
+        "my-schedule.html?tab=history" + (month ? "&month=" + encodeURIComponent(month) : "")
       );
     </script>
-    <p>Redirecting to <a href="operator-overview.html?tab=history">History</a>…</p>
+    <p>Redirecting to <a href="my-schedule.html?tab=history">History</a>…</p>
   </body>
 </html>
