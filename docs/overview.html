@@ -229,25 +229,25 @@
             label: "Pending requests",
             value: pendingCount,
             unit: "requests",
-            href: "staff.html",
+            href: "approvals.html?type=requests",
           },
           {
             label: "Vehicle approvals",
             value: pendingVehicles,
             unit: "vehicles",
-            href: "vehicle-approvals.html",
+            href: "approvals.html?type=vehicles",
           },
           {
             label: "Transfers awaiting you",
             value: transfersAwaitingStaff,
             unit: "transfers",
-            href: "transfer-approvals.html",
+            href: "approvals.html?type=transfers",
           },
           {
             label: "Transfers awaiting operator",
             value: transfersAwaitingOperator,
             unit: "transfers",
-            href: "transfer-approvals.html",
+            href: "approvals.html?type=transfers",
           },
           {
             label: "Approved today",
@@ -326,7 +326,7 @@
                         )}
                         &middot; ${hoursLeft}h left
                       </span>
-                      <a href="staff.html">Review &rarr;</a>
+                      <a href="approvals.html?type=requests">Review &rarr;</a>
                     </li>
                   `;
                 })
@@ -338,10 +338,8 @@
 
       function renderQuickLinks() {
         const links = [
-          { href: "staff.html", label: "Pending requests" },
-          { href: "vehicle-approvals.html", label: "Vehicle approvals" },
+          { href: "approvals.html", label: "Approvals" },
           { href: "vehicles-database.html", label: "Vehicles" },
-          { href: "transfer-approvals.html", label: "Transfer approvals" },
           { href: "schedule.html", label: "Schedule" },
           { href: "utilization.html", label: "Utilization" },
           { href: "bays.html", label: "Bays" },

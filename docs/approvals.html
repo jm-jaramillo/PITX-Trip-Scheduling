@@ -1,0 +1,1902 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Approvals · PITX Trip Scheduling</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+    <style>
+      /* Page-local: the type filter's count badges and each section's
+         label strip - kept here rather than styles.css since nothing
+         else on the site needs them. */
+      .type-count {
+        font-size: 10px;
+        opacity: 0.75;
+      }
+      .approval-section {
+        margin-top: 8px;
+      }
+      .approval-section + .approval-section {
+        margin-top: 40px;
+        padding-top: 32px;
+        border-top: 1px solid var(--border);
+      }
+      .approval-section-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 17px;
+        color: var(--title);
+        margin: 0;
+      }
+      .approval-section-label .badge {
+        font-size: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="nav"></aside>
+      <div class="app-content">
+        <main class="wrap">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Transport Operations &middot; Approvals</p>
+          <h1>Approvals</h1>
+          <p class="subtle">
+            Everything waiting on a staff decision - trip requests, vehicle
+            registrations, and operator-to-operator transfers - in one
+            queue. Filter to one type, or leave it on All and use each
+            section's own label to tell them apart.
+          </p>
+        </div>
+      </div>
+
+      <div class="mode-switch" role="tablist" id="approval-type-tabs">
+        <button type="button" class="mode-tab is-active" data-type="all">All</button>
+        <button type="button" class="mode-tab" data-type="requests">Trip requests<span class="type-count" id="count-requests"></span></button>
+        <button type="button" class="mode-tab" data-type="vehicles">Vehicle approvals<span class="type-count" id="count-vehicles"></span></button>
+        <button type="button" class="mode-tab" data-type="transfers">Transfer approvals<span class="type-count" id="count-transfers"></span></button>
+      </div>
+
+      <section class="approval-section" id="section-requests" data-type="requests">
+        <p class="approval-section-label"><span class="badge badge-pending">Trip request</span> Bay &amp; slot requests</p>
+      <p class="fineprint">Approve a request and the system assigns the next available bay automatically (the route's gate first, if it has one) - change the dropdown first if you'd rather use a different bay. Reject with an optional note back to the operator.</p>
+        <p class="subtle" id="queue-count"></p>
+
+      <div class="mode-switch" role="tablist" id="view-tabs">
+        <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
+        <button type="button" class="mode-tab" data-view="cancellations">
+          Cancellation requests<span class="hidden" id="cancel-count-badge"></span>
+        </button>
+        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+      </div>
+
+      <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="pending-toolbar">
+        <div class="field" style="max-width: 360px; margin-bottom: 0">
+          <label for="search">Search</label>
+          <input id="search" placeholder="Operator, plate no., or route…" />
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn-link" id="select-all">Select all</button>
+          <button type="button" class="btn-outline" id="approve-selected" disabled>
+            Approve selected (suggested bay)
+          </button>
+          <button type="button" class="btn-danger-outline" id="reject-selected" disabled>
+            Reject selected
+          </button>
+        </div>
+      </div>
+
+      <div class="hidden" id="message"></div>
+      <div id="requests"></div>
+      <div class="hidden" id="cancellations"></div>
+      <div class="hidden" id="decided"></div>
+      </section>
+
+      <section class="approval-section" id="section-vehicles" data-type="vehicles">
+        <p class="approval-section-label"><span class="badge badge-pending">Vehicle</span> Vehicle registrations</p>
+      <p class="fineprint">Approve a vehicle so it appears in the operator's booking-form plate list, or reject it with an optional note.</p>
+        <p class="subtle" id="veh-queue-count"></p>
+
+      <div class="mode-switch" role="tablist" id="veh-view-tabs">
+        <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
+        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+      </div>
+
+      <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="veh-pending-toolbar">
+        <div class="field" style="max-width: 360px; margin-bottom: 0">
+          <label for="veh-search">Search</label>
+          <input id="veh-search" placeholder="Operator, plate no., or route…" />
+        </div>
+        <div class="row-actions" style="position: relative; flex-wrap: wrap">
+          <button type="button" class="btn-link" id="veh-select-all">Select all</button>
+          <button type="button" class="btn-outline" id="veh-approve-selected" disabled>
+            Approve selected
+          </button>
+          <button type="button" class="btn-danger-outline" id="veh-reject-selected" disabled>
+            Reject selected
+          </button>
+          <button type="button" class="btn-outline" id="veh-columns-toggle">Columns</button>
+          <div class="notif-panel hidden" id="veh-columns-panel"></div>
+          <button type="button" class="btn-outline" id="veh-export-csv">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="hidden" id="veh-message"></div>
+      <div id="veh-requests"></div>
+      <div class="hidden" id="veh-decided"></div>
+      </section>
+
+      <section class="approval-section" id="section-transfers" data-type="transfers">
+        <p class="approval-section-label"><span class="badge badge-pending">Transfer</span> Booking transfers</p>
+      <p class="fineprint">An operator who can't make a scheduled slot may hand it to another operator by internal agreement. The receiving operator must confirm first - only then can you approve it, which moves the booking to them immediately.</p>
+        <p class="subtle" id="xfer-queue-count"></p>
+
+      <div class="mode-switch" role="tablist" id="xfer-view-tabs">
+        <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
+        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+      </div>
+
+      <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="xfer-pending-toolbar">
+        <div class="field" style="max-width: 360px; margin-bottom: 0">
+          <label for="xfer-search">Search</label>
+          <input id="xfer-search" placeholder="From/to operator, plate no., or route…" />
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn-link" id="xfer-select-all">Select all actionable</button>
+          <button type="button" class="btn-outline" id="xfer-approve-selected" disabled>
+            Approve selected
+          </button>
+          <button type="button" class="btn-danger-outline" id="xfer-reject-selected" disabled>
+            Reject selected
+          </button>
+        </div>
+      </div>
+
+      <div class="hidden" id="xfer-message"></div>
+      <div id="xfer-requests"></div>
+      <div class="hidden" id="xfer-decided"></div>
+      </section>
+    </main>
+      </div>
+    </div>
+
+    <script type="module">
+      import {
+        supabase,
+        guardPage,
+        renderNav,
+        formatSlotStart,
+        formatDateTime,
+        fetchAllRows,
+        compareBayNames,
+        gateForRoute,
+        showMessage,
+        escapeHtml,
+        bookingOperatorHtml,
+        expiryCell,
+        busTypeLabel,
+        downloadCsv,
+      } from "./assets/app.js";
+
+      const profile = await guardPage("staff");
+      if (!profile) throw new Error("unauthorised");
+      renderNav(profile);
+
+      initTypeFilter();
+      requestsApprovals(profile);
+      vehicleApprovals(profile);
+      transferApprovals(profile);
+
+      /* ---------------------------------------------------- type filter */
+
+      // Pending requests / Vehicle approvals / Transfer approvals used to
+      // be three separate pages (staff.html, vehicle-approvals.html,
+      // transfer-approvals.html); they're one page as filterable sections
+      // here instead. staff.html and the other two still exist as thin
+      // redirects into this page (old bookmarks and the notifications
+      // this app already sends with a hardcoded `link` still land
+      // somewhere real) - see those files' own comments.
+      //
+      // All three sections load their data up front rather than on first
+      // view - same total work the three separate pages already did,
+      // just co-located - so switching the filter is instant.
+      function setType(type) {
+        document.querySelectorAll("#approval-type-tabs [data-type]").forEach((btn) => {
+          btn.classList.toggle("is-active", btn.dataset.type === type);
+        });
+        document.querySelectorAll(".approval-section").forEach((section) => {
+          section.classList.toggle(
+            "hidden",
+            type !== "all" && section.dataset.type !== type
+          );
+        });
+      }
+
+      function initTypeFilter() {
+        document.querySelectorAll("#approval-type-tabs [data-type]").forEach((btn) => {
+          btn.addEventListener("click", () => setType(btn.dataset.type));
+        });
+
+        const params = new URLSearchParams(location.search);
+        const initial = params.get("type");
+        if (initial === "requests" || initial === "vehicles" || initial === "transfers") {
+          setType(initial);
+        }
+      }
+
+      // Each section's own queue-count paragraph already says "N awaiting
+      // review" - this just mirrors that same number onto the filter pill
+      // above, so the type you need is visible without opening it first.
+      function setTypeCount(type, n) {
+        const el = document.getElementById(`count-${type}`);
+        if (el) el.textContent = n > 0 ? ` (${n})` : "";
+      }
+
+      /* --------------------------------------------------- trip requests */
+      async function requestsApprovals(profile) {
+      // Keeps the last full pending fetch around so the search box can
+      // filter client-side without re-querying Supabase on every keystroke.
+      let pendingRequests = [];
+      let pendingBays = [];
+      let pendingTaken = new Map();
+      let cancellationRequests = [];
+      let view = "pending";
+      // Which pending ids the bulk actions apply to - cleared on every
+      // reload since the queue itself changes underneath it. Must be
+      // declared up here, before the `await load()` a few lines down -
+      // load() -> renderRequests() reads this at module top-level, which
+      // would otherwise run while this `let` is still in its temporal
+      // dead zone (same class of bug as #37/#39/#46/#52).
+      let selectedIds = new Set();
+
+        initViewTabs();
+        document.getElementById("search").addEventListener("input", renderRequests);
+        document.getElementById("select-all").addEventListener("click", toggleSelectAll);
+        document.getElementById("approve-selected").addEventListener("click", approveSelected);
+        document.getElementById("reject-selected").addEventListener("click", rejectSelected);
+        await load();
+
+      function initViewTabs() {
+        document.querySelectorAll("#view-tabs [data-view]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            view = btn.dataset.view;
+            document
+              .querySelectorAll("#view-tabs [data-view]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            document.getElementById("pending-toolbar").classList.toggle("hidden", view !== "pending");
+            document.getElementById("requests").classList.toggle("hidden", view !== "pending");
+            document.getElementById("cancellations").classList.toggle("hidden", view !== "cancellations");
+            document.getElementById("decided").classList.toggle("hidden", view !== "decided");
+            showMessage("message", "");
+            if (view === "cancellations") await loadCancellations();
+            if (view === "decided") await loadDecided();
+          });
+        });
+      }
+
+      async function load() {
+        const [pendingRes, baysRes, cancelCountRes] = await Promise.all([
+          fetchAllRows((from, to) =>
+            supabase
+              .from("bookings")
+              .select(
+                "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, revision_count, previously_approved, last_edited_at"
+              )
+              .eq("status", "pending")
+              .is("cancellation_requested_at", null)
+              .order("booking_date", { ascending: true })
+              .order("slot", { ascending: true })
+              .range(from, to)
+          ),
+          supabase
+            .from("bays")
+            .select("id, name, gate")
+            .eq("is_active", true),
+          supabase
+            .from("bookings")
+            .select("id", { count: "exact", head: true })
+            .not("cancellation_requested_at", "is", null),
+        ]);
+
+        pendingRequests = pendingRes.data ?? [];
+        pendingBays = (baysRes.data ?? []).sort((a, b) =>
+          compareBayNames(a.name, b.name)
+        );
+
+        // Which bays are already committed for a given date+slot.
+        //
+        // Scoped to just the dates actually in the queue, NOT every
+        // approved booking ever. Fetching them all silently hit
+        // PostgREST's default 1000-row cap once the table grew past that
+        // (2,800+ rows here), so this map only ever covered the oldest
+        // 1000 rows - months in the past - and came back empty for every
+        // date staff are actually approving. The visible symptom was
+        // already-taken bays still being offered (and auto-suggested) in
+        // the approve dropdown; the unique index still blocked the
+        // double-booking at write time, so this surfaced as a confusing
+        // "that bay was just taken" error instead of a wrong assignment.
+        // Caught in live testing, #86.
+        const queueDates = [...new Set(pendingRequests.map((b) => b.booking_date))];
+        pendingTaken = new Map();
+        if (queueDates.length > 0) {
+          const { data: approvedRows } = await fetchAllRows((from, to) =>
+            supabase
+              .from("bookings")
+              .select("booking_date, slot, assigned_bay_id")
+              .eq("status", "approved")
+              .in("booking_date", queueDates)
+              .range(from, to)
+          );
+
+          for (const row of approvedRows ?? []) {
+            const key = `${row.booking_date}|${row.slot}`;
+            if (!pendingTaken.has(key)) pendingTaken.set(key, new Set());
+            if (row.assigned_bay_id) pendingTaken.get(key).add(row.assigned_bay_id);
+          }
+        }
+
+        const cancelCount = cancelCountRes.count ?? 0;
+        const badge = document.getElementById("cancel-count-badge");
+        badge.textContent = cancelCount > 0 ? ` (${cancelCount})` : "";
+        badge.classList.toggle("hidden", cancelCount === 0);
+
+        selectedIds = new Set();
+        renderRequests();
+      }
+
+      async function loadCancellations() {
+        const host = document.getElementById("cancellations");
+        const { data, error } = await fetchAllRows((from, to) =>
+          supabase
+            .from("bookings")
+            .select(
+              "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, cancellation_requested_at, cancellation_reason"
+            )
+            .not("cancellation_requested_at", "is", null)
+            .order("cancellation_requested_at", { ascending: true })
+            .range(from, to)
+        );
+
+        if (error) {
+          host.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+          return;
+        }
+
+        cancellationRequests = data ?? [];
+        renderCancellations();
+      }
+
+      function renderCancellations() {
+        const host = document.getElementById("cancellations");
+        if (cancellationRequests.length === 0) {
+          host.innerHTML = `<p class="empty">No cancellation requests pending.</p>`;
+          return;
+        }
+
+        host.innerHTML = cancellationRequests
+          .map(
+            (b) => `
+              <div class="request-card">
+                <div class="request-head">
+                  <div>
+                    <p class="request-who">${bookingOperatorHtml(b)}${
+                      b.plate_no ? ` &middot; ${escapeHtml(b.plate_no)}` : ""
+                    }</p>
+                    <p class="subtle">${escapeHtml(b.route)} &middot; currently ${escapeHtml(
+                      b.status
+                    )}</p>
+                    <p class="subtle">Reason: ${escapeHtml(b.cancellation_reason || "No reason given")}</p>
+                  </div>
+                  <p class="request-when">${escapeHtml(b.booking_date)} &middot; ${escapeHtml(
+                    formatSlotStart(b.slot)
+                  )}</p>
+                </div>
+                <div class="request-actions">
+                  <button type="button" class="btn-approve" data-approve-cancel="${escapeHtml(
+                    b.id
+                  )}">Approve cancellation</button>
+                  <button type="button" class="btn-danger-outline" data-decline-cancel="${escapeHtml(
+                    b.id
+                  )}">Decline</button>
+                </div>
+              </div>
+            `
+          )
+          .join("");
+
+        host.querySelectorAll("[data-approve-cancel]").forEach((btn) => {
+          btn.addEventListener("click", () => approveCancellation(btn.dataset.approveCancel));
+        });
+        host.querySelectorAll("[data-decline-cancel]").forEach((btn) => {
+          btn.addEventListener("click", () => declineCancellation(btn.dataset.declineCancel));
+        });
+      }
+
+      async function approveCancellation(bookingId) {
+        showMessage("message", "");
+        const { error } = await supabase.rpc("approve_booking_cancellation", {
+          p_booking_id: bookingId,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        showMessage("message", "Booking cancelled.", "ok");
+        await Promise.all([loadCancellations(), load()]);
+      }
+
+      async function declineCancellation(bookingId) {
+        showMessage("message", "");
+        const { error } = await supabase.rpc("decline_booking_cancellation", {
+          p_booking_id: bookingId,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        showMessage("message", "Cancellation request declined.", "ok");
+        await Promise.all([loadCancellations(), load()]);
+      }
+
+      // Given a route, works out which bay the single-approve dropdown
+      // would auto-pick and preselect - the bulk "Approve selected" button
+      // reuses this exact same rule so a selected item never gets a bay
+      // the per-row flow wouldn't also have suggested.
+      function bayChoicesFor(booking) {
+        const takenIds =
+          pendingTaken.get(`${booking.booking_date}|${booking.slot}`) ?? new Set();
+        const available = pendingBays.filter((bay) => !takenIds.has(bay.id));
+        const gate = gateForRoute(booking.route);
+        const suggested = gate ? available.filter((bay) => bay.gate === gate) : [];
+        const other = gate ? available.filter((bay) => bay.gate !== gate) : available;
+        const autoPick = suggested[0] ?? other[0] ?? null;
+        return { gate, available, suggested, other, autoPick };
+      }
+
+      function renderRequests() {
+        const query = document.getElementById("search").value.trim().toLowerCase();
+        const requests = query
+          ? pendingRequests.filter((b) =>
+              [b.operator_name, b.trade_name, b.plate_no, b.route]
+                .filter(Boolean)
+                .some((s) => s.toLowerCase().includes(query))
+            )
+          : pendingRequests;
+
+        const host = document.getElementById("requests");
+
+        document.getElementById("queue-count").textContent =
+          pendingRequests.length === 0
+            ? "Queue clear"
+            : `${pendingRequests.length} awaiting review`;
+        setTypeCount("requests", pendingRequests.length);
+
+        if (pendingRequests.length === 0) {
+          host.innerHTML = `<p class="empty">No pending requests right now.</p>`;
+          updateBulkButtons();
+          return;
+        }
+
+        if (requests.length === 0) {
+          host.innerHTML = `<p class="empty">No matches.</p>`;
+          updateBulkButtons();
+          return;
+        }
+
+        host.innerHTML = requests
+          .map((b) => {
+            const { gate, suggested, other, autoPick } = bayChoicesFor(b);
+            const none = suggested.length + other.length === 0;
+
+            const optionsHtml = (list) =>
+              list
+                .map(
+                  (bay) =>
+                    `<option value="${bay.id}"${
+                      bay.id === autoPick?.id ? " selected" : ""
+                    }>${escapeHtml(bay.name)}</option>`
+                )
+                .join("");
+
+            return `
+              <div class="request-card">
+                <div class="request-head">
+                  <label class="row-actions" style="margin-right: 8px">
+                    <input type="checkbox" data-select="${escapeHtml(b.id)}" ${
+                      selectedIds.has(b.id) ? "checked" : ""
+                    } />
+                  </label>
+                  <div>
+                    <p class="request-who">${bookingOperatorHtml(
+                      b
+                    )} &middot; ${
+                      b.plate_no ? escapeHtml(b.plate_no) : `<span class="subtle">plate not set yet</span>`
+                    }${
+                      // Flags a slot the operator already held: approving
+                      // re-confirms it, rejecting leaves them with nothing.
+                      b.previously_approved
+                        ? `<span class="revised">changed after approval</span>`
+                        : b.revision_count > 0
+                          ? `<span class="revised">changed &times;${b.revision_count}</span>`
+                          : ""
+                    }</p>
+                    <p class="subtle">${escapeHtml(b.route)}${
+                      gate ? ` &middot; ${escapeHtml(gate)}` : ""
+                    }</p>
+                  </div>
+                  <p class="request-when">${escapeHtml(
+                    b.booking_date
+                  )} &middot; ${escapeHtml(formatSlotStart(b.slot))}</p>
+                </div>
+                <div class="request-actions">
+                  <form data-approve="${escapeHtml(b.id)}">
+                    <select required ${none ? "disabled" : ""}>
+                      ${
+                        none
+                          ? `<option value="" disabled selected>No bays available</option>`
+                          : ""
+                      }
+                      ${
+                        suggested.length
+                          ? `<optgroup label="Suggested (${escapeHtml(gate)})">${optionsHtml(
+                              suggested
+                            )}</optgroup>`
+                          : ""
+                      }
+                      ${
+                        other.length
+                          ? `<optgroup label="${suggested.length ? "Other bays" : "Bays"}">${optionsHtml(
+                              other
+                            )}</optgroup>`
+                          : ""
+                      }
+                    </select>
+                    <button type="submit" class="btn-approve" ${
+                      none ? "disabled" : ""
+                    }>Approve</button>
+                  </form>
+                  <form data-reject="${escapeHtml(b.id)}">
+                    <input placeholder="Reason (optional)" />
+                    <button type="submit" class="btn-danger-outline">Reject</button>
+                  </form>
+                  <button type="button" class="btn-link" data-setplate="${escapeHtml(
+                    b.id
+                  )}">${b.plate_no ? "Change plate" : "Set plate"}</button>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        host.querySelectorAll("[data-setplate]").forEach((btn) => {
+          btn.addEventListener("click", () => setPlate(btn.dataset.setplate));
+        });
+
+        host.querySelectorAll("[data-approve]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            approve(form.dataset.approve, form.querySelector("select").value);
+          });
+        });
+
+        host.querySelectorAll("[data-reject]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            reject(form.dataset.reject, form.querySelector("input").value.trim());
+          });
+        });
+
+        host.querySelectorAll("[data-select]").forEach((box) => {
+          box.addEventListener("change", () => {
+            const id = box.dataset.select;
+            if (box.checked) selectedIds.add(id);
+            else selectedIds.delete(id);
+            updateBulkButtons();
+          });
+        });
+
+        updateBulkButtons();
+      }
+
+      function updateBulkButtons() {
+        const anySelected = selectedIds.size > 0;
+        document.getElementById("approve-selected").disabled = !anySelected;
+        document.getElementById("reject-selected").disabled = !anySelected;
+      }
+
+      function toggleSelectAll() {
+        const visibleIds = Array.from(
+          document.querySelectorAll("#requests [data-select]")
+        ).map((box) => box.dataset.select);
+        const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+        if (allSelected) {
+          visibleIds.forEach((id) => selectedIds.delete(id));
+        } else {
+          visibleIds.forEach((id) => selectedIds.add(id));
+        }
+        renderRequests();
+      }
+
+      async function rejectSelected() {
+        showMessage("message", "");
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) return;
+        const reason = prompt("Rejection reason for all selected requests (optional):") ?? "";
+        for (const id of ids) {
+          await supabase
+            .from("bookings")
+            .update({
+              status: "rejected",
+              rejection_reason: reason.trim() || null,
+              decided_by: profile.id,
+              decided_at: new Date().toISOString(),
+            })
+            .eq("id", id)
+            .eq("status", "pending");
+        }
+        showMessage("message", `Rejected ${ids.length} request(s).`, "ok");
+        await load();
+      }
+
+      async function approveSelected() {
+        showMessage("message", "");
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) return;
+
+        let approvedCount = 0;
+        const skipped = [];
+        // Approved, but into a bay outside the route's usual gate -
+        // worth calling out so staff can move it if they'd rather.
+        const offGate = [];
+
+        for (const id of ids) {
+          const booking = pendingRequests.find((b) => b.id === id);
+          if (!booking) {
+            skipped.push(`${id} (no longer pending)`);
+            continue;
+          }
+
+          // Same fallback the single-row approve dropdown pre-selects
+          // (`suggested[0] ?? other[0]`) - bulk used to consider only
+          // gate bays and skip outright when the gate was full, so the
+          // two paths disagreed about the same request. Staff can still
+          // reassign afterwards from the Schedule board; refusing to
+          // approve a request that has a perfectly usable bay free was
+          // the worse default (#87).
+          const { gate, suggested, other, autoPick } = bayChoicesFor(booking);
+          const bay = autoPick;
+          if (!bay) {
+            skipped.push(`${booking.operator_name} (no bay free at that time)`);
+            continue;
+          }
+          if (gate && suggested.length === 0) {
+            offGate.push(`${booking.operator_name} → ${bay.name} (${gate} full)`);
+          }
+
+          const { data, error } = await supabase
+            .from("bookings")
+            .update({
+              status: "approved",
+              assigned_bay_id: bay.id,
+              decided_by: profile.id,
+              decided_at: new Date().toISOString(),
+            })
+            .eq("id", id)
+            .eq("status", "pending")
+            .select("id");
+
+          if (error || !data || data.length === 0) {
+            skipped.push(`${booking.operator_name} (${error ? error.message : "already decided on"})`);
+            continue;
+          }
+
+          approvedCount += 1;
+          // Keep this booking's now-used bay out of the pool for the rest
+          // of this loop's picks, so two selected rows sharing a slot
+          // don't both get auto-assigned the same suggested bay.
+          const key = `${booking.booking_date}|${booking.slot}`;
+          if (!pendingTaken.has(key)) pendingTaken.set(key, new Set());
+          pendingTaken.get(key).add(bay.id);
+        }
+
+        const parts = [`Approved ${approvedCount} request(s).`];
+        if (offGate.length > 0) {
+          parts.push(`Assigned outside the usual gate: ${offGate.join("; ")}.`);
+        }
+        if (skipped.length > 0) {
+          parts.push(`Skipped ${skipped.length}: ${skipped.join("; ")}`);
+        }
+        showMessage(
+          "message",
+          parts.join(" "),
+          skipped.length === 0 ? "ok" : "error"
+        );
+        await load();
+      }
+
+      async function loadDecided() {
+        const host = document.getElementById("decided");
+        const { data, error } = await supabase
+          .from("bookings")
+          .select(
+            "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, rejection_reason, decided_at, decided_by_profile:profiles!bookings_decided_by_fkey ( username, operator_name )"
+          )
+          .in("status", ["approved", "rejected"])
+          .order("decided_at", { ascending: false, nullsFirst: false })
+          .limit(50);
+
+        if (error) {
+          host.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+          return;
+        }
+
+        const rows = data ?? [];
+        if (rows.length === 0) {
+          host.innerHTML = `<p class="empty">No decided requests yet.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th><th>Time slot</th><th>Operator</th><th>Route</th>
+                  <th>Plate No.</th><th>Status</th><th>Decided by</th>
+                  <th>Decided at</th><th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map((b) => {
+                    const decider =
+                      b.decided_by_profile?.operator_name ||
+                      b.decided_by_profile?.username ||
+                      "—";
+                    return `
+                  <tr>
+                    <td data-label="Date">${escapeHtml(b.booking_date)}</td>
+                    <td data-label="Time slot">${escapeHtml(formatSlotStart(b.slot))}</td>
+                    <td data-label="Operator">${bookingOperatorHtml(b)}</td>
+                    <td data-label="Route">${escapeHtml(b.route)}</td>
+                    <td data-label="Plate No.">${escapeHtml(b.plate_no ?? "—")}</td>
+                    <td data-label="Status">${escapeHtml(b.status)}</td>
+                    <td data-label="Decided by">${escapeHtml(decider)}</td>
+                    <td data-label="Decided at">${
+                      escapeHtml(formatDateTime(b.decided_at))
+                    }</td>
+                    <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      async function approve(bookingId, bayIdRaw) {
+        showMessage("message", "");
+        if (!bayIdRaw) {
+          return showMessage("message", "Please choose a bay before approving.");
+        }
+
+        const { data, error } = await supabase
+          .from("bookings")
+          .update({
+            status: "approved",
+            assigned_bay_id: Number(bayIdRaw),
+            decided_by: profile.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq("id", bookingId)
+          .eq("status", "pending")
+          .select("id");
+
+        if (error) {
+          // 23505 = unique violation on the approved bay/slot index.
+          showMessage(
+            "message",
+            error.code === "23505"
+              ? "That bay was just taken for this slot by another request. Pick a different bay."
+              : error.message
+          );
+          return;
+        }
+        if (!data || data.length === 0) {
+          showMessage("message", "That request was already decided on.");
+          await load();
+          return;
+        }
+
+        // The card vanishing is the only other feedback staff get, which
+        // reads the same whether the approve landed or the row was
+        // decided out from under them - say which it was.
+        const booking = pendingRequests.find((b) => b.id === bookingId);
+        const bay = pendingBays.find((y) => y.id === Number(bayIdRaw));
+        showMessage(
+          "message",
+          `Approved ${booking ? booking.operator_name : "request"}${
+            bay ? ` into ${bay.name}` : ""
+          }.`,
+          "ok"
+        );
+        await load();
+      }
+
+      async function reject(bookingId, reason) {
+        showMessage("message", "");
+        const booking = pendingRequests.find((b) => b.id === bookingId);
+        const { error } = await supabase
+          .from("bookings")
+          .update({
+            status: "rejected",
+            rejection_reason: reason || null,
+            decided_by: profile.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq("id", bookingId)
+          .eq("status", "pending");
+
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        showMessage(
+          "message",
+          `Rejected ${booking ? booking.operator_name : "request"}.`,
+          "ok"
+        );
+        await load();
+      }
+
+      // Staff-side plate entry (migration 0045). An operator can leave a
+      // trip without a vehicle right up to departure (#81 made the plate
+      // optional at booking time), and until now nobody at the terminal
+      // could record it on their behalf. Same eligibility and
+      // back-to-back rules as the operator's own path - enforced in the
+      // RPC, not here.
+      async function setPlate(bookingId) {
+        const booking = pendingRequests.find((b) => b.id === bookingId);
+        const entered = prompt(
+          `Plate number for ${booking ? booking.operator_name : "this booking"}` +
+            `${booking ? ` (${booking.route})` : ""}:`,
+          booking?.plate_no ?? ""
+        );
+        if (entered === null) return;
+
+        showMessage("message", "");
+        const { error } = await supabase.rpc("staff_set_booking_plate", {
+          p_booking_id: bookingId,
+          p_plate_no: entered,
+        });
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        showMessage(
+          "message",
+          entered.trim() ? `Plate set to ${entered.trim()}.` : "Plate cleared.",
+          "ok"
+        );
+        await load();
+      }
+      }
+
+      /* --------------------------------------------------- vehicle approvals */
+      async function vehicleApprovals(profile) {
+
+      // Which of the approval-form columns are shown, persisted across
+      // reloads so staff don't have to re-hide the same columns every
+      // visit. Bumped to v2 when the vehicle field set changed (migration
+      // 0035, OR/CR/dates/aircon dropped, several fields added) so a
+      // stored selection referencing a since-removed column key doesn't
+      // silently leave that many fewer columns visible than intended.
+      const COLUMNS_STORAGE_KEY = "pitx.vehicleApprovals.columns.v2";
+
+      // Every toggleable column, in table order. `key` doubles as the
+      // data-col attribute shared by the <th> and its column's <td>s, so
+      // visibility toggling is one selector per column rather than an
+      // index-based show/hide that would drift if a column were reordered.
+      const COLUMNS = [
+        { key: "plate", label: "Plate No." },
+        { key: "operator", label: "Operator" },
+        { key: "case", label: "Case No." },
+        { key: "mv", label: "MV File #" },
+        { key: "chassis", label: "Chassis No." },
+        { key: "franchise", label: "Franchise" },
+        { key: "sticker", label: "Sticker No." },
+        { key: "cpc", label: "CPC validity" },
+        { key: "cpc_eov", label: "CPC EOV?" },
+        { key: "cpc_eov_validity", label: "EOV validity" },
+        { key: "orcr", label: "OR/CR validity" },
+        { key: "route", label: "Route" },
+        { key: "origin", label: "Origin" },
+        { key: "destination", label: "Destination" },
+        { key: "body", label: "Body Number" },
+        { key: "trade", label: "Trade Name" },
+        { key: "year", label: "Year" },
+        { key: "make", label: "Make" },
+        { key: "bus_type", label: "Bus Type" },
+        { key: "seating", label: "Seating" },
+        { key: "seat", label: "Seat configuration" },
+        { key: "remarks", label: "Remarks" },
+        { key: "docs", label: "Documents" },
+      ];
+
+      // A sensible glance-view default - the rest stay one click away via
+      // the Columns panel rather than cluttering the table on first load.
+      const DEFAULT_VISIBLE_COLUMNS = [
+        "plate",
+        "operator",
+        "route",
+        "body",
+        "cpc",
+        "orcr",
+        "docs",
+      ];
+
+      function loadVisibleColumns() {
+        try {
+          const raw = localStorage.getItem(COLUMNS_STORAGE_KEY);
+          if (!raw) return new Set(DEFAULT_VISIBLE_COLUMNS);
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) return new Set(DEFAULT_VISIBLE_COLUMNS);
+          const known = new Set(COLUMNS.map((c) => c.key));
+          return new Set(parsed.filter((k) => known.has(k)));
+        } catch {
+          return new Set(DEFAULT_VISIBLE_COLUMNS);
+        }
+      }
+
+      function saveVisibleColumns() {
+        localStorage.setItem(
+          COLUMNS_STORAGE_KEY,
+          JSON.stringify([...visibleColumns])
+        );
+      }
+
+      let visibleColumns = loadVisibleColumns();
+
+      // Keeps the last full pending fetch around so the search box and
+      // column toggle can both re-render client-side without re-querying.
+      let pendingRequests = [];
+      let view = "pending";
+      const selectedIds = new Set();
+
+      initViewTabs();
+      initColumnsPanel();
+      document.getElementById("veh-search").addEventListener("input", render);
+      document.getElementById("veh-select-all").addEventListener("click", toggleSelectAll);
+      document.getElementById("veh-approve-selected").addEventListener("click", approveSelected);
+      document.getElementById("veh-reject-selected").addEventListener("click", rejectSelected);
+      document.getElementById("veh-export-csv").addEventListener("click", exportCsv);
+
+      await load();
+
+      function initViewTabs() {
+        document.querySelectorAll("#veh-view-tabs [data-view]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            view = btn.dataset.view;
+            document
+              .querySelectorAll("#veh-view-tabs [data-view]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            document.getElementById("veh-pending-toolbar").classList.toggle("hidden", view !== "pending");
+            document.getElementById("veh-requests").classList.toggle("hidden", view !== "pending");
+            document.getElementById("veh-decided").classList.toggle("hidden", view !== "decided");
+            showMessage("veh-message", "");
+            if (view === "decided") await loadDecided();
+          });
+        });
+      }
+
+      /* ----------------------------------------------------- columns panel */
+
+      function initColumnsPanel() {
+        const panel = document.getElementById("veh-columns-panel");
+        const toggle = document.getElementById("veh-columns-toggle");
+
+        panel.innerHTML = COLUMNS.map(
+          (col) => `
+            <label class="notif-item" style="display: flex; gap: 8px; align-items: center; cursor: pointer">
+              <input type="checkbox" data-col-toggle="${col.key}" ${
+                visibleColumns.has(col.key) ? "checked" : ""
+              } />
+              ${escapeHtml(col.label)}
+            </label>
+          `
+        ).join("");
+
+        panel.querySelectorAll("[data-col-toggle]").forEach((cb) => {
+          cb.addEventListener("change", () => {
+            const key = cb.dataset.colToggle;
+            if (cb.checked) visibleColumns.add(key);
+            else visibleColumns.delete(key);
+            saveVisibleColumns();
+            applyColumnVisibility();
+          });
+        });
+
+        toggle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          panel.classList.toggle("hidden");
+        });
+        document.addEventListener("click", (e) => {
+          if (!panel.contains(e.target) && e.target !== toggle) panel.classList.add("hidden");
+        });
+      }
+
+      // Toggles both the <th> and every <td> sharing a data-col value -
+      // called after every render() (the table is rebuilt each time) and
+      // whenever a checkbox in the Columns panel changes.
+      function applyColumnVisibility() {
+        COLUMNS.forEach((col) => {
+          const shown = visibleColumns.has(col.key);
+          document.querySelectorAll(`[data-col="${col.key}"]`).forEach((el) => {
+            el.style.display = shown ? "" : "none";
+          });
+        });
+      }
+
+      function operatorLabel(v) {
+        return v.profiles?.operator_name || v.profiles?.username || "Operator";
+      }
+
+      async function load() {
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select(
+            // vehicles has two FKs into profiles (operator_id, decided_by),
+            // so the embed needs the constraint name to disambiguate which.
+            "id, operator_id, plate_no, case_number, mv_file_number, chassis_no, franchise, cpc_validity, cpc_eov, cpc_eov_validity, orcr_validity, sticker_no, route, origin, destination, body_number, trade_name, vehicle_year, vehicle_make, bus_type, seating_capacity, seat_type, remarks, source, photo_path, supporting_doc_path, supporting_doc_name, seat_layout_path, seat_layout_name, previously_approved, revision_count, profiles!vehicles_operator_id_fkey ( username, operator_name )"
+          )
+          .eq("status", "pending")
+          .order("created_at", { ascending: true });
+
+        if (error) {
+          showMessage("veh-message", error.message);
+          return;
+        }
+
+        pendingRequests = data ?? [];
+        // A reload can drop rows that were selected (approved/rejected
+        // elsewhere in the meantime) - drop stale ids so the bulk buttons'
+        // disabled state stays accurate.
+        const stillPending = new Set(pendingRequests.map((v) => v.id));
+        [...selectedIds].forEach((id) => {
+          if (!stillPending.has(id)) selectedIds.delete(id);
+        });
+
+        render();
+      }
+
+      function filteredRequests() {
+        const query = document.getElementById("veh-search").value.trim().toLowerCase();
+        if (!query) return pendingRequests;
+        return pendingRequests.filter((v) =>
+          [v.plate_no, v.route, v.profiles?.operator_name, v.profiles?.username]
+            .filter(Boolean)
+            .some((s) => s.toLowerCase().includes(query))
+        );
+      }
+
+      function render() {
+        const requests = filteredRequests();
+        const host = document.getElementById("veh-requests");
+
+        document.getElementById("veh-queue-count").textContent =
+          pendingRequests.length === 0
+            ? "Queue clear"
+            : `${pendingRequests.length} awaiting review`;
+        setTypeCount("vehicles", pendingRequests.length);
+
+        if (pendingRequests.length === 0) {
+          host.innerHTML = `<p class="empty">No vehicles awaiting approval.</p>`;
+          updateBulkButtons();
+          return;
+        }
+
+        if (requests.length === 0) {
+          host.innerHTML = `<p class="empty">No matches.</p>`;
+          updateBulkButtons();
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="veh-row-select-all" /></th>
+                  <th data-col="plate">Plate No.</th><th data-col="operator">Operator</th>
+                  <th data-col="case">Case No.</th>
+                  <th data-col="mv">MV File #</th>
+                  <th data-col="chassis">Chassis No.</th><th data-col="franchise">Franchise</th><th data-col="sticker">Sticker No.</th>
+                  <th data-col="cpc">CPC validity</th><th data-col="cpc_eov">CPC EOV?</th><th data-col="cpc_eov_validity">EOV validity</th>
+                  <th data-col="orcr">OR/CR validity</th>
+                  <th data-col="route">Route</th><th data-col="origin">Origin</th><th data-col="destination">Destination</th>
+                  <th data-col="body">Body Number</th><th data-col="trade">Trade Name</th><th data-col="year">Year</th><th data-col="make">Make</th>
+                  <th data-col="bus_type">Bus Type</th><th data-col="seating">Seating</th>
+                  <th data-col="seat">Seat configuration</th><th data-col="remarks">Remarks</th>
+                  <th data-col="docs">Documents</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${requests
+                  .map((v) => {
+                    const label = operatorLabel(v);
+                    return `
+                  <tr>
+                    <td><input type="checkbox" data-select="${escapeHtml(v.id)}" ${
+                      selectedIds.has(v.id) ? "checked" : ""
+                    } /></td>
+                    <td class="cell-strong" data-col="plate" data-label="Plate No.">${escapeHtml(v.plate_no)}${
+                      v.previously_approved
+                        ? `<span class="revised">changed after approval</span>`
+                        : v.revision_count > 0
+                          ? `<span class="revised">changed &times;${v.revision_count}</span>`
+                          : ""
+                    }</td>
+                    <td data-col="operator" data-label="Operator">${escapeHtml(label)}</td>
+                    <td data-col="case" data-label="Case No.">${escapeHtml(v.case_number ?? "—")}</td>
+                    <td data-col="mv" data-label="MV File #">${escapeHtml(v.mv_file_number ?? "—")}</td>
+                    <td data-col="chassis" data-label="Chassis No.">${escapeHtml(v.chassis_no ?? "—")}</td>
+                    <td data-col="franchise" data-label="Franchise">${escapeHtml(v.franchise ?? "—")}</td>
+                    <td data-col="sticker" data-label="Sticker No.">${escapeHtml(v.sticker_no ?? "—")}</td>
+                    <td data-col="cpc" data-label="CPC validity">${expiryCell(v.cpc_validity, escapeHtml)}</td>
+                    <td data-col="cpc_eov" data-label="CPC EOV?">${v.cpc_eov ? "Yes" : "No"}</td>
+                    <td data-col="cpc_eov_validity" data-label="EOV validity">${v.cpc_eov ? expiryCell(v.cpc_eov_validity, escapeHtml) : "—"}</td>
+                    <td data-col="orcr" data-label="OR/CR validity">${expiryCell(v.orcr_validity, escapeHtml)}</td>
+                    <td data-col="route" data-label="Route">${escapeHtml(v.route ?? "—")}</td>
+                    <td data-col="origin" data-label="Origin">${escapeHtml(v.origin ?? "—")}</td>
+                    <td data-col="destination" data-label="Destination">${escapeHtml(v.destination ?? "—")}</td>
+                    <td data-col="body" data-label="Body Number">${escapeHtml(v.body_number ?? "—")}</td>
+                    <td data-col="trade" data-label="Trade Name">${escapeHtml(v.trade_name ?? "—")}</td>
+                    <td data-col="year" data-label="Year">${escapeHtml(v.vehicle_year ?? "—")}</td>
+                    <td data-col="make" data-label="Make">${escapeHtml(v.vehicle_make ?? "—")}</td>
+                    <td data-col="bus_type" data-label="Bus Type">${busTypeLabel(v.bus_type)}</td>
+                    <td data-col="seating" data-label="Seating">${v.seating_capacity ?? "—"}</td>
+                    <td data-col="seat" data-label="Seat configuration">${escapeHtml(v.seat_type ?? "—")}</td>
+                    <td data-col="remarks" data-label="Remarks">${escapeHtml(v.remarks ?? "—")}</td>
+                    <td data-col="docs" data-label="Documents" data-vehicle-docs="${escapeHtml(v.id)}">&hellip;</td>
+                    <td>
+                      <div class="row-actions">
+                        <form data-approve="${escapeHtml(v.id)}">
+                          <button type="submit" class="btn-approve">Approve</button>
+                        </form>
+                        <form data-reject="${escapeHtml(v.id)}">
+                          <input placeholder="Reason (optional)" />
+                          <button type="submit" class="btn-danger-outline">Reject</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        resolveDocLinks(requests);
+        applyColumnVisibility();
+
+        host.querySelectorAll("[data-approve]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            approve(form.dataset.approve);
+          });
+        });
+        host.querySelectorAll("[data-reject]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            reject(form.dataset.reject, form.querySelector("input").value.trim());
+          });
+        });
+        host.querySelectorAll("[data-select]").forEach((cb) => {
+          cb.addEventListener("change", () => {
+            if (cb.checked) selectedIds.add(cb.dataset.select);
+            else selectedIds.delete(cb.dataset.select);
+            updateBulkButtons();
+            syncRowSelectAll(requests);
+          });
+        });
+
+        const rowSelectAll = document.getElementById("veh-row-select-all");
+        rowSelectAll?.addEventListener("change", () => {
+          requests.forEach((v) => {
+            if (rowSelectAll.checked) selectedIds.add(v.id);
+            else selectedIds.delete(v.id);
+          });
+          render();
+        });
+        syncRowSelectAll(requests);
+        updateBulkButtons();
+      }
+
+      function syncRowSelectAll(requests) {
+        const rowSelectAll = document.getElementById("veh-row-select-all");
+        if (!rowSelectAll) return;
+        rowSelectAll.checked =
+          requests.length > 0 && requests.every((v) => selectedIds.has(v.id));
+      }
+
+      function updateBulkButtons() {
+        const disabled = selectedIds.size === 0;
+        document.getElementById("veh-approve-selected").disabled = disabled;
+        document.getElementById("veh-reject-selected").disabled = disabled;
+      }
+
+      // "Select all" in the toolbar (as distinct from the in-table header
+      // checkbox) selects every row currently matching the search filter.
+      function toggleSelectAll() {
+        const requests = filteredRequests();
+        const allSelected =
+          requests.length > 0 && requests.every((v) => selectedIds.has(v.id));
+        requests.forEach((v) => {
+          if (allSelected) selectedIds.delete(v.id);
+          else selectedIds.add(v.id);
+        });
+        render();
+      }
+
+      // Signed URLs are resolved after the table paints (rather than
+      // blocking the initial render on every row's storage round-trip),
+      // same pattern as vehicles-database.html.
+      async function resolveDocLinks(rows) {
+        await Promise.all(
+          rows.map(async (v) => {
+            const cell = document.querySelector(`[data-vehicle-docs="${v.id}"]`);
+            if (!cell) return;
+
+            const links = [];
+            if (v.photo_path) {
+              const { data } = await supabase.storage
+                .from("vehicle-docs")
+                .createSignedUrl(v.photo_path, 300);
+              if (data?.signedUrl) {
+                links.push(
+                  `<a href="${data.signedUrl}" target="_blank" rel="noopener">OR/CR photo</a>`
+                );
+              }
+            }
+            if (v.supporting_doc_path) {
+              const { data } = await supabase.storage
+                .from("vehicle-docs")
+                .createSignedUrl(v.supporting_doc_path, 300);
+              if (data?.signedUrl) {
+                links.push(
+                  `<a href="${data.signedUrl}" target="_blank" rel="noopener">${escapeHtml(
+                    v.supporting_doc_name || "Supporting doc"
+                  )}</a>`
+                );
+              }
+            }
+            cell.innerHTML = links.length ? links.join("<br />") : "—";
+          })
+        );
+      }
+
+      // Core status-update queries, shared by the single-row and bulk
+      // approve/reject actions so both paths stay identical. Neither
+      // reloads or messages on its own - the caller decides when.
+      async function approveVehicle(vehicleId) {
+        const { data, error } = await supabase
+          .from("vehicles")
+          .update({
+            status: "approved",
+            rejection_reason: null,
+            decided_by: profile.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq("id", vehicleId)
+          .eq("status", "pending")
+          .select("id");
+
+        if (error) return { ok: false, error };
+        return { ok: true, decided: (data ?? []).length > 0 };
+      }
+
+      async function rejectVehicle(vehicleId, reason) {
+        const { error } = await supabase
+          .from("vehicles")
+          .update({
+            status: "rejected",
+            rejection_reason: reason || null,
+            decided_by: profile.id,
+            decided_at: new Date().toISOString(),
+          })
+          .eq("id", vehicleId)
+          .eq("status", "pending");
+
+        if (error) return { ok: false, error };
+        return { ok: true };
+      }
+
+      async function approve(vehicleId) {
+        showMessage("veh-message", "");
+        const result = await approveVehicle(vehicleId);
+        if (!result.ok) {
+          showMessage("veh-message", result.error.message);
+          return;
+        }
+        if (!result.decided) {
+          showMessage("veh-message", "That vehicle was already decided on.");
+        }
+        selectedIds.delete(vehicleId);
+        await load();
+      }
+
+      async function reject(vehicleId, reason) {
+        showMessage("veh-message", "");
+        const result = await rejectVehicle(vehicleId, reason);
+        if (!result.ok) {
+          showMessage("veh-message", result.error.message);
+          return;
+        }
+        selectedIds.delete(vehicleId);
+        await load();
+      }
+
+      async function approveSelected() {
+        if (selectedIds.size === 0) return;
+        showMessage("veh-message", "");
+        const ids = [...selectedIds];
+        let approved = 0;
+        for (const id of ids) {
+          const result = await approveVehicle(id);
+          if (result.ok && result.decided) approved += 1;
+        }
+        selectedIds.clear();
+        await load();
+        showMessage(
+          "veh-message",
+          `Approved ${approved} vehicle${approved === 1 ? "" : "s"}.`,
+          "ok"
+        );
+      }
+
+      async function rejectSelected() {
+        if (selectedIds.size === 0) return;
+        // One shared reason for the whole batch, prompted once up front -
+        // matches the single-row Reject form's optional free-text reason.
+        const reason = prompt("Rejection reason (optional, applied to all selected):", "") ?? "";
+        showMessage("veh-message", "");
+        const ids = [...selectedIds];
+        let rejected = 0;
+        for (const id of ids) {
+          const result = await rejectVehicle(id, reason.trim());
+          if (result.ok) rejected += 1;
+        }
+        selectedIds.clear();
+        await load();
+        showMessage(
+          "veh-message",
+          `Rejected ${rejected} vehicle${rejected === 1 ? "" : "s"}.`,
+          "ok"
+        );
+      }
+
+      /* --------------------------------------------------------- CSV export */
+
+      // Plain-text value per column key, mirroring the table cells above
+      // but without any HTML - used only for the CSV export.
+      const CSV_VALUE = {
+        plate: (v) => v.plate_no ?? "",
+        operator: (v) => operatorLabel(v),
+        case: (v) => v.case_number ?? "",
+        mv: (v) => v.mv_file_number ?? "",
+        chassis: (v) => v.chassis_no ?? "",
+        franchise: (v) => v.franchise ?? "",
+        sticker: (v) => v.sticker_no ?? "",
+        cpc: (v) => v.cpc_validity ?? "",
+        cpc_eov: (v) => (v.cpc_eov ? "Yes" : "No"),
+        cpc_eov_validity: (v) => v.cpc_eov_validity ?? "",
+        orcr: (v) => v.orcr_validity ?? "",
+        route: (v) => v.route ?? "",
+        origin: (v) => v.origin ?? "",
+        destination: (v) => v.destination ?? "",
+        body: (v) => v.body_number ?? "",
+        trade: (v) => v.trade_name ?? "",
+        year: (v) => v.vehicle_year ?? "",
+        make: (v) => v.vehicle_make ?? "",
+        bus_type: (v) => busTypeLabel(v.bus_type),
+        seating: (v) => v.seating_capacity ?? "",
+        seat: (v) => v.seat_type ?? "",
+        remarks: (v) => v.remarks ?? "",
+        docs: () => "",
+      };
+
+      // Exports exactly what's on screen - the search-filtered rows, and
+      // only the columns currently toggled on in the Columns panel.
+      function exportCsv() {
+        const cols = COLUMNS.filter((c) => visibleColumns.has(c.key));
+        const headers = cols.map((c) => c.label);
+        const rows = filteredRequests().map((v) => cols.map((c) => CSV_VALUE[c.key](v)));
+        downloadCsv("pending-vehicle-approvals.csv", headers, rows);
+      }
+
+      /* ------------------------------------------------------ decided view */
+
+      async function loadDecided() {
+        const host = document.getElementById("veh-decided");
+        host.innerHTML = `<p class="empty">Loading&hellip;</p>`;
+
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select(
+            // Same two-FK situation as the pending query above, plus a
+            // second embed for whoever decided it - vehicles_decided_by_fkey
+            // is Postgres's default-generated name for the unnamed
+            // `decided_by uuid references profiles(id)` column added in
+            // migration 0005, the same convention vehicles_operator_id_fkey
+            // already relies on elsewhere in this codebase.
+            "id, plate_no, route, status, decided_at, rejection_reason, profiles!vehicles_operator_id_fkey ( username, operator_name ), decider:profiles!vehicles_decided_by_fkey ( username, operator_name )"
+          )
+          .in("status", ["approved", "rejected"])
+          // Postgres defaults DESC to NULLS FIRST - most vehicles here
+          // were bulk-imported straight to "approved" with no decided_at
+          // at all, which would otherwise bury every genuinely-decided
+          // row underneath ~1,800 nulls. nullsFirst: false forces actual
+          // decisions to the top instead, where "recently decided" means.
+          .order("decided_at", { ascending: false, nullsFirst: false })
+          .limit(50);
+
+        if (error) {
+          showMessage("veh-message", error.message);
+          host.innerHTML = `<p class="empty">Couldn't load recently decided vehicles.</p>`;
+          return;
+        }
+
+        const rows = data ?? [];
+        if (rows.length === 0) {
+          host.innerHTML = `<p class="empty">No decisions yet.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Plate No.</th><th>Operator</th><th>Route</th>
+                  <th>Status</th><th>Decided by</th><th>Decided at</th><th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map((v) => {
+                    const label = operatorLabel(v);
+                    const decider =
+                      v.decider?.operator_name || v.decider?.username || "—";
+                    return `
+                  <tr>
+                    <td class="cell-strong" data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
+                    <td data-label="Operator">${escapeHtml(label)}</td>
+                    <td data-label="Route">${escapeHtml(v.route ?? "—")}</td>
+                    <td data-label="Status">${escapeHtml(v.status)}</td>
+                    <td data-label="Decided by">${escapeHtml(decider)}</td>
+                    <td data-label="Decided at">${escapeHtml(formatDateTime(v.decided_at))}</td>
+                    <td data-label="Note">${escapeHtml(v.rejection_reason ?? "—")}</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+      }
+
+      /* --------------------------------------------------- transfer approvals */
+      async function transferApprovals(profile) {
+
+      // Keeps the last full pending fetch around so the search box and
+      // bulk-select checkboxes can work client-side without re-querying
+      // Supabase on every keystroke/click.
+      let pendingRequests = [];
+      const selectedIds = new Set();
+      let view = "pending";
+
+      document.getElementById("xfer-search").addEventListener("input", renderRequests);
+      document.getElementById("xfer-select-all").addEventListener("click", toggleSelectAll);
+      document.getElementById("xfer-approve-selected").addEventListener("click", approveSelected);
+      document.getElementById("xfer-reject-selected").addEventListener("click", rejectSelected);
+      initViewTabs();
+
+      await load();
+
+      function initViewTabs() {
+        document.querySelectorAll("#xfer-view-tabs [data-view]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            view = btn.dataset.view;
+            document
+              .querySelectorAll("#xfer-view-tabs [data-view]")
+              .forEach((b) => b.classList.toggle("is-active", b === btn));
+            document.getElementById("xfer-pending-toolbar").classList.toggle("hidden", view !== "pending");
+            document.getElementById("xfer-requests").classList.toggle("hidden", view !== "pending");
+            document.getElementById("xfer-decided").classList.toggle("hidden", view !== "decided");
+            showMessage("xfer-message", "");
+            if (view === "decided") await loadDecided();
+          });
+        });
+      }
+
+      /** A transfer is only actionable by staff once the recipient has
+       * confirmed - mirrors the same check the approve/reject RPCs make
+       * server-side, so a row without buttons never gets a checkbox either. */
+      function isActionable(t) {
+        return t.recipient_response === "accepted";
+      }
+
+      function currentQuery() {
+        return document.getElementById("xfer-search").value.trim().toLowerCase();
+      }
+
+      function matchesQuery(t, query) {
+        if (!query) return true;
+        const fromLabel =
+          t.from_profile?.operator_name || t.from_profile?.username || "";
+        const toLabel =
+          t.to_profile?.operator_name || t.to_profile?.username || t.to_username || "";
+        const haystack = [fromLabel, toLabel, t.new_plate_no, t.route]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(query);
+      }
+
+      async function load() {
+        const { data, error } = await supabase
+          .from("booking_transfers")
+          .select(
+            "id, to_username, new_plate_no, reason, created_at, recipient_response, " +
+              "booking_date, slot, route, previous_plate_no, " +
+              "from_profile:profiles!booking_transfers_from_operator_id_fkey ( username, operator_name ), " +
+              "to_profile:profiles!booking_transfers_to_operator_id_fkey ( username, operator_name )"
+          )
+          .eq("status", "pending")
+          .order("created_at", { ascending: true });
+
+        if (error) {
+          showMessage("xfer-message", error.message);
+          return;
+        }
+
+        pendingRequests = data ?? [];
+        // Drop selections for ids that no longer exist / are no longer
+        // actionable (e.g. this reload followed a bulk action).
+        const stillActionableIds = new Set(
+          pendingRequests.filter(isActionable).map((t) => t.id)
+        );
+        for (const id of [...selectedIds]) {
+          if (!stillActionableIds.has(id)) selectedIds.delete(id);
+        }
+
+        renderRequests();
+      }
+
+      function renderRequests() {
+        const query = currentQuery();
+        const requests = pendingRequests.filter((t) => matchesQuery(t, query));
+        const host = document.getElementById("xfer-requests");
+
+        document.getElementById("xfer-queue-count").textContent =
+          pendingRequests.length === 0
+            ? "Queue clear"
+            : `${pendingRequests.length} awaiting review`;
+        setTypeCount("transfers", pendingRequests.length);
+
+        if (pendingRequests.length === 0) {
+          host.innerHTML = `<p class="empty">No transfer requests awaiting approval.</p>`;
+          updateBulkButtons();
+          return;
+        }
+
+        if (requests.length === 0) {
+          host.innerHTML = `<p class="empty">No transfer requests match your search.</p>`;
+          updateBulkButtons();
+          return;
+        }
+
+        host.innerHTML = requests
+          .map((t) => {
+            const fromLabel =
+              t.from_profile?.operator_name || t.from_profile?.username || "Operator";
+            const toLabel =
+              t.to_profile?.operator_name || t.to_profile?.username || t.to_username;
+            const actionable = isActionable(t);
+            return `
+              <div class="request-card">
+                <div class="request-head">
+                  ${
+                    actionable
+                      ? `<input type="checkbox" data-select="${escapeHtml(t.id)}" ${
+                          selectedIds.has(t.id) ? "checked" : ""
+                        } aria-label="Select this transfer" />`
+                      : ""
+                  }
+                  <div>
+                    <p class="request-who">
+                      ${escapeHtml(fromLabel)} &rarr; ${escapeHtml(toLabel)}
+                    </p>
+                    <p class="subtle">
+                      ${escapeHtml(t.booking_date)} &middot; ${escapeHtml(formatSlotStart(t.slot))}
+                      ${t.route ? ` &middot; ${escapeHtml(t.route)}` : ""}
+                    </p>
+                    <p class="subtle">
+                      Current plate ${escapeHtml(t.previous_plate_no ?? "—")} &rarr;
+                      new plate ${escapeHtml(t.new_plate_no)}
+                    </p>
+                    ${
+                      t.reason
+                        ? `<p class="subtle">Reason: ${escapeHtml(t.reason)}</p>`
+                        : ""
+                    }
+                  </div>
+                  <p class="request-when">Requested ${escapeHtml(
+                    new Date(t.created_at).toLocaleString()
+                  )}</p>
+                </div>
+
+                ${
+                  actionable
+                    ? `<div class="request-actions">
+                        <form data-approve="${escapeHtml(t.id)}">
+                          <button type="submit" class="btn-approve">Approve</button>
+                        </form>
+                        <form data-reject="${escapeHtml(t.id)}">
+                          <input placeholder="Reason (optional)" />
+                          <button type="submit" class="btn-danger-outline">Reject</button>
+                        </form>
+                      </div>`
+                    : `<p class="subtle" style="margin-top: 10px">
+                        Waiting on ${escapeHtml(toLabel)} to confirm before this can be approved.
+                      </p>`
+                }
+              </div>
+            `;
+          })
+          .join("");
+
+        host.querySelectorAll("[data-approve]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            approve(form.dataset.approve);
+          });
+        });
+        host.querySelectorAll("[data-reject]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            reject(form.dataset.reject, form.querySelector("input").value.trim());
+          });
+        });
+        host.querySelectorAll("[data-select]").forEach((box) => {
+          box.addEventListener("change", () => {
+            const id = box.dataset.select;
+            if (box.checked) selectedIds.add(id);
+            else selectedIds.delete(id);
+            updateBulkButtons();
+          });
+        });
+
+        updateBulkButtons();
+      }
+
+      function actionableRequests() {
+        return pendingRequests.filter(isActionable);
+      }
+
+      function updateBulkButtons() {
+        document.getElementById("xfer-approve-selected").disabled = selectedIds.size === 0;
+        document.getElementById("xfer-reject-selected").disabled = selectedIds.size === 0;
+      }
+
+      function toggleSelectAll() {
+        const actionable = actionableRequests();
+        const allSelected =
+          actionable.length > 0 && actionable.every((t) => selectedIds.has(t.id));
+        if (allSelected) {
+          for (const t of actionable) selectedIds.delete(t.id);
+        } else {
+          for (const t of actionable) selectedIds.add(t.id);
+        }
+        renderRequests();
+      }
+
+      async function approve(transferId) {
+        showMessage("xfer-message", "");
+        const { error } = await supabase.rpc("approve_booking_transfer", {
+          p_transfer_id: transferId,
+        });
+        if (error) {
+          showMessage("xfer-message", error.message);
+          return;
+        }
+        await load();
+      }
+
+      async function reject(transferId, reason) {
+        showMessage("xfer-message", "");
+        const { error } = await supabase.rpc("reject_booking_transfer", {
+          p_transfer_id: transferId,
+          p_reason: reason || null,
+        });
+        if (error) {
+          showMessage("xfer-message", error.message);
+          return;
+        }
+        await load();
+      }
+
+      async function approveSelected() {
+        const ids = [...selectedIds];
+        if (ids.length === 0) return;
+        showMessage("xfer-message", "");
+
+        let succeeded = 0;
+        const failures = [];
+        for (const id of ids) {
+          const { error } = await supabase.rpc("approve_booking_transfer", {
+            p_transfer_id: id,
+          });
+          if (error) failures.push(error.message);
+          else succeeded += 1;
+        }
+
+        selectedIds.clear();
+        await load();
+
+        showMessage(
+          "xfer-message",
+          summarizeBulkResult("approved", succeeded, failures),
+          failures.length === 0 ? "ok" : "error"
+        );
+      }
+
+      async function rejectSelected() {
+        const ids = [...selectedIds];
+        if (ids.length === 0) return;
+
+        const reason = prompt("Reason for rejecting the selected transfers (optional):", "");
+        // A prompt Cancel (null) backs out entirely; an empty string means
+        // "reject with no reason", which is a normal choice to proceed with.
+        if (reason === null) return;
+
+        showMessage("xfer-message", "");
+
+        let succeeded = 0;
+        const failures = [];
+        for (const id of ids) {
+          const { error } = await supabase.rpc("reject_booking_transfer", {
+            p_transfer_id: id,
+            p_reason: reason.trim() || null,
+          });
+          if (error) failures.push(error.message);
+          else succeeded += 1;
+        }
+
+        selectedIds.clear();
+        await load();
+
+        showMessage(
+          "xfer-message",
+          summarizeBulkResult("rejected", succeeded, failures),
+          failures.length === 0 ? "ok" : "error"
+        );
+      }
+
+      // Shared by approveSelected/rejectSelected - a per-item RPC failure
+      // (e.g. another staff member already decided it, or the recipient's
+      // confirmation was somehow rescinded mid-loop) doesn't abort the rest
+      // of the batch; it's just reported alongside how many did succeed.
+      function summarizeBulkResult(verb, succeeded, failures) {
+        if (failures.length === 0) {
+          return `${succeeded} transfer${succeeded === 1 ? "" : "s"} ${verb}.`;
+        }
+        const parts = [
+          succeeded > 0
+            ? `${succeeded} transfer${succeeded === 1 ? "" : "s"} ${verb}`
+            : `No transfers were ${verb}`,
+          `${failures.length} failed (${failures.join("; ")}) - likely already decided or no longer actionable`,
+        ];
+        return parts.join(". ") + ".";
+      }
+
+      /* --------------------------------------------------- decided view */
+
+      async function loadDecided() {
+        const host = document.getElementById("xfer-decided");
+        host.innerHTML = `<p class="empty">Loading…</p>`;
+
+        const { data, error } = await supabase
+          .from("booking_transfers")
+          .select(
+            "id, to_username, new_plate_no, reason, booking_date, slot, route, status, decided_at, " +
+              "from_profile:profiles!booking_transfers_from_operator_id_fkey ( username, operator_name ), " +
+              "to_profile:profiles!booking_transfers_to_operator_id_fkey ( username, operator_name ), " +
+              "decider:profiles!booking_transfers_decided_by_fkey ( username, operator_name )"
+          )
+          .in("status", ["approved", "rejected"])
+          // Postgres defaults DESC to NULLS FIRST - force actual
+          // decisions to the top instead of behind any null-decided_at
+          // row (same fix as staff.html/vehicle-approvals.html's
+          // equivalent "recently decided" query).
+          .order("decided_at", { ascending: false, nullsFirst: false })
+          .limit(50);
+
+        if (error) {
+          host.innerHTML = "";
+          showMessage("xfer-message", error.message);
+          return;
+        }
+
+        const decided = data ?? [];
+        if (decided.length === 0) {
+          host.innerHTML = `<p class="empty">No transfers have been decided yet.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Date</th>
+                  <th>Slot</th>
+                  <th>Route</th>
+                  <th>New plate</th>
+                  <th>Status</th>
+                  <th>Decided by</th>
+                  <th>Decided</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${decided
+                  .map((t) => {
+                    const fromLabel =
+                      t.from_profile?.operator_name || t.from_profile?.username || "Operator";
+                    const toLabel =
+                      t.to_profile?.operator_name || t.to_profile?.username || t.to_username;
+                    const deciderLabel =
+                      t.decider?.operator_name || t.decider?.username || "—";
+                    return `
+                      <tr>
+                        <td data-label="From">${escapeHtml(fromLabel)}</td>
+                        <td data-label="To">${escapeHtml(toLabel)}</td>
+                        <td data-label="Date">${escapeHtml(t.booking_date)}</td>
+                        <td data-label="Slot">${escapeHtml(formatSlotStart(t.slot))}</td>
+                        <td data-label="Route">${escapeHtml(t.route ?? "—")}</td>
+                        <td data-label="New plate">${escapeHtml(t.new_plate_no)}</td>
+                        <td data-label="Status"><span class="badge badge-${escapeHtml(
+                          t.status
+                        )}">${escapeHtml(t.status)}</span></td>
+                        <td data-label="Decided by">${escapeHtml(deciderLabel)}</td>
+                        <td data-label="Decided">${
+                          t.decided_at ? escapeHtml(new Date(t.decided_at).toLocaleString()) : "—"
+                        }</td>
+                      </tr>
+                    `;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+      }
+    </script>
+  </body>
+</html>

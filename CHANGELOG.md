@@ -3550,6 +3550,41 @@ loaded a beat before the session restored, caught and redirected by
 
 ---
 
+### 93. Pending requests, Vehicle approvals, and Transfer approvals consolidated into Approvals (2 Sep)
+
+Same tabs-on-one-page pattern as #92, this time for staff's three
+approval queues. `approvals.html` is new: a type filter (All / Trip
+requests / Vehicle approvals / Transfer approvals, each pill showing a
+live pending count) above three stacked sections, each carrying its own
+colour-coded label badge ("Trip request" / "Vehicle" / "Transfer") so
+what's what stays obvious with the filter left on All. Every section
+keeps its full original behaviour untouched - staff.html's Pending/
+Cancellation requests/Recently decided sub-tabs, bulk approve/reject,
+bay auto-suggestion; vehicle-approvals.html's Columns picker and CSV
+export; transfer-approvals.html's actionable-vs-waiting-on-operator
+distinction - each just wrapped in its own function
+(`requestsApprovals()`/`vehicleApprovals()`/`transferApprovals()`) with
+its colliding element ids (`search`, `requests`, `decided`, `message`,
+`view-tabs`, etc. - all three pages used the same names) prefixed
+`veh-`/`xfer-` for the latter two, trip requests kept unprefixed as the
+primary section.
+
+`staff.html`, `vehicle-approvals.html`, and `transfer-approvals.html`
+are now thin redirects into `approvals.html?type=...` rather than
+deleted - migrations 0024/0025 write a `link` column pointing at all
+three by name from several server-side notification functions, and
+those keep working with no DB change. `overview.html`'s own KPI tiles,
+lockout "Review →" link, and quick-links all repoint at
+`approvals.html?type=...` directly (plain page links, not tab-switch,
+since Overview and Approvals are different pages); the sidebar's three
+approval entries collapse into one "Approvals" link.
+
+Verified live: the type filter (all four states), each section's own
+sub-tabs and Columns panel independently, and all three redirects
+landing on the right filter - no new console errors.
+
+---
+
 ## What the app does now
 
 

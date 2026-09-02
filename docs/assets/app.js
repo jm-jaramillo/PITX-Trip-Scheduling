@@ -434,12 +434,17 @@ const OPERATOR_LINKS = [
   { href: "operator-profile.html", label: "Operator profile", icon: "&#127970;" },
 ];
 
+// Pending requests, Vehicle approvals, and Transfer approvals
+// (staff.html / vehicle-approvals.html / transfer-approvals.html) used
+// to be three separate sidebar entries; they're now filterable sections
+// of one Approvals page (approvals.html) instead, so they collapse to a
+// single link here. All three old URLs still work - they're now thin
+// redirects into the right filter - for old bookmarks and the
+// notification links this app already writes.
 const STAFF_LINKS = [
   { href: "overview.html", label: "Overview", icon: "&#128202;" },
-  { href: "staff.html", label: "Pending requests", icon: "&#128203;" },
-  { href: "vehicle-approvals.html", label: "Vehicle approvals", icon: "&#9989;" },
+  { href: "approvals.html", label: "Approvals", icon: "&#9989;" },
   { href: "vehicles-database.html", label: "Vehicles", icon: "&#128652;" },
-  { href: "transfer-approvals.html", label: "Transfer approvals", icon: "&#128257;" },
   { href: "schedule.html", label: "Schedule", icon: "&#128197;" },
   { href: "utilization.html", label: "Utilization", icon: "&#128200;" },
   { href: "bays.html", label: "Bays", icon: "&#128666;" },
