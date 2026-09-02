@@ -3374,7 +3374,89 @@ at 375px.
 
 ---
 
+### 90. Multi-operator end-to-end test for a week of trips; two fixes (2 Sep)
+
+Booked a week of next-week trips (Mon 7 - Fri 11 Sep) across five real
+operator accounts spanning all three gates - PANGASINAN SOLID NORTH and
+GENESIS (Gate 5), ALPS and JAM LINER (Gate 2), BICOL ISAROG and DLTB
+(Gate 4) - then ran the full approve → assign plate → cancel cycle
+against them. 20 test bookings created and removed afterwards; the
+operator's own 17 bookings were left untouched.
+
+**Two bugs found and fixed.**
+
+1. **Cancelling an approved trip made it vanish from the Utilization
+   report** (`0046`). `approve_booking_cancellation()` nulled
+   `assigned_bay_id` to "release the bay", but that was never what
+   released it - the uniqueness constraint is a *partial* index scoped to
+   `status = 'approved'`, so the bay frees the moment the status flips
+   regardless. Nulling only destroyed the record of which gate the trip
+   had belonged to, and the Utilization page groups by bay to get the
+   gate - so a cancelled-after-approval trip disappeared from the report
+   entirely and its "Cancelled after approval" column could never be
+   anything but zero. The bay is now kept. Verified after the fix: the
+   column reads 1, attributed to the right gate, and the bay is still
+   assignable to another trip at the same slot. (The Schedule board was
+   never affected - it keys off `previously_approved`, not the bay.)
+
+2. **`expire_stale_pending_bookings()` had no staff guard** (`0047`).
+   It's SECURITY DEFINER and granted to `authenticated`, so any signed-in
+   operator could invoke it directly and mass-reject *every* operator's
+   past-dated pending requests - writing to rows RLS otherwise never lets
+   them touch. Small blast radius (it only touches bookings whose date
+   has already passed, setting the status staff would have set anyway),
+   which is why nothing surfaced in use, but it's still an operator
+   writing to other operators' rows. Now guarded like every other
+   staff-only routine. `app.js` already only called it for staff, so
+   nothing in the client changed. Found while chasing console 400s -
+   which turned out to be the deliberate failure cases below.
+
+**What the test exercised, all behaving correctly:**
+
+- Weekly repeat booking across several operators (Mon/Wed/Fri, Tue/Thu,
+  Mon-Fri), and its duplicate-skip refusing to re-book dates already held.
+- The same-route/same-time hint, firing when a second operator picked
+  TABACO CITY at a slot DLTB already had, with nearest-first alternatives
+  that moved the slot when clicked.
+- Gate contention: six Gate 4 routes approved into slot 32 took **six
+  distinct bays** with no double-booking, trip numbers collided correctly
+  (`LEG0800` / `LEG0800A`), and Gate 4 then reported zero free bays.
+- With Gate 4 full, the operator form showed the gate-full hint, and
+  staff's approve dropdown **excluded all six Gate 4 bays** and fell back
+  to the other 21 - the #86 fix under real contention.
+- Bulk approve's #87 fallback: *"Approved 13 request(s). Assigned outside
+  the usual gate: DLTB → Bay 1 (Gate 4 full)."* Previously that request
+  would have been silently skipped.
+- Plate-assigned-later: the red banner and per-row alerts flagged all six
+  plateless approved trips; the back-to-back rule rejected the same
+  vehicle in an adjacent slot and accepted a different one.
+- Approved-booking cancellation end to end, including staff being
+  correctly refused when calling `request_booking_cancellation` on an
+  operator's behalf (it filters on `operator_id = auth.uid()`).
+- Schedule board, My schedule (both views, no bay-reassign control for
+  operators), the board filter, Utilization, and History with its sort
+  toggle.
+
+**Also worth recording:** the auto-expiry from #87 fired during the test
+and closed eight of the operator's own past-dated (1 Sep) pending
+requests, with `decided_by` null marking them system-closed. That's the
+feature working as designed - it would have fired on the next staff page
+load regardless - but it is a real state change to real bookings, so it's
+noted here rather than buried.
+
+**Not a code bug, but operationally significant:** 400 of 1,832 vehicles
+(22%) have an expired CPC or CPC-EOV, which makes **37 of 217
+operator-route pairs completely unbookable** - DLTB, for instance, can
+only book 5 of its 9 destinations. The destination simply doesn't appear
+in that operator's dropdown, with nothing explaining why. The
+unlinked-route report on the Utilization page covers *missing*
+destinations but not expired ones; extending it to cover expiry would
+turn this into a fixable worklist.
+
+---
+
 ## What the app does now
+
 
 
 
