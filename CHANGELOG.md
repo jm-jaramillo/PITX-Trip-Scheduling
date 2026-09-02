@@ -3585,6 +3585,30 @@ landing on the right filter - no new console errors.
 
 ---
 
+### 94. Approvals: dropped "All", added a red notification pin per type (2 Sep)
+
+Two follow-up tweaks to #93, both requested after using it:
+
+- **Removed the "All" filter pill.** With three sections all visible
+  at once, "All" mostly meant scrolling past two you didn't come for -
+  dropping it makes the page a plain three-way switch (Trip requests /
+  Vehicle approvals / Transfer approvals) with exactly one section on
+  screen at a time, defaulting to Trip requests. The three redirects
+  from staff.html/vehicle-approvals.html/transfer-approvals.html still
+  land on the matching tab via `?type=`.
+- **Each tab now carries an iOS-style notification pin** - a small red
+  circle on its upper-right corner with that type's pending count,
+  hidden entirely once the queue is clear rather than showing "0". Same
+  number each section's own "N awaiting review" line already showed,
+  just surfaced on the tab itself so what needs attention is visible
+  without opening it.
+
+Verified live: default landing tab, exactly one section visible at a
+time, and the pin rendering/hiding correctly (checked both with real
+zero-queue data and by forcing counts to confirm the visual).
+
+---
+
 ## What the app does now
 
 

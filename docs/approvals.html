@@ -12,20 +12,35 @@
     />
     <link rel="stylesheet" href="assets/styles.css" />
     <style>
-      /* Page-local: the type filter's count badges and each section's
-         label strip - kept here rather than styles.css since nothing
-         else on the site needs them. */
-      .type-count {
-        font-size: 10px;
-        opacity: 0.75;
+      /* Page-local: the type filter's notification pins and each
+         section's label strip - kept here rather than styles.css since
+         nothing else on the site needs them. */
+      #approval-type-tabs .mode-tab {
+        position: relative;
+        overflow: visible;
+      }
+      /* iOS-style notification badge - a small red pin on the tab's
+         upper-right corner with the pending count in it. Hidden (not
+         just empty) when that type has nothing waiting, so a clear
+         queue reads as a plain tab, not a pin that says "0". */
+      .notif-pin {
+        position: absolute;
+        top: -7px;
+        right: -7px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        border-radius: 999px;
+        background: var(--red-ink);
+        color: #fff;
+        font-size: 10.5px;
+        font-weight: 700;
+        line-height: 18px;
+        text-align: center;
+        box-shadow: 0 0 0 2px var(--ground-alt);
       }
       .approval-section {
         margin-top: 8px;
-      }
-      .approval-section + .approval-section {
-        margin-top: 40px;
-        padding-top: 32px;
-        border-top: 1px solid var(--border);
       }
       .approval-section-label {
         display: inline-flex;
@@ -53,18 +68,23 @@
           <h1>Approvals</h1>
           <p class="subtle">
             Everything waiting on a staff decision - trip requests, vehicle
-            registrations, and operator-to-operator transfers - in one
-            queue. Filter to one type, or leave it on All and use each
-            section's own label to tell them apart.
+            registrations, and operator-to-operator transfers. Switch
+            between them above; a red pin shows how many of each are
+            waiting.
           </p>
         </div>
       </div>
 
       <div class="mode-switch" role="tablist" id="approval-type-tabs">
-        <button type="button" class="mode-tab is-active" data-type="all">All</button>
-        <button type="button" class="mode-tab" data-type="requests">Trip requests<span class="type-count" id="count-requests"></span></button>
-        <button type="button" class="mode-tab" data-type="vehicles">Vehicle approvals<span class="type-count" id="count-vehicles"></span></button>
-        <button type="button" class="mode-tab" data-type="transfers">Transfer approvals<span class="type-count" id="count-transfers"></span></button>
+        <button type="button" class="mode-tab is-active" data-type="requests">
+          Trip requests<span class="notif-pin hidden" id="count-requests"></span>
+        </button>
+        <button type="button" class="mode-tab" data-type="vehicles">
+          Vehicle approvals<span class="notif-pin hidden" id="count-vehicles"></span>
+        </button>
+        <button type="button" class="mode-tab" data-type="transfers">
+          Transfer approvals<span class="notif-pin hidden" id="count-transfers"></span>
+        </button>
       </div>
 
       <section class="approval-section" id="section-requests" data-type="requests">
@@ -102,7 +122,7 @@
       <div class="hidden" id="decided"></div>
       </section>
 
-      <section class="approval-section" id="section-vehicles" data-type="vehicles">
+      <section class="approval-section hidden" id="section-vehicles" data-type="vehicles">
         <p class="approval-section-label"><span class="badge badge-pending">Vehicle</span> Vehicle registrations</p>
       <p class="fineprint">Approve a vehicle so it appears in the operator's booking-form plate list, or reject it with an optional note.</p>
         <p class="subtle" id="veh-queue-count"></p>
@@ -136,7 +156,7 @@
       <div class="hidden" id="veh-decided"></div>
       </section>
 
-      <section class="approval-section" id="section-transfers" data-type="transfers">
+      <section class="approval-section hidden" id="section-transfers" data-type="transfers">
         <p class="approval-section-label"><span class="badge badge-pending">Transfer</span> Booking transfers</p>
       <p class="fineprint">An operator who can't make a scheduled slot may hand it to another operator by internal agreement. The receiving operator must confirm first - only then can you approve it, which moves the booking to them immediately.</p>
         <p class="subtle" id="xfer-queue-count"></p>
@@ -210,15 +230,15 @@
       // All three sections load their data up front rather than on first
       // view - same total work the three separate pages already did,
       // just co-located - so switching the filter is instant.
+      // No "All" option - exactly one section is ever shown, so this
+      // stays a plain three-way switch rather than a filter with a
+      // fall-through case.
       function setType(type) {
         document.querySelectorAll("#approval-type-tabs [data-type]").forEach((btn) => {
           btn.classList.toggle("is-active", btn.dataset.type === type);
         });
         document.querySelectorAll(".approval-section").forEach((section) => {
-          section.classList.toggle(
-            "hidden",
-            type !== "all" && section.dataset.type !== type
-          );
+          section.classList.toggle("hidden", section.dataset.type !== type);
         });
       }
 
@@ -229,17 +249,24 @@
 
         const params = new URLSearchParams(location.search);
         const initial = params.get("type");
-        if (initial === "requests" || initial === "vehicles" || initial === "transfers") {
-          setType(initial);
-        }
+        // Trip requests is the default landing tab (matches the button
+        // already marked is-active in the markup) - only override it
+        // when the URL asks for a specific one.
+        setType(
+          initial === "vehicles" || initial === "transfers" ? initial : "requests"
+        );
       }
 
-      // Each section's own queue-count paragraph already says "N awaiting
-      // review" - this just mirrors that same number onto the filter pill
-      // above, so the type you need is visible without opening it first.
+      // iOS-style notification pin on each tab - each section's own
+      // queue-count paragraph already says "N awaiting review"; this
+      // mirrors that same number onto the tab itself so the type that
+      // needs attention is visible without opening it first. Hidden
+      // entirely (not just "0") once a queue is clear.
       function setTypeCount(type, n) {
         const el = document.getElementById(`count-${type}`);
-        if (el) el.textContent = n > 0 ? ` (${n})` : "";
+        if (!el) return;
+        el.textContent = n > 99 ? "99+" : String(n);
+        el.classList.toggle("hidden", n === 0);
       }
 
       /* --------------------------------------------------- trip requests */
