@@ -111,8 +111,9 @@
           <h1>Overview</h1>
           <p class="subtle">
             A shift-start snapshot of everything waiting on staff - queue
-            counts, requests approaching their booking-lockout window, and
-            today's approved arrivals - plus quick links to every staff page.
+            counts, requests approaching their booking-lockout window,
+            today's board, and the last 30 days' utilization - plus quick
+            links to every staff page.
           </p>
         </div>
       </div>
@@ -121,6 +122,9 @@
 
       <p class="section-head">Approaching lockout</p>
       <div id="lockout"></div>
+
+      <p class="section-head">Utilization &middot; last 30 days</p>
+      <div class="kpis" id="utilization-kpis"></div>
 
       <p class="section-head">Quick links</p>
       <div class="quick-links" id="quick-links"></div>
@@ -137,6 +141,7 @@
         renderNav,
         escapeHtml,
         todayISO,
+        addDays,
         slotStartMillis,
         BOOKING_LEAD_TIME_MS,
         fetchAllRows,
@@ -173,6 +178,8 @@
           transfersAwaitingStaffRes,
           transfersAwaitingOperatorRes,
           approvedTodayRes,
+          cancelledTodayRes,
+          activeBaysRes,
         ] = await Promise.all([
           fetchAllRows((from, to) =>
             supabase
@@ -200,6 +207,17 @@
             .select("id", { count: "exact", head: true })
             .eq("status", "approved")
             .eq("booking_date", today),
+          // Same "was this trip ever actually confirmed" rule the
+          // Schedule board itself used before its own KPI strip moved
+          // here (#95) - a request cancelled before approval never had a
+          // real slot to lose, so it doesn't count as a cancellation.
+          supabase
+            .from("bookings")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "cancelled")
+            .eq("previously_approved", true)
+            .eq("booking_date", today),
+          supabase.from("bays").select("id", { count: "exact", head: true }).eq("is_active", true),
         ]);
 
         const pendingBookings = pendingBookingsRes.data ?? [];
@@ -210,10 +228,13 @@
           transfersAwaitingStaff: transfersAwaitingStaffRes.count ?? 0,
           transfersAwaitingOperator: transfersAwaitingOperatorRes.count ?? 0,
           approvedToday: approvedTodayRes.count ?? 0,
+          cancelledToday: cancelledTodayRes.count ?? 0,
+          activeBays: activeBaysRes.count ?? 0,
           today,
         });
 
         renderLockout(pendingBookings);
+        await loadUtilization();
       }
 
       function renderKpis({
@@ -222,8 +243,11 @@
         transfersAwaitingStaff,
         transfersAwaitingOperator,
         approvedToday,
+        cancelledToday,
+        activeBays,
         today,
       }) {
+        const scheduleHref = `schedule.html?date=${encodeURIComponent(today)}`;
         const tiles = [
           {
             label: "Pending requests",
@@ -253,7 +277,22 @@
             label: "Approved today",
             value: approvedToday,
             unit: "buses",
-            href: `schedule.html?date=${encodeURIComponent(today)}`,
+            href: scheduleHref,
+          },
+          // Folded in from the Schedule board's own KPI strip (#95) - the
+          // full board (and its date navigation) still lives on
+          // schedule.html, this is just today's snapshot of it.
+          {
+            label: "Cancelled today",
+            value: cancelledToday,
+            unit: "trips",
+            href: scheduleHref,
+          },
+          {
+            label: "Active bays",
+            value: activeBays,
+            unit: "in service",
+            href: "bays.html",
           },
         ];
 
@@ -265,6 +304,46 @@
                 <div class="kpi-label">${escapeHtml(k.label)}</div>
                 <div class="kpi-value">
                   <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
+                </div>
+              </div>
+            </a>`
+          )
+          .join("");
+      }
+
+      // Folded in from utilization.html's own KPI strip (#95) - the full
+      // report (by-gate breakdown, busiest times, date range picker)
+      // still lives there; this is just its trailing-30-day headline
+      // numbers, reusing the same RPC that page calls.
+      async function loadUtilization() {
+        const to = todayISO();
+        const from = addDays(to, -29);
+        const { data, error } = await supabase.rpc("utilization_by_gate", {
+          p_from: from,
+          p_to: to,
+        });
+        if (error) return;
+
+        const rows = data ?? [];
+        const trips = rows.reduce((n, r) => n + Number(r.trips), 0);
+        const cancelled = rows.reduce((n, r) => n + Number(r.cancelled), 0);
+        const capacity = rows.reduce((n, r) => n + Number(r.slot_capacity), 0);
+        const pct = capacity > 0 ? Math.round((trips / capacity) * 1000) / 10 : 0;
+
+        const tiles = [
+          { label: "Approved trips", value: trips, unit: "trips" },
+          { label: "Cancelled after approval", value: cancelled, unit: "trips" },
+          { label: "Slot occupancy", value: `${pct}%`, unit: "of capacity" },
+        ];
+
+        document.getElementById("utilization-kpis").innerHTML = tiles
+          .map(
+            (k) => `
+            <a class="kpi-link" href="utilization.html">
+              <div class="kpi">
+                <div class="kpi-label">${escapeHtml(k.label)}</div>
+                <div class="kpi-value">
+                  <strong>${escapeHtml(String(k.value))}</strong><span>${escapeHtml(k.unit)}</span>
                 </div>
               </div>
             </a>`

@@ -174,8 +174,6 @@
         </div>
       </div>
 
-      <div class="kpis" id="kpis"></div>
-
       <div class="field" style="max-width: 380px; margin: 4px 0 14px">
         <label for="board-search">Filter</label>
         <input id="board-search" placeholder="Operator, destination, plate, or trip no.…" />
@@ -357,25 +355,6 @@
           `Trips scheduled for ${currentDate}, across ${totalBays} active bay${
             totalBays === 1 ? "" : "s"
           }.`;
-
-        const scheduled = bookings.filter((b) => b.status === "approved").length;
-        const cancelled = bookings.length - scheduled;
-
-        document.getElementById("kpis").innerHTML = [
-          { label: "Scheduled today", value: scheduled, unit: "trips" },
-          { label: "Cancelled", value: cancelled, unit: "trips" },
-          { label: "Active bays", value: totalBays, unit: "in service" },
-        ]
-          .map(
-            (k) => `
-            <div class="kpi">
-              <div class="kpi-label">${escapeHtml(k.label)}</div>
-              <div class="kpi-value">
-                <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
-              </div>
-            </div>`
-          )
-          .join("");
 
         renderBoard();
       }

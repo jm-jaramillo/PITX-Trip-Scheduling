@@ -455,6 +455,8 @@
             approvedUpcomingRes,
             vehicleCountRes,
             expiringVehiclesRes,
+            scheduledTodayRes,
+            cancelledTodayRes,
           ] = await Promise.all([
             supabase
               .from("bookings")
@@ -483,6 +485,22 @@
               .or(
                 `and(cpc_validity.lte.${expirySoon}),and(orcr_validity.lte.${expirySoon})`
               ),
+            // Folded in from my-schedule.html's own KPI strip (#95) - the
+            // full board (any date, plus the All trips/My trips toggle)
+            // still lives there; this is just today's snapshot of it.
+            supabase
+              .from("bookings")
+              .select("id", { count: "exact", head: true })
+              .eq("operator_id", profile.id)
+              .eq("status", "approved")
+              .eq("booking_date", today),
+            supabase
+              .from("bookings")
+              .select("id", { count: "exact", head: true })
+              .eq("operator_id", profile.id)
+              .eq("status", "cancelled")
+              .eq("previously_approved", true)
+              .eq("booking_date", today),
           ]);
 
           const pendingBookings = pendingBookingsRes.data ?? [];
@@ -502,6 +520,8 @@
             approvedUpcoming: approvedUpcomingRes.count ?? 0,
             vehicleCount: vehicleCountRes.count ?? 0,
             expiringCount: expiringVehicles.length,
+            scheduledToday: scheduledTodayRes.count ?? 0,
+            cancelledToday: cancelledTodayRes.count ?? 0,
           });
 
           renderLockout(pendingBookings);
@@ -512,6 +532,8 @@
           approvedUpcoming,
           vehicleCount,
           expiringCount,
+          scheduledToday,
+          cancelledToday,
         }) {
           const tiles = [
             {
@@ -524,6 +546,18 @@
               label: "Approved upcoming",
               value: approvedUpcoming,
               unit: "bookings",
+              href: "my-schedule.html",
+            },
+            {
+              label: "Scheduled today",
+              value: scheduledToday,
+              unit: "trips",
+              href: "my-schedule.html",
+            },
+            {
+              label: "Cancelled today",
+              value: cancelledToday,
+              unit: "trips",
               href: "my-schedule.html",
             },
             {

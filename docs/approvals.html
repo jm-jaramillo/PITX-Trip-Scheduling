@@ -97,7 +97,7 @@
         <button type="button" class="mode-tab" data-view="cancellations">
           Cancellation requests<span class="hidden" id="cancel-count-badge"></span>
         </button>
-        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+        <button type="button" class="mode-tab" data-view="decided">History</button>
       </div>
 
       <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="pending-toolbar">
@@ -129,7 +129,7 @@
 
       <div class="mode-switch" role="tablist" id="veh-view-tabs">
         <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
-        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+        <button type="button" class="mode-tab" data-view="decided">History</button>
       </div>
 
       <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="veh-pending-toolbar">
@@ -163,7 +163,7 @@
 
       <div class="mode-switch" role="tablist" id="xfer-view-tabs">
         <button type="button" class="mode-tab is-active" data-view="pending">Pending</button>
-        <button type="button" class="mode-tab" data-view="decided">Recently decided</button>
+        <button type="button" class="mode-tab" data-view="decided">History</button>
       </div>
 
       <div class="toolbar" style="justify-content: space-between; margin-top: 18px" id="xfer-pending-toolbar">
@@ -1481,7 +1481,7 @@
 
         if (error) {
           showMessage("veh-message", error.message);
-          host.innerHTML = `<p class="empty">Couldn't load recently decided vehicles.</p>`;
+          host.innerHTML = `<p class="empty">Couldn't load vehicle history.</p>`;
           return;
         }
 

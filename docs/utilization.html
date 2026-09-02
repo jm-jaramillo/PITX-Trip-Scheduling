@@ -85,8 +85,6 @@
         </div>
       </div>
 
-      <div class="kpis" id="kpis"></div>
-
       <div class="hidden" id="message"></div>
 
       <p class="section-head">By gate</p>
@@ -162,7 +160,6 @@
         gateRows = data ?? [];
 
         await loadSlotProfile(from, to);
-        renderKpis();
         renderByGate();
         renderBySlot();
       }
@@ -186,31 +183,6 @@
           return;
         }
         slotRows = data ?? [];
-      }
-
-      function renderKpis() {
-        const trips = gateRows.reduce((n, r) => n + Number(r.trips), 0);
-        const cancelled = gateRows.reduce((n, r) => n + Number(r.cancelled), 0);
-        const days = new Set(gateRows.map((r) => r.booking_date)).size;
-        const capacity = gateRows.reduce((n, r) => n + Number(r.slot_capacity), 0);
-        const pct = capacity > 0 ? Math.round((trips / capacity) * 1000) / 10 : 0;
-
-        document.getElementById("kpis").innerHTML = [
-          { label: "Approved trips", value: trips, unit: "trips" },
-          { label: "Cancelled after approval", value: cancelled, unit: "trips" },
-          { label: "Days with activity", value: days, unit: "days" },
-          { label: "Slot occupancy", value: `${pct}%`, unit: "of capacity" },
-        ]
-          .map(
-            (k) => `
-            <div class="kpi">
-              <div class="kpi-label">${escapeHtml(k.label)}</div>
-              <div class="kpi-value">
-                <strong>${escapeHtml(String(k.value))}</strong><span>${escapeHtml(k.unit)}</span>
-              </div>
-            </div>`
-          )
-          .join("");
       }
 
       // Rolled up per gate across the whole range - the per-day rows the

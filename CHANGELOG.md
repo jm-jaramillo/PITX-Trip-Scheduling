@@ -3609,6 +3609,54 @@ zero-queue data and by forcing counts to confirm the visual).
 
 ---
 
+### 95. "Recently decided" renamed to History; every page's KPI strip moved into Overview (2 Sep)
+
+Two more requested tweaks:
+
+- **"Recently decided" → "History"** on all three Approvals sections
+  (Trip requests, Vehicle approvals, Transfer approvals) - same sub-tab,
+  same data, just a clearer label.
+- **Dashboards now live only on Overview.** Three pages had their own
+  small KPI strip bolted onto an otherwise working/report page -
+  `schedule.html` ("Scheduled today"/"Cancelled"/"Active bays" for
+  whatever date is being browsed), `my-schedule.html` (the operator
+  equivalent), and `utilization.html` ("Approved trips"/"Cancelled
+  after approval"/"Days with activity"/"Slot occupancy" for whatever
+  date range is picked). All three strips are removed; each page is now
+  just its working view - date/range picker, filter, board, or table -
+  with nothing to glance at, only something to do.
+
+  What they showed didn't disappear, it moved to the two Overview
+  pages as fixed **today** (or **trailing-30-days**, for utilization)
+  snapshots, since a dashboard tile needs one fixed answer, not
+  "whatever date happens to be selected elsewhere right now":
+
+  - `overview.html` (staff) gained **Cancelled today** and **Active
+    bays** alongside its existing tiles, plus a new "Utilization · last
+    30 days" row (**Approved trips**, **Cancelled after approval**,
+    **Slot occupancy**) computed with the same `utilization_by_gate`
+    RPC the Utilization page itself calls - each tile links through to
+    the full page (Schedule or Utilization) for anyone who wants to
+    change the date/range and see the rest.
+  - `operator-overview.html` gained **Scheduled today** and **Cancelled
+    today**, the operator-scoped equivalent, linking through to My
+    schedule.
+
+  Schedule and My schedule's own "Trips scheduled for DATE, across N
+  active bays" sentence in the page header is untouched - that's plain
+  narrative text, not a tile dashboard, and still says exactly which
+  date is on screen.
+
+Verified live for both roles: Schedule, My schedule, and Utilization
+all render cleanly with no KPI row; both Overview pages show the new
+tiles with correct live counts (today's date confirmed against the
+system clock so the utilization window's absence of data made sense -
+this session's earlier #90 test data is dated a few days in the
+future, outside the trailing-30-day window by design). No console
+errors introduced.
+
+---
+
 ## What the app does now
 
 
