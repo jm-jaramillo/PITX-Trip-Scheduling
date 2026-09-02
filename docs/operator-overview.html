@@ -128,23 +128,21 @@
         </div>
       </div>
 
+      <div class="kpis" id="kpis"></div>
+
+      <p class="section-head">Approaching lockout</p>
+      <div id="lockout"></div>
+
+      <p class="section-head">Quick links</p>
+      <div class="quick-links" id="quick-links"></div>
+
+      <p class="section-head">Trips</p>
       <div class="mode-switch" role="tablist" id="view-tabs">
-        <button type="button" class="mode-tab is-active" data-view="overview">Overview</button>
-        <button type="button" class="mode-tab" data-view="requests">My requests</button>
+        <button type="button" class="mode-tab is-active" data-view="requests">My requests</button>
         <button type="button" class="mode-tab" data-view="history">History</button>
       </div>
 
-      <div class="tab-panel is-active" id="panel-overview" data-panel="overview">
-        <div class="kpis" id="kpis"></div>
-
-        <p class="section-head">Approaching lockout</p>
-        <div id="lockout"></div>
-
-        <p class="section-head">Quick links</p>
-        <div class="quick-links" id="quick-links"></div>
-      </div>
-
-      <div class="tab-panel" id="panel-requests" data-panel="requests">
+      <div class="tab-panel is-active" id="panel-requests" data-panel="requests">
       <div id="incoming-transfers"></div>
       <div class="hidden" id="page-message"></div>
 
@@ -152,10 +150,9 @@
 
       <div class="toolbar" style="justify-content: space-between; margin-top: 0">
         <div>
-          <h2 style="margin: 0">My requests</h2>
-          <p class="fineprint" style="margin: 2px 0 0">
-            Today and future only.
-            <button type="button" class="btn-link" data-switch-tab="history">History</button> has every request you have made, browsable by month.
+          <p class="fineprint" style="margin: 0">
+            Today and future only. Switch to History above for every
+            request you've made, browsable by month.
           </p>
         </div>
         <div class="mode-switch" role="tablist" id="status-filter">
@@ -389,16 +386,19 @@
 
       // Overview/My requests/History used to be three separate pages
       // (operator-overview.html, dashboard.html, request-history.html);
-      // they're folded into one page as tabs here (#91 follow-up).
-      // dashboard.html and request-history.html still exist as thin
-      // redirects to this page (old bookmarks and the notifications this
-      // app already sends with a hardcoded `link` still land somewhere
-      // real) - see those files' own comments.
+      // they're folded into one page here (#91 follow-up). Overview
+      // itself (the KPIs/lockout/quick-links block) is no longer a tab -
+      // it's always on screen, with My requests and History underneath
+      // it as the one toggle (requested 2 Sep, after #91 made all three
+      // tabs). dashboard.html and request-history.html still exist as
+      // thin redirects to this page (old bookmarks and the notifications
+      // this app already sends with a hardcoded `link` still land
+      // somewhere real) - see those files' own comments.
       //
-      // All three tabs load their data up front rather than on first
-      // view - same total work the three separate pages already did,
-      // just co-located, and it keeps "switch tab" instant with nothing
-      // left to fetch.
+      // Both My requests and History load their data up front rather
+      // than on first view - same total work the separate pages already
+      // did, just co-located, and it keeps "switch tab" instant with
+      // nothing left to fetch.
       function switchTab(view) {
         document.querySelectorAll("#view-tabs [data-view]").forEach((btn) => {
           btn.classList.toggle("is-active", btn.dataset.view === view);

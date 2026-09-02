@@ -3657,6 +3657,36 @@ errors introduced.
 
 ---
 
+### 96. Operator Overview: no longer a tab - always on screen above My requests/History (2 Sep)
+
+#91 made Overview one of three tabs (Overview / My requests / History)
+on operator-overview.html. Requested back out one level: Overview (the
+KPI row, Approaching lockout, and Quick links) is no longer a tab at
+all - it's always visible at the top of the page - with My requests and
+History as the only toggle underneath it, under a new "Trips" heading.
+
+- Removed the "Overview" button from the tab bar and the `.tab-panel`
+  wrapper around the KPIs/lockout/quick-links block entirely - it's
+  now plain content on the page, not something that can be switched
+  away from.
+- My requests' own now-redundant "My requests" heading (sitting right
+  under a tab pill that already says the same thing) was dropped along
+  with its "History has every request..." inline link, replaced by one
+  plain sentence pointing at the toggle above.
+- `switchTab()`/`initTabs()` needed no logic change - both were already
+  driven entirely by `data-view`/`data-panel` attributes, so dropping
+  one option was just deleting its button and panel wrapper.
+- `dashboard.html`'s and `request-history.html`'s `?tab=requests`/
+  `?tab=history` redirects (#91) still land correctly, now arriving on
+  a page where Overview is always visible above whichever one they
+  asked for.
+
+Verified live: Overview content stays on screen while toggling between
+My requests and History, both redirects still land on the right
+toggle, no console errors.
+
+---
+
 ## What the app does now
 
 
