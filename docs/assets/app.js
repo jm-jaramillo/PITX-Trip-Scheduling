@@ -422,26 +422,32 @@ export async function signOut() {
 /* -------------------------------------------------------------------- nav */
 
 const OPERATOR_LINKS = [
-  { href: "operator-overview.html", label: "Overview" },
-  { href: "dashboard.html", label: "My requests" },
-  { href: "request-history.html", label: "History" },
-  { href: "my-schedule.html", label: "My schedule" },
-  { href: "vehicles.html", label: "My vehicles" },
-  { href: "operator-profile.html", label: "Operator profile" },
+  { href: "operator-overview.html", label: "Overview", icon: "&#128202;" },
+  { href: "dashboard.html", label: "My requests", icon: "&#128203;" },
+  { href: "request-history.html", label: "History", icon: "&#128197;" },
+  { href: "my-schedule.html", label: "My schedule", icon: "&#128198;" },
+  { href: "vehicles.html", label: "My vehicles", icon: "&#128652;" },
+  { href: "operator-profile.html", label: "Operator profile", icon: "&#127970;" },
 ];
 
 const STAFF_LINKS = [
-  { href: "overview.html", label: "Overview" },
-  { href: "staff.html", label: "Pending requests" },
-  { href: "vehicle-approvals.html", label: "Vehicle approvals" },
-  { href: "vehicles-database.html", label: "Vehicles" },
-  { href: "transfer-approvals.html", label: "Transfer approvals" },
-  { href: "schedule.html", label: "Schedule" },
-  { href: "utilization.html", label: "Utilization" },
-  { href: "bays.html", label: "Bays" },
-  { href: "operator-profiles.html", label: "Operator profiles" },
-  { href: "accounts.html", label: "Accounts" },
+  { href: "overview.html", label: "Overview", icon: "&#128202;" },
+  { href: "staff.html", label: "Pending requests", icon: "&#128203;" },
+  { href: "vehicle-approvals.html", label: "Vehicle approvals", icon: "&#9989;" },
+  { href: "vehicles-database.html", label: "Vehicles", icon: "&#128652;" },
+  { href: "transfer-approvals.html", label: "Transfer approvals", icon: "&#128257;" },
+  { href: "schedule.html", label: "Schedule", icon: "&#128197;" },
+  { href: "utilization.html", label: "Utilization", icon: "&#128200;" },
+  { href: "bays.html", label: "Bays", icon: "&#128666;" },
+  { href: "operator-profiles.html", label: "Operator profiles", icon: "&#127970;" },
+  { href: "accounts.html", label: "Accounts", icon: "&#128100;" },
 ];
+
+function initials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
+}
 
 export function renderNav(profile) {
   const host = document.getElementById("nav");
@@ -449,41 +455,66 @@ export function renderNav(profile) {
 
   const links = profile.role === "staff" ? STAFF_LINKS : OPERATOR_LINKS;
   const here = location.pathname.split("/").pop() || "index.html";
+  const displayName = profile.operator_name || profile.username;
 
-  // Flat children (not nested groups) so the bar collapses to tidy rows
-  // rather than three ragged ones when the viewport is narrow.
   host.innerHTML = `
-    <div class="nav-inner">
-      <div class="nav-brand">
-        <img src="assets/pitx-logo.webp" alt="PITX" />
-        <span class="unit">Trip Scheduling</span>
-      </div>
-      <nav class="nav-links">
-        ${links
-          .map(
-            (l) =>
-              `<a href="${l.href}"${
-                l.href === here ? ' aria-current="page"' : ""
-              }>${escapeHtml(l.label)}</a>`
-          )
-          .join("")}
-      </nav>
-      <div class="nav-right">
-        <div class="notif-wrap">
-          <button type="button" class="notif-bell" id="notif-bell" aria-label="Notifications">
-            &#128276;<span class="notif-badge hidden" id="notif-badge">0</span>
-          </button>
-          <div class="notif-panel hidden" id="notif-panel"></div>
-        </div>
-        <span class="whoami">${escapeHtml(
-          profile.operator_name || profile.username
-        )} <span class="role">${escapeHtml(profile.role)}</span></span>
-        <button type="button" class="btn-outline" id="sign-out">Sign out</button>
+    <div class="sidebar-brand">
+      <img src="assets/pitx-logo.webp" alt="PITX" />
+      <span class="unit">Trip<br />Scheduling</span>
+    </div>
+    <nav class="sidebar-links">
+      ${links
+        .map(
+          (l) =>
+            `<a href="${l.href}"${
+              l.href === here ? ' aria-current="page"' : ""
+            }><span class="icon">${l.icon}</span>${escapeHtml(l.label)}</a>`
+        )
+        .join("")}
+    </nav>
+    <div class="sidebar-foot">
+      <div class="sidebar-user">
+        <span class="sidebar-user-avatar">${escapeHtml(initials(displayName))}</span>
+        <span class="sidebar-user-meta">
+          <span class="sidebar-user-name">${escapeHtml(displayName)}</span>
+          <span class="sidebar-user-role">${escapeHtml(profile.role)}</span>
+        </span>
       </div>
     </div>
   `;
 
+  // The topbar isn't part of any page's static markup - it's injected
+  // here so every page picks it up for free the same way it already did
+  // with the old single <header id="nav">.
+  const content = host.nextElementSibling; // .app-content
+  const topbar = document.createElement("div");
+  topbar.className = "topbar";
+  topbar.innerHTML = `
+    <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle menu">&#9776;</button>
+    <div class="topbar-right">
+      <div class="notif-wrap">
+        <button type="button" class="notif-bell" id="notif-bell" aria-label="Notifications">
+          &#128276;<span class="notif-badge hidden" id="notif-badge">0</span>
+        </button>
+        <div class="notif-panel hidden" id="notif-panel"></div>
+      </div>
+      <span class="whoami">${escapeHtml(displayName)} <span class="role">${escapeHtml(
+        profile.role
+      )}</span></span>
+      <button type="button" class="btn-outline" id="sign-out">Sign out</button>
+    </div>
+  `;
+  content?.insertBefore(topbar, content.firstChild);
+
+  // Starts collapsed on a narrow viewport (phones/small tablets) so it
+  // doesn't cover the page on load; the toggle button flips the same
+  // class open from there. Desktop starts expanded.
+  if (window.innerWidth < 860) host.classList.add("is-collapsed");
+
   document.getElementById("sign-out").addEventListener("click", signOut);
+  document.getElementById("sidebar-toggle").addEventListener("click", () => {
+    host.classList.toggle("is-collapsed");
+  });
   initNotifications(profile);
 }
 

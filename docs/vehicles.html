@@ -113,9 +113,10 @@
     </style>
   </head>
   <body>
-    <header class="nav" id="nav"></header>
-
-    <main class="wrap">
+    <div class="app-shell">
+      <aside class="sidebar" id="nav"></aside>
+      <div class="app-content">
+        <main class="wrap">
       <div class="page-head">
         <div>
           <p class="eyebrow">Provincial Trip Scheduling &middot; Fleet</p>
@@ -151,6 +152,8 @@
       <div class="hidden" id="page-message"></div>
       <div id="vehicle-list"></div>
     </main>
+      </div>
+    </div>
 
     <!-- ---------------------------------------------------- add dialog -->
     <dialog id="add-dialog">

@@ -13,9 +13,10 @@
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
   <body>
-    <header class="nav" id="nav"></header>
-
-    <main class="wrap">
+    <div class="app-shell">
+      <aside class="sidebar" id="nav"></aside>
+      <div class="app-content">
+        <main class="wrap">
       <div class="page-head">
         <div>
           <p class="eyebrow">Provincial Trip Scheduling</p>
@@ -110,6 +111,8 @@
       </div>
       <div id="requests"></div>
     </main>
+      </div>
+    </div>
 
     <dialog id="transfer-dialog">
       <form id="transfer-form">

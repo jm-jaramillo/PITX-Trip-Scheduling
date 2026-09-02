@@ -64,9 +64,10 @@
     </style>
   </head>
   <body>
-    <header class="nav" id="nav"></header>
-
-    <main class="wrap">
+    <div class="app-shell">
+      <aside class="sidebar" id="nav"></aside>
+      <div class="app-content">
+        <main class="wrap">
       <div class="page-head">
         <div>
           <p class="eyebrow">Transport Operations &middot; Reporting</p>
@@ -97,6 +98,10 @@
       <p class="section-head util-section">Vehicles blocked by an unlinked route</p>
       <div id="unlinked"></div>
     </main>
+      </div>
+    </div>
+      </div>
+    </div>
 
     <script type="module">
       import {

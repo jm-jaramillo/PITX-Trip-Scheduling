@@ -145,9 +145,10 @@
     </style>
   </head>
   <body>
-    <header class="nav" id="nav"></header>
-
-    <main class="wrap">
+    <div class="app-shell">
+      <aside class="sidebar" id="nav"></aside>
+      <div class="app-content">
+        <main class="wrap">
       <div class="page-head">
         <div>
           <p class="eyebrow">Provincial Trip Scheduling</p>
@@ -176,6 +177,10 @@
       <div class="hidden" id="message"></div>
       <div id="grid"></div>
     </main>
+      </div>
+    </div>
+      </div>
+    </div>
 
     <script type="module">
       import {

@@ -13,9 +13,10 @@
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
   <body>
-    <header class="nav" id="nav"></header>
-
-    <main class="wrap">
+    <div class="app-shell">
+      <aside class="sidebar" id="nav"></aside>
+      <div class="app-content">
+        <main class="wrap">
       <div class="page-head">
         <div>
           <p class="eyebrow">Transport Operations &middot; Trip Approvals</p>
@@ -59,6 +60,10 @@
       <div class="hidden" id="cancellations"></div>
       <div class="hidden" id="decided"></div>
     </main>
+      </div>
+    </div>
+      </div>
+    </div>
 
     <script type="module">
       import {

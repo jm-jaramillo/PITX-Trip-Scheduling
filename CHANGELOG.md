@@ -3455,6 +3455,49 @@ turn this into a fixable worklist.
 
 ---
 
+### 91. Left sidebar navigation, replacing the top bar (2 Sep)
+
+First phase of a UI refresh modelled on the Megawide Stakeholder app:
+every page's dark top navigation bar is now a fixed left sidebar
+instead, with a slim white top bar left behind for context (a
+menu-collapse toggle, the notification bell, the who-am-I chip, and
+Sign out). Same PITX colour tokens throughout - `--bar` now paints a
+sidebar instead of a bar, nothing else changed.
+
+- `renderNav()` in `app.js` is the single place this is built - it
+  already ran on every page (17 of them share it), so no page template
+  needed page-specific nav changes. It now renders the sidebar's
+  contents into `#nav` (brand mark, the same per-role link list as
+  before but with an icon per link, and a footer card with the
+  signed-in user's initials/name/role) and *also* injects a new
+  `.topbar` element as the first child of `.app-content`, since no
+  page's static markup had one to fill.
+- Every `docs/*.html` page except `index.html` (the login screen, which
+  never had nav) had its `<header class="nav" id="nav"></header>` /
+  `<main class="wrap">` pair rewritten to
+  `<div class="app-shell"><aside class="sidebar" id="nav"></aside><div class="app-content"><main class="wrap">`,
+  mechanically, so the structure is identical across all 16 files.
+- Collapse state is one class, `.sidebar.is-collapsed` (slides off
+  canvas via `margin-left`, doesn't resize/reflow the sidebar's own
+  contents) - the toggle button flips it on any viewport, and
+  `renderNav()` additionally starts it collapsed when the page first
+  loads narrower than 860px so the sidebar doesn't cover the page on a
+  phone.
+- Link set, role gating and destinations are unchanged - this only
+  changed the container the same links render into. "My requests" and
+  "History" are still their own pages for now (see below).
+- Verified for both roles at desktop and phone widths (login, sidebar
+  render, active-link highlighting, expand/collapse, the request-a-trip
+  form, and My requests all checked live) - no console errors.
+
+This was step one of four requested changes (sidebar shell everywhere,
+kept the existing colours, done first because the other three all sit
+inside it): merging My requests/History into Overview as tabs, the
+request-slot form as a modal instead of its own page, and staff's
+Operators page as a card grid with a detail popup are still pending.
+
+---
+
 ## What the app does now
 
 

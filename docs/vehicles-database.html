@@ -139,9 +139,10 @@
     </style>
   </head>
   <body>
-    <header class="nav" id="nav"></header>
-
-    <main class="wrap">
+    <div class="app-shell">
+      <aside class="sidebar" id="nav"></aside>
+      <div class="app-content">
+        <main class="wrap">
       <div class="page-head">
         <div>
           <p class="eyebrow">Transport Operations &middot; Fleet Database</p>
@@ -203,6 +204,8 @@
       <div class="hidden" id="message"></div>
       <div id="vehicle-list"></div>
     </main>
+      </div>
+    </div>
 
     <dialog class="details-dialog" id="details-dialog">
       <h2 class="dialog-title" id="details-title"></h2>
