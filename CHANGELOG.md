@@ -3775,6 +3775,24 @@ staff (Genesis Mariveles Wed), 1 cancelled after approval (DLTB Daet Fri).
 
 ---
 
+### 100. Operator: My requests + History back on Overview; "My requests" renamed "Schedule Request" (8 Oct)
+
+Reverses the move in #97. Overview (operator-overview.html) again holds the
+KPIs and Approaching lockout, with the request toggle underneath - now
+labelled **Schedule Request** / **History** - and My schedule is back to just
+the live board. Quick links stays removed (the sidebar already has them).
+Done by restoring the #96 versions of operator-overview.html and
+my-schedule.html and re-applying the Quick links removal, so the Pending
+requests tile and lockout "View" link switch the toggle in-page again.
+dashboard.html/request-history.html redirect stubs point back at
+operator-overview.html?tab=requests/history. The tab id stays `requests`
+in code; only the visible label changed.
+
+Verified live as an operator: toggle shows Schedule Request / History, no
+quick links, 6 KPI tiles, sidebar unchanged.
+
+---
+
 ---
 
 ## What the app does now
