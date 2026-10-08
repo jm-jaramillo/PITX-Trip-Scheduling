@@ -3839,6 +3839,38 @@ Also listed here so the history is complete: #99's script is
 
 ---
 
+### 103. Restyled to the Megawide design system, still PITX (8 Oct)
+
+Adopted the look and feel of "MWIDE Design System.md" across all pages, after
+checking scope with the owner: **PITX blue stays the accent** (the design
+system's one saturated colour, Megawide red, is not used - red only ever means
+danger), the PITX name and logo are untouched, **look and feel only** (no
+mobile bottom-nav, bottom sheets or full motion spec), and Manrope is dropped
+for **Inter only**.
+
+Mostly one file, `docs/assets/styles.css`:
+- Rewrote the token block (grounds, borders, ink, callout triads, radii,
+  shadows, easings) and re-pointed the legacy variable names at it, so every
+  page's local style block picks the change up without edits.
+- Added a final "MWIDE design-system layer": Inter 600 body / 800 titles,
+  uppercase muted labels, white cards on #e6e7ea hairlines with the 1px shadow,
+  11px-radius fields with a blue focus ring, 40px buttons with downscale-only
+  tactility (idle .985, hover exactly 1 with ease-out, press .95 + inset
+  shadow; row-level buttons hold still), ghost and danger-ghost buttons, pill
+  chips and callouts that take background + border + text from one matched
+  row, a dark #26282d rail with a #231f20 active pill outlined in blue, a solid
+  (unblurred) dialog scrim, 18px dialog radius, slim scrollbars, and the
+  prefers-reduced-motion contract.
+- Google Fonts link on all 12 real pages trimmed to Inter 500-800.
+
+Not done (outside the agreed scope): mobile shell, sheet-style modals, exit
+animations, folder tabs, skeletons.
+
+Verified in the browser as operator and staff: Overview, Approvals and
+Schedule render in the new skin, no new console errors.
+
+---
+
 ## What the app does now
 
 

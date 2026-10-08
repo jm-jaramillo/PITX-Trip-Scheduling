@@ -1,65 +1,89 @@
-/* PITX Bus Bay Booking
+/* PITX Trip Scheduling
    ---------------------------------------------------------------------
-   Design tokens taken from the PITX Terminal Ops design system so this
-   app reads as part of the same suite: Manrope for display, Inter for
-   UI, oklch blue-slate neutrals, dark control-centre top bar, white
-   cards on a cool grey ground.
+   Visual language follows the Megawide design system (MWIDE Design
+   System.md): quiet grey canvas, white cards on hairline borders, Inter
+   throughout, dark rail, downscale-only button tactility, tinted
+   callouts that always take their background + border + text from one
+   matched row.
 
-   Deliberately light-theme only, matching the source designs. Every
-   colour is stated explicitly so nothing inherits a dark-mode
-   foreground against a white field.
+   The one deliberate departure: the system's single saturated accent is
+   Megawide red (#ee3124). This app is PITX's, so that accent slot is
+   PITX blue (--blue below). Anywhere the system says "brand", read
+   --blue; nothing here is red unless it means danger.
+
+   Light-theme only. Legacy variable names (--bar, --blue-wash, --amber-*,
+   etc.) are kept and re-pointed at the new values so every page's
+   local <style> block keeps working.
    --------------------------------------------------------------------- */
 
 :root {
   /* grounds & surfaces */
-  --ground: oklch(96% 0.004 260);
-  --ground-alt: oklch(93% 0.006 260);
+  --ground: #f3f4f6;
+  --ground-alt: #eceef1;
   --surface: #fff;
-  --border: oklch(90% 0.006 260);
-  --divider: oklch(95% 0.004 260);
+  --inset: #f8f9fb;
+  --border: #e5e7eb;        /* default: fields, ghost buttons, small panels */
+  --border-card: #e6e7ea;   /* the card skin */
+  --border-pop: #e8e9ec;
+  --divider: #eef0f2;
 
-  /* dark control bar */
-  --bar: oklch(22% 0.03 258);
-  --bar-chip: oklch(28% 0.03 258);
-  --bar-text: oklch(75% 0.02 258);
-  --bar-text-dim: oklch(70% 0.02 258);
-  --bar-rule: oklch(45% 0.02 258);
+  /* dark rail */
+  --bar: #26282d;
+  --bar-chip: #34373d;
+  --navpill: #231f20;
+  --bar-text: #aeb3bc;
+  --bar-text-dim: #9ca3af;
+  --bar-rule: #3d4046;
 
   /* type colours */
-  --title: oklch(20% 0.02 260);
-  --text: oklch(30% 0.02 260);
-  --text-2: oklch(40% 0.02 260);
-  --label: oklch(50% 0.02 260);
-  --faint: oklch(65% 0.01 260);
+  --title: #111827;
+  --title-strong: #000;
+  --text: #111827;
+  --text-2: #374151;
+  --label: #6b7280;
+  --faint: #9ca3af;
+  --placeholder: #c2c7cf;
 
-  /* primary (PITX blue) */
+  /* accent = PITX blue (the system's brand slot) */
   --blue: oklch(40% 0.16 258);
   --blue-hover: oklch(34% 0.17 258);
   --blue-dot: oklch(58% 0.17 258);
   --blue-wash: oklch(94% 0.02 258);
   --blue-ink: oklch(32% 0.11 258);
+  --blue-on-dark: oklch(72% 0.13 258);
+  --blue-ring: oklch(40% 0.16 258 / 0.16);
 
-  /* semantic */
-  --green: oklch(65% 0.19 145);
-  --green-wash: oklch(95% 0.02 155);
-  --green-ink: oklch(40% 0.14 155);
-  --red: oklch(52% 0.19 25);
-  --red-wash: oklch(97% 0.02 25);
-  --red-ink: oklch(45% 0.16 25);
-  --amber-wash: oklch(96% 0.04 85);
-  --amber-ink: oklch(45% 0.12 75);
+  /* callout triads: background / border / text, always used together */
+  --red-wash: #fef2f1;   --red-br: #f3c8c4;   --red-ink: #c52026;
+  --amber-wash: #fff8ea; --amber-br: #f6e6bf; --amber-ink: #8a5a00;
+  --green-wash: #f0faf3; --green-br: #bbe3c6; --green-ink: #15803d;
+  --info-wash: #f5f9ff;  --info-br: #dbe7fb;  --info-ink: #1d4ed8;
+  --neutral-wash: #f8f9fb; --neutral-br: #eef0f2; --neutral-ink: #6b7280;
+  --red: #e11900;
+  --green: #8cc152;
 
-  --display: "Manrope", system-ui, sans-serif;
-  --ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --r-chip: 8px;
-  --r-btn: 11px;
-  --r-card-sm: 16px;
-  --r-card: 20px;
+  /* shape */
+  --r-chip: 999px;
+  --r-btn: 10px;
+  --r-field: 11px;
+  --r-card-sm: 14px;
+  --r-card: 16px;
+  --r-modal: 18px;
 
-  /* Week view occupancy heat scale - same hue family as the semantic
-     greens/reds above, just stepped so a glance at the grid's colour
-     shape shows the busy bands without reading a single number. */
+  /* elevation */
+  --shadow-card: 0 1px 2px rgba(20, 22, 28, 0.05);
+  --shadow-modal: 0 24px 70px rgba(20, 22, 28, 0.35);
+  --shadow-pop: 0 14px 34px rgba(20, 22, 28, 0.18);
+  --shadow-press: inset 0 1.5px 4px rgba(20, 22, 28, 0.22);
+
+  /* motion */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* Week view occupancy heat scale */
   --heat-0: oklch(98% 0.003 260);
   --heat-1: oklch(93% 0.05 145);
   --heat-2: oklch(87% 0.09 110);
@@ -1223,7 +1247,7 @@ tr.muted td {
 }
 
 .tl-day-heading {
-  font-family: Manrope, sans-serif;
+  font-family: var(--display);
   font-size: 16px;
   font-weight: 700;
   color: var(--title);
@@ -2023,4 +2047,509 @@ tr.row-alert td {
   font-family: ui-monospace, monospace;
   font-size: 11px;
   color: var(--text-2);
+}
+
+/* =====================================================================
+   MWIDE design-system layer
+   Loaded last on purpose: it restyles the components above to the
+   Megawide system's skin (see the header comment for the one departure,
+   accent = PITX blue). Section numbers refer to "MWIDE Design System.md".
+   ===================================================================== */
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 2. type - Inter only; 600 is body, 700 the workhorse, 800 titles/metrics */
+body {
+  font-family: var(--ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--ground);
+}
+
+h1 {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--title-strong);
+  margin: 2px 0 0;
+}
+
+h2 {
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.eyebrow,
+label,
+th,
+.kpi-label,
+.section-head,
+.detail-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.subtle,
+.fineprint {
+  font-weight: 600;
+  color: var(--label);
+}
+
+.kpi-value strong {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* wrapping: break-word, never anywhere */
+.record-card-body,
+.detail-value,
+.request-who,
+td {
+  overflow-wrap: break-word;
+}
+
+/* 3. cards: white, hairline border, soft 1px shadow */
+.card,
+.kpi,
+.request-card,
+.table-wrap,
+.record-card,
+.empty {
+  background: var(--surface);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-card);
+}
+
+.card,
+.request-card,
+.table-wrap {
+  border-radius: var(--r-card);
+}
+
+.kpi,
+.record-card {
+  border-radius: var(--r-card-sm);
+}
+
+.empty {
+  border-style: dashed;
+  border-color: var(--border);
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.record-card:hover {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px var(--blue-ring);
+}
+
+.record-card-avatar {
+  border-radius: 999px;
+}
+
+td {
+  font-weight: 600;
+  border-bottom: 1px solid var(--divider);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+th {
+  border-bottom: 1px solid var(--divider);
+}
+
+/* 4. fields: radius 11, brand focus ring, fill stays white */
+input,
+select,
+textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--r-field);
+  font-weight: 600;
+  background: var(--surface);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--placeholder);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-ring);
+  background: var(--surface);
+}
+
+input:disabled,
+select:disabled {
+  background: var(--inset);
+  color: var(--faint);
+}
+
+/* links */
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--blue-hover);
+}
+
+/* 4. buttons - downscale-only tactility.
+   Idle sits at .985, hover returns to exactly 1 (ease-out, no spring, so
+   it never renders above 1:1), press shrinks and gains an inset shadow.
+   `filter` is identical idle vs hover so the label never shimmers. */
+button {
+  font-family: var(--ui);
+  font-weight: 700;
+  transform-origin: center;
+  transform: scale(0.985);
+  transition: filter 0.13s ease, transform 0.13s var(--ease-out),
+    box-shadow 0.08s ease, opacity 0.13s ease, background-color 0.13s ease,
+    color 0.13s ease, border-color 0.13s ease;
+}
+
+button:hover {
+  transform: scale(1);
+}
+
+button:active {
+  transform: scale(0.95);
+  filter: brightness(0.92);
+  box-shadow: var(--shadow-press) !important;
+  transition: transform 0.1s var(--ease-spring), filter 0.1s ease,
+    box-shadow 0.08s ease;
+}
+
+button:disabled {
+  cursor: default;
+  filter: none;
+  transform: scale(0.985);
+  box-shadow: none;
+}
+
+/* Controls that repeat per row, or that are text-like, hold still: the
+   background tint is their whole hover (the system's .quiet / .flat). */
+.btn-link,
+.mode-tab,
+.slot-tick,
+.repeat-day,
+.record-card,
+.kpi-link,
+.notif-item,
+.notif-bell,
+.sidebar-toggle,
+.btn-approve,
+.btn-danger-outline,
+td button,
+.row-actions button {
+  transform: none;
+}
+.btn-link:hover,
+.mode-tab:hover,
+.slot-tick:hover,
+.repeat-day:hover,
+.record-card:hover,
+.kpi-link:hover,
+.notif-item:hover,
+.notif-bell:hover,
+.sidebar-toggle:hover,
+.btn-approve:hover,
+.btn-danger-outline:hover,
+td button:hover,
+.row-actions button:hover {
+  transform: none;
+}
+.btn-link:active,
+.mode-tab:active,
+.slot-tick:active,
+.repeat-day:active,
+.record-card:active,
+.kpi-link:active,
+.notif-item:active,
+.notif-bell:active,
+.sidebar-toggle:active,
+.btn-approve:active,
+.btn-danger-outline:active,
+td button:active,
+.row-actions button:active {
+  transform: scale(0.97);
+  filter: none;
+  box-shadow: none !important;
+}
+.btn-link {
+  transition: opacity 0.13s ease, color 0.13s ease;
+}
+.btn-link:active {
+  transform: none;
+  opacity: 0.7;
+}
+
+@media (hover: hover) {
+  .btn-primary,
+  .btn-outline {
+    will-change: transform;
+  }
+}
+
+@media (hover: none) {
+  button {
+    transform: scale(1);
+  }
+  button:hover {
+    filter: none;
+    transform: scale(1);
+  }
+  button:active {
+    filter: brightness(0.93);
+    transform: scale(0.94);
+  }
+}
+
+.btn-primary,
+.btn-outline {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--r-btn);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--blue-ring);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--blue-hover);
+}
+
+/* ghost: white, hairline border, tint on hover */
+.btn-outline {
+  background: var(--surface);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover:not(:disabled) {
+  background: #f7f8f9;
+  color: var(--title);
+}
+
+/* a ghost button in a tone keeps a WHITE fill and only borrows the tone's
+   border + text - a tinted fill on a small control reads as disabled */
+.btn-danger-outline {
+  background: var(--surface);
+  border: 1px solid var(--red-br);
+  color: var(--red-ink);
+  border-radius: var(--r-btn);
+  font-weight: 600;
+}
+.btn-danger-outline:hover:not(:disabled) {
+  background: var(--red-wash);
+  border-color: var(--red-br);
+  color: var(--red-ink);
+}
+
+.btn-approve {
+  border-radius: var(--r-btn);
+}
+
+.btn-link {
+  color: var(--blue);
+  font-weight: 700;
+}
+.btn-link.danger {
+  color: var(--red-ink);
+}
+
+/* segmented tabs / filters */
+.mode-switch {
+  background: var(--ground-alt);
+  border-radius: 12px;
+}
+.mode-tab {
+  border-radius: 9px;
+  color: var(--label);
+  font-weight: 700;
+}
+.mode-tab:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.55);
+}
+.mode-tab.is-active {
+  background: var(--surface);
+  color: var(--title);
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(20, 22, 28, 0.1);
+}
+
+/* 1. callouts - background + border + text taken from ONE row */
+.msg,
+.hint,
+.warn,
+.lockout-card {
+  border: 1px solid transparent;
+  border-radius: var(--r-card-sm);
+  font-weight: 600;
+}
+.msg-error,
+.warn {
+  background: var(--red-wash);
+  border-color: var(--red-br);
+  color: var(--red-ink);
+}
+.msg-ok {
+  background: var(--green-wash);
+  border-color: var(--green-br);
+  color: var(--green-ink);
+}
+.hint,
+.lockout-card.is-urgent {
+  background: var(--amber-wash);
+  border-color: var(--amber-br);
+  color: var(--amber-ink);
+}
+.lockout-card.is-calm {
+  background: var(--neutral-wash);
+  border-color: var(--neutral-br);
+  color: var(--neutral-ink);
+  box-shadow: none;
+}
+.inline-error {
+  color: var(--red-ink);
+}
+.inline-ok {
+  color: var(--green-ink);
+}
+
+/* status chips: pill, tinted fill + matching border + ink */
+.badge,
+.revised {
+  border-radius: var(--r-chip);
+  border: 1px solid transparent;
+  padding: 3px 10px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.badge-pending,
+.badge-no_record {
+  background: var(--amber-wash);
+  border-color: var(--amber-br);
+  color: var(--amber-ink);
+}
+.badge-approved,
+.badge-active {
+  background: var(--green-wash);
+  border-color: var(--green-br);
+  color: var(--green-ink);
+}
+.badge-rejected {
+  background: var(--red-wash);
+  border-color: var(--red-br);
+  color: var(--red-ink);
+}
+.badge-cancelled,
+.badge-inactive {
+  background: var(--neutral-wash);
+  border-color: var(--neutral-br);
+  color: var(--neutral-ink);
+}
+.badge-ltfrb_verified,
+.revised {
+  background: var(--info-wash);
+  border-color: var(--info-br);
+  color: var(--info-ink);
+}
+
+/* sidebar: dark rail, active item = #231f20 pill with a brand outline */
+.sidebar-links a {
+  font-weight: 700;
+  color: var(--bar-text);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: background-color 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.2s ease, border-color 0.2s ease;
+}
+.sidebar-links a:hover {
+  background: var(--bar-chip);
+  color: #fff;
+}
+.sidebar-links a[aria-current="page"] {
+  background: var(--navpill);
+  color: #fff;
+  font-weight: 800;
+  border-color: var(--blue-dot);
+}
+.sidebar-user-avatar {
+  background: var(--blue);
+}
+.topbar {
+  border-bottom: 1px solid var(--border);
+}
+.whoami {
+  border-radius: 999px;
+  background: var(--ground);
+  font-weight: 700;
+}
+
+/* 6. overlays: solid translucent scrim, never blurred */
+dialog {
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-modal);
+  box-shadow: var(--shadow-modal);
+}
+dialog::backdrop {
+  background: rgba(13, 14, 17, 0.55);
+  backdrop-filter: none;
+}
+.dialog-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.login-card {
+  border-radius: var(--r-modal);
+  border-color: var(--border-card);
+  box-shadow: var(--shadow-modal);
+}
+.login-page {
+  background: var(--ground);
+}
+
+/* 10. scrollbars */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d3d7dd;
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* accessibility contract with the OS: stays regardless of other motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+  }
 }
