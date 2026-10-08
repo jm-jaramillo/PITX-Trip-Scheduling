@@ -3778,6 +3778,27 @@ staff (Genesis Mariveles Wed), 1 cancelled after approval (DLTB Daet Fri).
 
 ---
 
+### 99b. Demo week extended: 25 operators, 200 bookings, all 27 bays in use (8 Oct)
+
+`scripts/seed-demo-week.mjs` gained a second batch of 14 operators (Aboy-style
+Bicol/Batangas/Luzon mix: AB Liner, Arandia, Baliwag, Barney, Bicol Magayon,
+C.U.L., Daet Express, DMMC, Eastern Goldtrans, First North Luzon, GV Florida,
+Jac Liner, JVH, Goldtrans) and now deals bays by **least-used within the
+route's gate** (falling back to any free bay) rather than the first free one,
+which had piled trips onto a few bays. Every run also re-deals the bays of all
+approved trips in the week the same way, in one transaction, so the first
+batch's clustering was fixed too. Re-running is now idempotent: the duplicate
+check covers rejected/cancelled rows too (my first re-run duplicated the two
+override rows - Elavil Matnog rejected and DLTB Daet cancelled, Fri 16 Oct -
+and those two copies were deleted).
+
+Week of 12-18 Oct now: 200 bookings, 25 operators - 181 approved, 17 pending
+(for live approval), 1 rejected, 1 cancelled after approval, 1 approved with a
+cancellation request. All 27 active bays used, 0 bay/slot conflicts, 0 approved
+trips without a bay. Still intentionally kept.
+
+---
+
 ### 100. Operator: My requests + History back on Overview; "My requests" renamed "Schedule Request" (8 Oct)
 
 Reverses the move in #97. Overview (operator-overview.html) again holds the

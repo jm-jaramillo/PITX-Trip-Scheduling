@@ -78,6 +78,25 @@ const TRIPS = [
   ["cagsawa.ops", "TABACO CITY", "21:00", ALL],
   ["davaometroshuttle.ops", "DAVAO CITY", "10:30", ALL],
   ["jamlinerlli.ops", "STA. CRUZ, LAGUNA", "06:00", [0, 1, 2, 3, 4, 5]],
+  // second batch: more operators, more routes, more of the terminal in use
+  ["abliner.ops", "CALAUAG", "05:00", WEEKDAYS],
+  ["abliner.ops", "GUINAYANGAN", "13:00", [1, 3, 5]],
+  ["arandialine.ops", "LEGAZPI CITY", "17:00", ALL],
+  ["arandialine.ops", "PIO DURAN", "22:00", [0, 2, 4, 6]],
+  ["baliwagtransit.ops", "SAN JOSE CITY, NUEVA ECIJA", "06:15", ALL],
+  ["barneyautoline.ops", "SAN ANDRES", "09:30", WEEKDAYS],
+  ["bicolmagayon.ops", "MASBATE CITY", "19:30", [0, 1, 3, 4, 6]],
+  ["cultransport.ops", "LILOAN", "14:30", ALL],
+  ["cultransport.ops", "MAASIN CITY", "20:30", [1, 3, 5, 6]],
+  ["daetexpress.ops", "DAET", "15:30", ALL],
+  ["dmmctravel.ops", "IRIGA CITY", "08:00", WEEKDAYS],
+  ["easterngoldtrans.ops", "ORMOC CITY", "18:30", [0, 2, 4, 6]],
+  ["firstnorthluzon.ops", "MARIVELES, BATAAN", "07:30", ALL],
+  ["gvflorida.ops", "TUGUEGARAO CITY", "21:30", ALL],
+  ["jacliner.ops", "STA. CRUZ", "10:00", WEEKDAYS],
+  ["jvhtransport.ops", "GUBAT", "12:30", ALL],
+  ["jvhtransport.ops", "MATNOG", "23:00", [4, 5, 6]],
+  ["goldtransbts.ops", "BULAN", "11:30", [0, 1, 2, 3, 4, 5]],
 ];
 
 /* SCENARIOS - what the finished week demonstrates:
@@ -89,7 +108,11 @@ const TRIPS = [
  *    cancellation request awaiting staff, one trip cancelled after approval
  *    (shows struck-through on the board and in Utilization). */
 const PENDING_ALL = new Set(["jamlinerlli.ops"]);
-const PENDING_DAYS = { "davaometroshuttle.ops": [4, 5, 6] };
+const PENDING_DAYS = {
+  "davaometroshuttle.ops": [4, 5, 6],
+  "gvflorida.ops": [5, 6],
+  "jvhtransport.ops": [4, 5, 6],
+};
 const PLATE_UP_TO_DAY_INDEX = 2; // Mon..Wed get plates
 const OVERRIDES = [
   { who: "elaviltours.ops", route: "MATNOG", day: 4, status: "rejected",
@@ -122,12 +145,20 @@ for (const r of await q(
   taken.get(k).add(Number(r.assigned_bay_id));
 }
 
+// Picks the least-used free bay for the route's gate (ties by name), so trips
+// spread across the gate's bays instead of piling onto the first one; falls
+// back to the least-used free bay anywhere when the gate is full at that time.
+const usage = new Map();
+const leastUsed = (list) =>
+  list.sort((a, b) => (usage.get(Number(a.id)) ?? 0) - (usage.get(Number(b.id)) ?? 0))[0];
+
 function pickBay(route, date, slot) {
   const used = taken.get(`${date}|${slot}`) ?? new Set();
   const free = bays.filter((b) => !used.has(Number(b.id)));
   const gate = ROUTE_GATES[route];
-  const bay = free.find((b) => b.gate === gate) ?? free[0];
+  const bay = leastUsed(free.filter((b) => b.gate === gate)) ?? leastUsed(free);
   if (!bay) return null;
+  usage.set(Number(bay.id), (usage.get(Number(bay.id)) ?? 0) + 1);
   if (!taken.has(`${date}|${slot}`)) taken.set(`${date}|${slot}`, new Set());
   taken.get(`${date}|${slot}`).add(Number(bay.id));
   return bay;
@@ -159,7 +190,7 @@ try {
       const date = days[di];
       const dupe = await q(
         `select 1 from bookings where operator_id=$1 and route=$2 and booking_date=$3 and slot=$4
-         and status in ('pending','approved')`, [prof.id, route, date, slot]
+         and status in ('pending','approved','rejected','cancelled')`, [prof.id, route, date, slot]
       );
       if (dupe.length) { tally.skipped++; continue; }
 
@@ -216,8 +247,33 @@ try {
       }
     }
   }
+  await respreadBays();
 } finally {
   await client.end();
+}
+
+// Re-deals the bays for EVERY approved trip in the week (this script owns the
+// week, so that includes earlier runs' rows) using the same least-used rule,
+// so an older run's piled-up bays get spread too. Done in one transaction;
+// bays are cleared first so the unique approved bay+slot index never trips
+// mid-shuffle.
+async function respreadBays() {
+  const rows = await q(
+    `select id, route, booking_date::text d, slot from bookings
+     where status='approved' and booking_date = any($1) order by booking_date, slot, id`, [days]
+  );
+  taken.clear();
+  usage.clear();
+  const plan = rows.map((r) => [r.id, pickBay(r.route, r.d, r.slot)?.id ?? null]);
+  await client.query("begin");
+  await client.query(
+    `update bookings set assigned_bay_id = null where status='approved' and booking_date = any($1)`, [days]
+  );
+  for (const [id, bayId] of plan) {
+    await client.query("update bookings set assigned_bay_id=$2 where id=$1", [id, bayId]);
+  }
+  await client.query("commit");
+  tally.respread = plan.length;
 }
 
 console.log(`Week of ${days[0]} to ${days[6]}`);
