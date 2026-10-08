@@ -1,0 +1,225 @@
+#!/usr/bin/env node
+/**
+ * Seeds one week of realistic trip bookings across a spread of bus
+ * operators, for demonstrating the app - NOT part of the app itself.
+ *
+ * Usage:
+ *   DATABASE_URL=postgresql://... node scripts/seed-demo-week.mjs [YYYY-MM-DD]
+ *
+ * The optional date is the Monday the week starts on (defaults to the next
+ * Monday). Safe to re-run: a booking is skipped if that operator already has
+ * one at the same route/date/slot.
+ *
+ * It deliberately leaves the data in a mixed state so every screen has
+ * something to show - see the SCENARIOS note below.
+ *
+ * Goes through the same two steps real data does (insert as pending, then a
+ * staff decision), so the database triggers that assign trip numbers, trade
+ * names, and notifications all fire. Bays are picked from the route's own
+ * gate first, never double-booking a bay at the same date+slot.
+ */
+import { readFileSync } from "fs";
+import path from "path";
+import pg from "pg";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  console.error("Set DATABASE_URL first.");
+  process.exit(1);
+}
+
+/* ------------------------------------------------------------- the week */
+
+function nextMonday() {
+  const d = new Date();
+  const add = ((8 - d.getDay()) % 7) || 7;
+  d.setDate(d.getDate() + add);
+  return d;
+}
+const startArg = process.argv[2];
+const start = startArg ? new Date(`${startArg}T12:00:00`) : nextMonday();
+const iso = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const days = Array.from({ length: 7 }, (_, i) => {
+  const d = new Date(start);
+  d.setDate(d.getDate() + i);
+  return iso(d);
+}); // index 0 = the Monday the week starts on
+
+const slotOf = (hhmm) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 4 + m / 15;
+};
+
+/* --------------------------------------------------------------- trips
+   days: indexes into the week, 0 = Mon .. 6 = Sun
+   state: omitted = approved. "pending" = left in the staff queue.
+   Special one-offs are listed in OVERRIDES below.                     */
+const ALL = [0, 1, 2, 3, 4, 5, 6];
+const WEEKDAYS = [0, 1, 2, 3, 4];
+const TRIPS = [
+  // operator username, route, time, days
+  ["jamliner.ops", "BATANGAS CITY", "05:30", ALL],
+  ["jamliner.ops", "LUCENA CITY", "14:00", WEEKDAYS],
+  ["genesis.ops", "CLARK INTERNATIONAL AIRPORT", "04:00", ALL],
+  ["genesis.ops", "MARIVELES, BATAAN", "11:00", WEEKDAYS],
+  ["bicolisarog.ops", "TABACO CITY", "18:00", ALL],
+  ["bicolisarog.ops", "MAASIN CITY", "20:00", [1, 3, 5]],
+  ["ceresgoldstar.ops", "ILO-ILO CITY", "16:30", ALL],
+  ["ceresgoldstar.ops", "BATANGAS CITY (PIER)", "09:00", [0, 2, 4]],
+  ["dltb.ops", "IRIGA CITY", "07:00", ALL],
+  ["dltb.ops", "DAET", "16:00", [0, 2, 4]],
+  ["alps.ops", "SAN JUAN, BATANGAS", "06:30", [0, 2, 4]],
+  ["alps.ops", "LEGAZPI CITY", "15:00", [1, 3, 5]],
+  ["elaviltours.ops", "CALBAYOG CITY", "12:00", ALL],
+  ["elaviltours.ops", "MATNOG", "19:00", WEEKDAYS],
+  ["batmanstarexpress.ops", "NASUGBU", "08:30", ALL],
+  ["batmanstarexpress.ops", "CALATAGAN", "13:30", [4, 5, 6]],
+  ["cagsawa.ops", "TABACO CITY", "21:00", ALL],
+  ["davaometroshuttle.ops", "DAVAO CITY", "10:30", ALL],
+  ["jamlinerlli.ops", "STA. CRUZ, LAGUNA", "06:00", [0, 1, 2, 3, 4, 5]],
+];
+
+/* SCENARIOS - what the finished week demonstrates:
+ *  - Mon-Wed approved trips have a plate assigned; Thu-Sun don't, so the
+ *    "plate needed" banners and the board's "No plate" marker both show.
+ *  - jamlinerlli.ops' whole week is left PENDING: live approvals demo.
+ *  - davaometroshuttle.ops Fri-Sun is also left pending.
+ *  - One rejected request (with a reason), one approved trip with a
+ *    cancellation request awaiting staff, one trip cancelled after approval
+ *    (shows struck-through on the board and in Utilization). */
+const PENDING_ALL = new Set(["jamlinerlli.ops"]);
+const PENDING_DAYS = { "davaometroshuttle.ops": [4, 5, 6] };
+const PLATE_UP_TO_DAY_INDEX = 2; // Mon..Wed get plates
+const OVERRIDES = [
+  { who: "elaviltours.ops", route: "MATNOG", day: 4, status: "rejected",
+    reason: "Gate 4 is at capacity at this time - please request 18:00 or 20:00 instead." },
+  { who: "genesis.ops", route: "MARIVELES, BATAAN", day: 2, cancelRequest: "Bus under unscheduled maintenance." },
+  { who: "dltb.ops", route: "DAET", day: 4, status: "cancelled" },
+];
+
+/* ------------------------------------------------------------ database */
+
+const src = readFileSync(path.resolve(import.meta.dirname, "../docs/assets/app.js"), "utf8");
+const gateBlock = src.match(/export const ROUTE_GATES = \{([\s\S]*?)\n\};/)[1];
+const ROUTE_GATES = Object.fromEntries(
+  [...gateBlock.matchAll(/"((?:[^"\\]|\\.)*)":\s*"(Gate \d)"/g)].map((m) => [m[1], m[2]])
+);
+
+const client = new pg.Client({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
+await client.connect();
+const q = async (sql, p) => (await client.query(sql, p)).rows;
+
+const staff = (await q(`select id from profiles where role='staff' order by username limit 1`))[0];
+const bays = await q(`select id, name, gate from bays where is_active order by name`);
+const taken = new Map(); // "date|slot" -> Set(bay ids)
+for (const r of await q(
+  `select booking_date::text d, slot, assigned_bay_id from bookings
+   where status='approved' and assigned_bay_id is not null and booking_date = any($1)`, [days]
+)) {
+  const k = `${r.d}|${r.slot}`;
+  if (!taken.has(k)) taken.set(k, new Set());
+  taken.get(k).add(Number(r.assigned_bay_id));
+}
+
+function pickBay(route, date, slot) {
+  const used = taken.get(`${date}|${slot}`) ?? new Set();
+  const free = bays.filter((b) => !used.has(Number(b.id)));
+  const gate = ROUTE_GATES[route];
+  const bay = free.find((b) => b.gate === gate) ?? free[0];
+  if (!bay) return null;
+  if (!taken.has(`${date}|${slot}`)) taken.set(`${date}|${slot}`, new Set());
+  taken.get(`${date}|${slot}`).add(Number(bay.id));
+  return bay;
+}
+
+const plateCursor = new Map();
+async function platesFor(profileId, route) {
+  return (await q(
+    `select plate_no from vehicles where operator_id=$1 and route=$2 and status='approved'
+     and (ltfrb_status is null or ltfrb_status in ('active','ltfrb_verified'))
+     and (cpc_validity is null or cpc_validity >= current_date)
+     and (not coalesce(cpc_eov,false) or cpc_eov_validity is null or cpc_eov_validity >= current_date)
+     order by plate_no`, [profileId, route]
+  )).map((r) => r.plate_no);
+}
+
+const tally = { created: 0, skipped: 0, approved: 0, pending: 0, rejected: 0, cancelled: 0, plated: 0 };
+const unknown = [];
+
+try {
+  for (const [username, route, time, tripDays] of TRIPS) {
+    const prof = (await q(`select id, operator_name from profiles where username=$1`, [username]))[0];
+    if (!prof) { unknown.push(username); continue; }
+    const plates = await platesFor(prof.id, route);
+    if (plates.length === 0) { unknown.push(`${username} has no eligible vehicle on ${route}`); continue; }
+    const slot = slotOf(time);
+
+    for (const di of tripDays) {
+      const date = days[di];
+      const dupe = await q(
+        `select 1 from bookings where operator_id=$1 and route=$2 and booking_date=$3 and slot=$4
+         and status in ('pending','approved')`, [prof.id, route, date, slot]
+      );
+      if (dupe.length) { tally.skipped++; continue; }
+
+      const ov = OVERRIDES.find((o) => o.who === username && o.route === route && o.day === di);
+      const wantPending =
+        PENDING_ALL.has(username) || (PENDING_DAYS[username] ?? []).includes(di);
+
+      const ins = (await q(
+        `insert into bookings (operator_id, operator_name, route, booking_date, slot, status)
+         values ($1,$2,$3,$4,$5,'pending') returning id`,
+        [prof.id, prof.operator_name, route, date, slot]
+      ))[0];
+      tally.created++;
+
+      if (ov?.status === "rejected") {
+        await q(
+          `update bookings set status='rejected', rejection_reason=$2, decided_by=$3, decided_at=now() where id=$1`,
+          [ins.id, ov.reason, staff.id]
+        );
+        tally.rejected++;
+        continue;
+      }
+      if (wantPending) { tally.pending++; continue; }
+
+      const bay = pickBay(route, date, slot);
+      if (!bay) { tally.pending++; continue; } // no bay free - leave for staff
+      let plate = null;
+      if (di <= PLATE_UP_TO_DAY_INDEX) {
+        const key = `${username}|${route}`;
+        const i = plateCursor.get(key) ?? 0;
+        plate = plates[i % plates.length];
+        plateCursor.set(key, i + 1);
+        tally.plated++;
+      }
+      await q(
+        `update bookings set status='approved', assigned_bay_id=$2, plate_no=$3, decided_by=$4, decided_at=now() where id=$1`,
+        [ins.id, bay.id, plate, staff.id]
+      );
+      tally.approved++;
+
+      if (ov?.cancelRequest) {
+        await q(
+          `update bookings set cancellation_requested_at=now(), cancellation_reason=$2 where id=$1`,
+          [ins.id, ov.cancelRequest]
+        );
+      }
+      if (ov?.status === "cancelled") {
+        await q(
+          `update bookings set status='cancelled', previously_approved=true, decided_by=$2, decided_at=now() where id=$1`,
+          [ins.id, staff.id]
+        );
+        tally.cancelled++;
+        tally.approved--;
+      }
+    }
+  }
+} finally {
+  await client.end();
+}
+
+console.log(`Week of ${days[0]} to ${days[6]}`);
+console.log(tally);
+if (unknown.length) console.log("Skipped entries:", unknown);

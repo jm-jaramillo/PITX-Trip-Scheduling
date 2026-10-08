@@ -3752,6 +3752,29 @@ scripted a full sweep of all 78 cards checking each title's right edge
 against its card's, zero still spill; the previously-worst offenders
 now truncate cleanly to one line.
 
+### 99. Demo week seeded: 12-18 Oct, 11 operators, 102 bookings (8 Oct)
+
+For presenting the app, `scripts/seed-demo-week.mjs` (new, re-runnable -
+skips anything already booked; optional Monday date argument, defaults to
+next Monday) loaded a full week of trips for **Mon 12 - Sun 18 Oct 2026**
+across 11 operators (Jam Liner, Jam Liner/LLI, Genesis, Bicol Isarog,
+Ceres-Goldstar, DLTB, ALPS, Elavil Tours, Batman Starexpress, Cagsawa,
+Davao Metro Shuttle) on routes each actually has eligible vehicles for,
+spread over Gates 2, 4 and 5. It inserts as pending then applies a staff
+decision, so trip numbers, trade names and notifications come from the
+real triggers; bays come from each route's own gate with no double-booking
+(0 conflicts verified).
+
+Deliberately left in a mixed state so every screen has something to show:
+91 approved (Mon-Wed with plates, Thu-Sun without - the plate-needed
+banners and "No plate" board marker), 9 pending (all of JAM LINER/LLI,
+plus Davao Fri-Sun - for a live approval demo), 1 rejected with a reason
+(Elavil Matnog Fri), 1 approved trip with a cancellation request awaiting
+staff (Genesis Mariveles Wed), 1 cancelled after approval (DLTB Daet Fri).
+**This data is intentionally kept** - same as the 7-13 Sep set from #90.
+
+---
+
 ---
 
 ## What the app does now
