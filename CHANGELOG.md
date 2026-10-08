@@ -3891,6 +3891,11 @@ chip's tooltip and on the day view.
 - Day mode is unchanged: both modes share one query (date range) so there is no
   second code path to drift.
 
+**Follow-up (same day): grouped by time.** Inside each day column the chips are
+now grouped under a small blue time heading (e.g. "4:00 AM"), like the Day
+view's time dividers; trips departing together sit under one heading. Chips
+still show only operator + trip code.
+
 Verified in the browser: staff week of 12-18 Oct shows 15/14/15/14/14/11/9
 trips, matching the database; a day header opens the Day view; as genesis.ops,
 My trips shows its 12 trips and All trips highlights exactly those 12 among

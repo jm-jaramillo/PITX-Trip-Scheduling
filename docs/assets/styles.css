@@ -2690,3 +2690,19 @@ dialog::backdrop {
   color: var(--faint);
   text-decoration: line-through;
 }
+
+/* time heading inside a week day column - the Day view's blue divider,
+   scaled down */
+.week-time {
+  margin: 6px -2px 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--blue-wash);
+  color: var(--blue-ink);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.week-day-body > .week-time:first-child {
+  margin-top: 0;
+}
