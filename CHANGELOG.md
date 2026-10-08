@@ -3689,6 +3689,9 @@ toggle, no console errors.
 
 ### 97. Quick links dropped from Overview; My requests/History moved to My schedule (2 Sep)
 
+> **Partly superseded by #100:** the Quick links removal stands; the move of
+> My requests/History to My schedule was reversed on 8 Oct.
+
 Two more requested changes to the operator side, both about not
 repeating the sidebar:
 
@@ -3814,6 +3817,28 @@ row, Show all -> 52.
 
 ---
 
+### 102. Changelog catch-up: security-advisor migration 0048 is in the repo but NOT applied (8 Oct)
+
+`supabase/migrations/0048_security_advisor_rls_fixes.sql` was already sitting
+untracked in the working tree (not written in this stretch of work) and got
+committed along with #99. It targets the two "RLS Disabled in Public" errors
+from Supabase's Security Advisor: it enables row level security on
+`route_trip_codes` (with a read policy for signed-in users only) and on
+`_schema_migrations` (RLS on, no policies, privileges revoked from `anon` and
+`authenticated` - the migration script connects as the owner, which bypasses
+RLS).
+
+**Status: not applied.** `_schema_migrations` ends at 0047, and a live check
+shows `relrowsecurity = false` on both tables. Apply it with
+`node scripts/run-migration.mjs` when ready. Worth testing afterwards that
+trip-number assignment still works for operators, since
+`route_trip_codes` is read by the trip-number trigger and gains RLS.
+
+Also listed here so the history is complete: #99's script is
+`scripts/seed-demo-week.mjs`; the demo data it created is intentionally kept.
+
+---
+
 ## What the app does now
 
 
@@ -3831,17 +3856,23 @@ picking a destination and time (no plate yet), optionally repeating it
 across chosen weekdays in one go; assign the plate later,
 any time up to the day of the trip, from a dropdown of their *approved*,
 CPC-current vehicles; see status, assigned bay, and any rejection note;
-filter today-and-future requests by status, sortable by date, with past
-requests split off onto a separate History page browsable by month;
+filter today-and-future requests by status (Schedule Request) with past
+requests under History, browsable by month - both on the Overview page,
+whose count tiles (Approved upcoming, Pending, Vehicles expiring soon) open
+the matching filtered list;
 change a booking or a vehicle (back to staff for approval either way,
 except a plate-only change, which isn't); cancel a still-pending request
 instantly, or request cancellation of an already-approved one (needs
 staff approval); view their own schedule or every operator's, both as an
-airport-style PIDS board.
+airport-style PIDS board. Navigation is a left sidebar (#91); every
+dashboard-style summary lives on Overview only (#95).
 
-**PITX staff** — approve or reject vehicle registrations, booking
-requests (assigning an available bay on approval), and cancellation
-requests for already-approved bookings; record a plate on an operator's
+**PITX staff** — work every approval from one Approvals page (Trip requests,
+Vehicle approvals, Transfer approvals, each with a red pin showing how many
+are waiting and a History tab): approve or reject vehicle registrations,
+booking requests (assigning an available bay on approval), and cancellation
+requests for already-approved bookings; browse operators as cards with a
+detail popup; record a plate on an operator's
 behalf; view an airport-style departures board of the day's confirmed
 trips (Arriving/Departed/Cancelled), grouped by time, filterable, with
 inline bay reassignment; review gate utilization and busiest hours over a
