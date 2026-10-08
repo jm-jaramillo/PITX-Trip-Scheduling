@@ -3793,6 +3793,25 @@ quick links, 6 KPI tiles, sidebar unchanged.
 
 ---
 
+### 101. Operator Overview tiles open the list they count (8 Oct)
+
+Clicking "Approved upcoming" (12) used to open My schedule, a board for a
+single date - nowhere near 12 rows. Now each count tile lands on a list with
+the same number of rows:
+
+- **Approved upcoming** and **Pending requests** switch to Schedule Request
+  with the status filter preset to Approved / Pending (same today-and-future
+  rows the tile counts).
+- **Vehicles expiring soon** opens `vehicles.html?filter=expiring`: approved
+  vehicles with a CPC or OR/CR validity within 30 days or already past - the
+  exact rule the tile uses - with a banner stating the count and a "Show all
+  vehicles" link.
+
+Verified live (genesis.ops): Approved tile 12 -> 12 rows; expiring tile 1 -> 1
+row, Show all -> 52.
+
+---
+
 ---
 
 ## What the app does now

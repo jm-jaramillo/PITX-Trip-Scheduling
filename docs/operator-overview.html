@@ -391,6 +391,12 @@
           if (!btn) return;
           e.preventDefault();
           switchTab(btn.dataset.switchTab);
+          // A tile that counts a specific status (Pending, Approved) opens the
+          // list already filtered to it, so the number on the tile is the
+          // number of rows you land on.
+          const f = btn.dataset.switchFilter;
+          if (f) document.querySelector(`#status-filter [data-filter="${f}"]`)?.click();
+          document.getElementById("panel-requests")?.scrollIntoView({ block: "start", behavior: "smooth" });
         });
 
         const params = new URLSearchParams(location.search);
@@ -511,12 +517,14 @@
               value: pendingCount,
               unit: "requests",
               tab: "requests",
+              filter: "pending",
             },
             {
               label: "Approved upcoming",
               value: approvedUpcoming,
               unit: "bookings",
-              href: "my-schedule.html",
+              tab: "requests",
+              filter: "approved",
             },
             {
               label: "Scheduled today",
@@ -540,7 +548,7 @@
               label: "Vehicles expiring soon",
               value: expiringCount,
               unit: "vehicles",
-              href: "vehicles.html",
+              href: "vehicles.html?filter=expiring",
             },
           ];
 
@@ -548,7 +556,7 @@
             .map((k) =>
               k.tab
                 ? `
-              <button type="button" class="kpi-link" data-switch-tab="${escapeHtml(k.tab)}">
+              <button type="button" class="kpi-link" data-switch-tab="${escapeHtml(k.tab)}" data-switch-filter="${escapeHtml(k.filter ?? "")}">
                 <div class="kpi">
                   <div class="kpi-label">${escapeHtml(k.label)}</div>
                   <div class="kpi-value">

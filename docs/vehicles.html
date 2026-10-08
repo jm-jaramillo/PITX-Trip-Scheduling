@@ -149,6 +149,7 @@
         <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
       </div>
 
+      <div id="filter-note"></div>
       <div class="hidden" id="page-message"></div>
       <div id="vehicle-list"></div>
     </main>
@@ -574,6 +575,7 @@
         escapeHtml,
         downloadCsv,
         todayISO,
+        addDays,
         ROUTES,
       } from "./assets/app.js";
       import { extractOrCr } from "./assets/orcr-parser.js";
@@ -583,6 +585,12 @@
       renderNav(profile);
 
       let vehiclesById = new Map();
+      // ?filter=expiring (linked from the Overview tile) narrows the list to the
+      // same set that tile counts: approved vehicles whose CPC or OR/CR validity
+      // is within 30 days or already past. Declared up here, before the init
+      // calls, same temporal-dead-zone care as everything else on this page.
+      let expiringOnly = new URLSearchParams(location.search).get("filter") === "expiring";
+      const EXPIRY_SOON_DAYS = 30;
       let pendingPhotoFile = null;
       let pendingSupportingDocFile = null;
       let pendingSeatLayoutFile = null;
@@ -1127,6 +1135,16 @@
           );
         }
 
+        if (expiringOnly) {
+          const soon = addDays(todayISO(), EXPIRY_SOON_DAYS);
+          rows = rows.filter(
+            (v) =>
+              v.status === "approved" &&
+              ((v.cpc_validity && v.cpc_validity <= soon) ||
+                (v.orcr_validity && v.orcr_validity <= soon))
+          );
+        }
+
         return applySort(rows);
       }
 
@@ -1184,9 +1202,30 @@
         renderVehicleTable();
       }
 
+      // Banner for the ?filter=expiring view, with a way back to the full list.
+      function renderFilterNote(count) {
+        const note = document.getElementById("filter-note");
+        if (!expiringOnly) {
+          note.innerHTML = "";
+          return;
+        }
+        note.innerHTML = `
+          <p class="hint">
+            Showing ${count} approved vehicle${count === 1 ? "" : "s"} with a CPC or
+            OR/CR validity expiring within ${EXPIRY_SOON_DAYS} days (or already expired).
+            <button type="button" class="btn-link" id="show-all-vehicles">Show all vehicles</button>
+          </p>`;
+        document.getElementById("show-all-vehicles").addEventListener("click", () => {
+          expiringOnly = false;
+          history.replaceState(null, "", "vehicles.html");
+          renderVehicleTable();
+        });
+      }
+
       function renderVehicleTable() {
         const host = document.getElementById("vehicle-list");
         const data = currentRows();
+        renderFilterNote(data.length);
 
         if (data.length === 0) {
           host.innerHTML = `<p class="empty">${
