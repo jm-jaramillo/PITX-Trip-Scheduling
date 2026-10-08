@@ -1,11 +1,11 @@
 // Compact weekly view of confirmed trips, shared by the staff Schedule page
 // and the operator My schedule page so the two can't drift apart.
 //
-// Deliberately sparse: each trip is one small chip showing the bus operator
-// and its trip code and nothing else - the full detail (time, destination,
-// plate, gate/bay, status) is in the chip's tooltip and on the day view,
-// one click away from any day's header. Trips within a day are in
-// departure order, grouped under a heading per departure time like the Day view.
+// One matrix for the whole week: a row per departure time (only times that
+// have a trip somewhere in the week), a column per day, Monday to Sunday.
+// Each trip is a small chip showing just the bus operator and its trip
+// code; the rest (destination, plate, gate/bay, status) is in the chip's
+// tooltip and on the day view, one click away from any day's header.
 
 import { addDays, escapeHtml, formatSlotStart } from "./app.js";
 
@@ -30,6 +30,26 @@ export function weekRangeLabel(startISO) {
   return `${fmt(startISO)} - ${fmt(end)}, ${end.slice(0, 4)}`;
 }
 
+function chipHtml(b, mineId) {
+  const cancelled = b.status === "cancelled";
+  const tip = [
+    b.operator_name, // chips truncate long names, so the full one lives here too
+    formatSlotStart(b.slot),
+    b.route,
+    b.plate_no ? `Plate ${b.plate_no}` : "No plate yet",
+    b.bays?.name,
+    cancelled ? "Cancelled" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `<div class="week-trip${cancelled ? " is-cancelled" : ""}${
+    mineId && b.operator_id === mineId ? " is-mine" : ""
+  }" title="${escapeHtml(tip)}">
+      <span class="week-trip-op">${escapeHtml(b.operator_name ?? "Operator")}</span>
+      <span class="week-trip-code">${escapeHtml(b.trip_number ?? "—")}</span>
+    </div>`;
+}
+
 /**
  * @param host        element to render into
  * @param weekStart   ISO date of the Monday
@@ -39,74 +59,62 @@ export function weekRangeLabel(startISO) {
  * @param mineId      operator id to highlight (operator "All trips" view)
  * @param onOpenDay   called with an ISO date when a day header is clicked
  */
-// Same grouping as the Day view: one time heading, then every trip departing
-// at that time beneath it (rows arrive sorted by slot).
-function groupBySlot(rows) {
-  const groups = new Map();
-  for (const b of rows) {
-    if (!groups.has(b.slot)) groups.set(b.slot, []);
-    groups.get(b.slot).push(b);
-  }
-  return [...groups.entries()];
-}
-
-function chipHtml(b, mineId) {
-  const cancelled = b.status === "cancelled";
-  const tip = [
-    formatSlotStart(b.slot),
-    b.route,
-    b.plate_no ? `Plate ${b.plate_no}` : "No plate yet",
-    b.bays?.name,
-    cancelled ? "Cancelled" : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return `
-              <div class="week-trip${cancelled ? " is-cancelled" : ""}${
-    mineId && b.operator_id === mineId ? " is-mine" : ""
-  }" title="${escapeHtml(tip)}">
-                <span class="week-trip-op">${escapeHtml(b.operator_name ?? "Operator")}</span>
-                <span class="week-trip-code">${escapeHtml(b.trip_number ?? "—")}</span>
-              </div>`;
-}
-
 export function renderWeek(host, { weekStart, bookings, today, mineId, onOpenDay }) {
-  const byDay = new Map();
-  for (let i = 0; i < 7; i++) byDay.set(addDays(weekStart, i), []);
-  for (const b of bookings) byDay.get(b.booking_date)?.push(b);
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+  // cell[slot][date] -> bookings
+  const cells = new Map();
+  const perDay = new Map(dates.map((d) => [d, 0]));
+  for (const b of bookings) {
+    if (!perDay.has(b.booking_date)) continue;
+    if (!cells.has(b.slot)) cells.set(b.slot, new Map());
+    const row = cells.get(b.slot);
+    if (!row.has(b.booking_date)) row.set(b.booking_date, []);
+    row.get(b.booking_date).push(b);
+    if (b.status !== "cancelled") perDay.set(b.booking_date, perDay.get(b.booking_date) + 1);
+  }
+  const slots = [...cells.keys()].sort((a, b) => a - b);
+
+  const head = dates
+    .map((date, i) => {
+      const n = perDay.get(date);
+      return `<th class="week-col-head${date === today ? " is-today" : ""}">
+        <button type="button" class="week-day-head" data-open-day="${date}"
+          title="Open ${date} in the day view">
+          <span class="week-day-name">${DAY_NAMES[i]}</span>
+          <span class="week-day-num">${Number(date.slice(8))}</span>
+          <span class="week-day-count">${n} trip${n === 1 ? "" : "s"}</span>
+        </button>
+      </th>`;
+    })
+    .join("");
+
+  const body =
+    slots.length === 0
+      ? `<tr><td colspan="8" class="week-empty">No trips this week.</td></tr>`
+      : slots
+          .map((slot) => {
+            const row = cells.get(slot);
+            return `<tr>
+        <th class="week-time" scope="row">${escapeHtml(formatSlotStart(slot))}</th>
+        ${dates
+          .map(
+            (date) =>
+              `<td class="week-cell${date === today ? " is-today" : ""}">${(row.get(date) ?? [])
+                .map((b) => chipHtml(b, mineId))
+                .join("")}</td>`
+          )
+          .join("")}
+      </tr>`;
+          })
+          .join("");
 
   host.innerHTML = `
     <div class="week-scroll">
-      <div class="week-grid">
-        ${[...byDay.entries()]
-          .map(([date, rows], i) => {
-            rows.sort((a, b) => a.slot - b.slot);
-            const live = rows.filter((r) => r.status !== "cancelled").length;
-            return `
-          <section class="week-day${date === today ? " is-today" : ""}">
-            <button type="button" class="week-day-head" data-open-day="${date}"
-              title="Open ${date} in the day view">
-              <span class="week-day-name">${DAY_NAMES[i]}</span>
-              <span class="week-day-num">${Number(date.slice(8))}</span>
-              <span class="week-day-count">${live} trip${live === 1 ? "" : "s"}</span>
-            </button>
-            <div class="week-day-body">
-              ${
-                rows.length === 0
-                  ? `<p class="week-empty">No trips</p>`
-                  : groupBySlot(rows)
-                      .map(
-                        ([slot, group]) => `
-              <div class="week-time">${escapeHtml(formatSlotStart(slot))}</div>
-              ${group.map((b) => chipHtml(b, mineId)).join("")}`
-                      )
-                      .join("")
-              }
-            </div>
-          </section>`;
-          })
-          .join("")}
-      </div>
+      <table class="week-matrix">
+        <thead><tr><th class="week-corner">Time</th>${head}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>
     </div>`;
 
   host.querySelectorAll("[data-open-day]").forEach((btn) => {

@@ -2554,33 +2554,75 @@ dialog::backdrop {
   }
 }
 
-/* ---------------------------------------------------- weekly trip view
-   (assets/week-view.js - staff Schedule and operator My schedule). Seven
-   day columns of compact chips: bus operator + trip code, nothing else. */
+/* ---------------------------------------------------- weekly trip matrix
+   (assets/week-view.js - staff Schedule and operator My schedule). One
+   table for the whole week: a row per departure time, a column per day;
+   each trip a compact chip of bus operator + trip code. */
 .week-scroll {
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.week-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(150px, 1fr));
-  gap: 10px;
-  min-width: 1100px;
-  align-items: start;
-}
-
-.week-day {
+  overflow: auto;
+  max-height: 72vh;
   background: var(--surface);
   border: 1px solid var(--border-card);
-  border-radius: var(--r-card-sm);
+  border-radius: var(--r-card);
   box-shadow: var(--shadow-card);
-  overflow: hidden;
 }
 
-.week-day.is-today {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 2px var(--blue-ring);
+.week-matrix {
+  width: 100%;
+  min-width: 1000px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.week-matrix th,
+.week-matrix td {
+  padding: 0;
+  white-space: normal;
+  vertical-align: top;
+  border-bottom: 1px solid var(--divider);
+  border-right: 1px solid var(--divider);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.week-matrix tr:last-child > * {
+  border-bottom: none;
+}
+.week-matrix th:last-child,
+.week-matrix td:last-child {
+  border-right: none;
+}
+
+/* sticky header row + sticky time column */
+.week-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--inset);
+}
+.week-corner {
+  left: 0;
+  z-index: 4 !important;
+  width: 84px;
+  padding: 10px 12px !important;
+  text-align: left;
+}
+.week-time {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 84px;
+  padding: 8px 12px !important;
+  background: var(--blue-wash);
+  color: var(--blue-ink);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap !important;
+}
+
+.week-col-head.is-today {
+  background: var(--blue-wash);
 }
 
 .week-day-head {
@@ -2589,9 +2631,8 @@ dialog::backdrop {
   gap: 6px;
   width: 100%;
   padding: 10px 12px;
-  background: var(--inset);
+  background: transparent;
   border: none;
-  border-bottom: 1px solid var(--divider);
   border-radius: 0;
   text-align: left;
   cursor: pointer;
@@ -2605,7 +2646,6 @@ dialog::backdrop {
   transform: none;
   box-shadow: none !important;
 }
-
 .week-day-name {
   font-size: 10.5px;
   font-weight: 800;
@@ -2613,18 +2653,15 @@ dialog::backdrop {
   text-transform: uppercase;
   color: var(--faint);
 }
-
 .week-day-num {
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--title-strong);
 }
-
-.week-day.is-today .week-day-num {
+.week-col-head.is-today .week-day-num {
   color: var(--blue);
 }
-
 .week-day-count {
   margin-left: auto;
   font-size: 11px;
@@ -2632,32 +2669,34 @@ dialog::backdrop {
   color: var(--label);
 }
 
-.week-day-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px;
+.week-cell {
+  padding: 5px !important;
+}
+.week-cell.is-today {
+  background: color-mix(in oklch, var(--blue-wash) 45%, white);
+}
+.week-cell .week-trip + .week-trip {
+  margin-top: 4px;
 }
 
 .week-empty {
-  margin: 6px 0;
+  padding: 28px 16px !important;
   text-align: center;
-  font-size: 12px;
-  color: var(--placeholder);
+  color: var(--faint);
+  font-size: 13px;
 }
 
 .week-trip {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 5px 8px;
+  padding: 4px 8px;
   border-radius: 8px;
   border: 1px solid var(--divider);
   border-left: 3px solid var(--blue-dot);
   background: var(--surface);
   line-height: 1.25;
 }
-
 .week-trip-op {
   font-size: 12px;
   font-weight: 700;
@@ -2666,7 +2705,6 @@ dialog::backdrop {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .week-trip-code {
   font-size: 11px;
   font-weight: 800;
@@ -2674,35 +2712,16 @@ dialog::backdrop {
   color: var(--label);
   font-variant-numeric: tabular-nums;
 }
-
 .week-trip.is-mine {
   background: var(--blue-wash);
   border-color: var(--blue-ring);
   border-left-color: var(--blue);
 }
-
 .week-trip.is-cancelled {
   border-left-color: var(--neutral-br);
-  color: var(--faint);
 }
 .week-trip.is-cancelled .week-trip-op,
 .week-trip.is-cancelled .week-trip-code {
   color: var(--faint);
   text-decoration: line-through;
-}
-
-/* time heading inside a week day column - the Day view's blue divider,
-   scaled down */
-.week-time {
-  margin: 6px -2px 0;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: var(--blue-wash);
-  color: var(--blue-ink);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-.week-day-body > .week-time:first-child {
-  margin-top: 0;
 }

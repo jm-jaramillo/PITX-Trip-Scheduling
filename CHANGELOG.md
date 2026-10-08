@@ -3896,6 +3896,15 @@ now grouped under a small blue time heading (e.g. "4:00 AM"), like the Day
 view's time dividers; trips departing together sit under one heading. Chips
 still show only operator + trip code.
 
+**Follow-up 2 (same day): one matrix.** The week is now a single table instead
+of seven separate columns of stacked headings: a row per departure time (only
+times that have a trip that week), a column per day Mon-Sun, the time column
+and day headers sticky while scrolling. Trips departing together on a day
+stack within their cell. Verified: operator "All trips" week renders 18 time
+rows and 92 chips, the 4:00 AM row showing Genesis on all seven days, own
+trips highlighted. (Supersedes the time-grouped columns of the previous
+follow-up.)
+
 Verified in the browser: staff week of 12-18 Oct shows 15/14/15/14/14/11/9
 trips, matching the database; a day header opens the Day view; as genesis.ops,
 My trips shows its 12 trips and All trips highlights exactly those 12 among
