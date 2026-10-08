@@ -3780,8 +3780,8 @@ staff (Genesis Mariveles Wed), 1 cancelled after approval (DLTB Daet Fri).
 
 ### 99b. Demo week extended: 25 operators, 200 bookings, all 27 bays in use (8 Oct)
 
-`scripts/seed-demo-week.mjs` gained a second batch of 14 operators (Aboy-style
-Bicol/Batangas/Luzon mix: AB Liner, Arandia, Baliwag, Barney, Bicol Magayon,
+`scripts/seed-demo-week.mjs` gained a second batch of 14 operators (a
+Bicol/Batangas/Luzon mix including AB Liner, Arandia, Baliwag, Barney, Bicol Magayon,
 C.U.L., Daet Express, DMMC, Eastern Goldtrans, First North Luzon, GV Florida,
 Jac Liner, JVH, Goldtrans) and now deals bays by **least-used within the
 route's gate** (falling back to any free bay) rather than the first free one,
