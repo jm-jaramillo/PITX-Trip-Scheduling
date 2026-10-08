@@ -2725,3 +2725,16 @@ dialog::backdrop {
   color: var(--faint);
   text-decoration: line-through;
 }
+.week-trip-dest {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.week-trip.is-cancelled .week-trip-dest {
+  text-decoration: line-through;
+}

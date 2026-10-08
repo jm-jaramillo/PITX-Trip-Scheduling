@@ -3,9 +3,8 @@
 //
 // One matrix for the whole week: a row per departure time (only times that
 // have a trip somewhere in the week), a column per day, Monday to Sunday.
-// Each trip is a small chip showing just the bus operator and its trip
-// code; the rest (destination, plate, gate/bay, status) is in the chip's
-// tooltip and on the day view, one click away from any day's header.
+// Each trip is a small chip: bus operator, trip code and destination; the
+// rest (plate, gate/bay, status) is in the chip's tooltip and on the day view, one click away from any day's header.
 
 import { addDays, escapeHtml, formatSlotStart } from "./app.js";
 
@@ -47,6 +46,7 @@ function chipHtml(b, mineId) {
   }" title="${escapeHtml(tip)}">
       <span class="week-trip-op">${escapeHtml(b.operator_name ?? "Operator")}</span>
       <span class="week-trip-code">${escapeHtml(b.trip_number ?? "—")}</span>
+      <span class="week-trip-dest">${escapeHtml(b.route ?? "—")}</span>
     </div>`;
 }
 

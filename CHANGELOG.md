@@ -3905,6 +3905,10 @@ rows and 92 chips, the 4:00 AM row showing Genesis on all seven days, own
 trips highlighted. (Supersedes the time-grouped columns of the previous
 follow-up.)
 
+**Follow-up 3 (same day): destination added.** Each chip now has a third line
+with the destination (small, muted, truncated with an ellipsis; struck through
+when cancelled). Plate, gate/bay and status stay in the tooltip.
+
 Verified in the browser: staff week of 12-18 Oct shows 15/14/15/14/14/11/9
 trips, matching the database; a day header opens the Day view; as genesis.ops,
 My trips shows its 12 trips and All trips highlights exactly those 12 among
