@@ -2553,3 +2553,140 @@ dialog::backdrop {
     transition-duration: 0.001s !important;
   }
 }
+
+/* ---------------------------------------------------- weekly trip view
+   (assets/week-view.js - staff Schedule and operator My schedule). Seven
+   day columns of compact chips: bus operator + trip code, nothing else. */
+.week-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 10px;
+  min-width: 1100px;
+  align-items: start;
+}
+
+.week-day {
+  background: var(--surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card-sm);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.week-day.is-today {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px var(--blue-ring);
+}
+
+.week-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--inset);
+  border: none;
+  border-bottom: 1px solid var(--divider);
+  border-radius: 0;
+  text-align: left;
+  cursor: pointer;
+  transform: none;
+}
+.week-day-head:hover {
+  background: var(--blue-wash);
+  transform: none;
+}
+.week-day-head:active {
+  transform: none;
+  box-shadow: none !important;
+}
+
+.week-day-name {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.week-day-num {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--title-strong);
+}
+
+.week-day.is-today .week-day-num {
+  color: var(--blue);
+}
+
+.week-day-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--label);
+}
+
+.week-day-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+}
+
+.week-empty {
+  margin: 6px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--placeholder);
+}
+
+.week-trip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--divider);
+  border-left: 3px solid var(--blue-dot);
+  background: var(--surface);
+  line-height: 1.25;
+}
+
+.week-trip-op {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-trip-code {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+.week-trip.is-mine {
+  background: var(--blue-wash);
+  border-color: var(--blue-ring);
+  border-left-color: var(--blue);
+}
+
+.week-trip.is-cancelled {
+  border-left-color: var(--neutral-br);
+  color: var(--faint);
+}
+.week-trip.is-cancelled .week-trip-op,
+.week-trip.is-cancelled .week-trip-code {
+  color: var(--faint);
+  text-decoration: line-through;
+}

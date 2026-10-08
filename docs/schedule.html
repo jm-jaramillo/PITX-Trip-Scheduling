@@ -167,6 +167,10 @@
           <p class="subtle" id="capacity-note"></p>
         </div>
         <div class="toolbar">
+          <div class="mode-switch" role="tablist" id="range-mode">
+            <button type="button" class="mode-tab is-active" data-range="day">Day</button>
+            <button type="button" class="mode-tab" data-range="week">Week</button>
+          </div>
           <button type="button" class="btn-outline" id="prev">&larr; Prev day</button>
           <input type="date" id="date" />
           <button type="button" class="btn-outline" id="next">Next day &rarr;</button>
@@ -188,6 +192,7 @@
     </div>
 
     <script type="module">
+      import { renderWeek, weekStartISO, weekRangeLabel } from "./assets/week-view.js";
       import {
         supabase,
         guardPage,
@@ -215,12 +220,42 @@
         : todayISO();
       dateInput.value = currentDate;
 
+      // Day (the full departures board) or Week (a compact grid of operator +
+      // trip code per day). ?view=week deep-links straight into the week.
+      let rangeMode =
+        new URLSearchParams(location.search).get("view") === "week" ? "week" : "day";
+      const rangeStep = () => (rangeMode === "week" ? 7 : 1);
+      const rangeFrom = () => (rangeMode === "week" ? weekStartISO(currentDate) : currentDate);
+      const rangeTo = () => (rangeMode === "week" ? addDays(weekStartISO(currentDate), 6) : currentDate);
+
+      function setRange(mode) {
+        rangeMode = mode;
+        document.querySelectorAll("#range-mode [data-range]").forEach((b) => {
+          b.classList.toggle("is-active", b.dataset.range === mode);
+        });
+        document.getElementById("prev").innerHTML = mode === "week" ? "&larr; Prev week" : "&larr; Prev day";
+        document.getElementById("next").innerHTML = mode === "week" ? "Next week &rarr;" : "Next day &rarr;";
+        load();
+      }
+      document.querySelectorAll("#range-mode [data-range]").forEach((btn) => {
+        btn.addEventListener("click", () => setRange(btn.dataset.range));
+      });
+      // ?view=week arrives already in week mode - sync the controls without
+      // calling setRange(), which would load() before the board's helpers exist.
+      if (rangeMode === "week") {
+        document.querySelectorAll("#range-mode [data-range]").forEach((b) =>
+          b.classList.toggle("is-active", b.dataset.range === "week")
+        );
+        document.getElementById("prev").innerHTML = "&larr; Prev week";
+        document.getElementById("next").innerHTML = "Next week &rarr;";
+      }
+
       // Retained from the most recent load() so the Export CSV button can
       // reuse the already-fetched bookings instead of refetching.
       let lastDayBookings = [];
       let activeBays = [];
 
-      const CSV_HEADERS = [
+      const BASE_CSV_HEADERS = [
         "Time",
         "Company",
         "Trip No.",
@@ -231,7 +266,11 @@
         "Status",
       ];
 
-      function bookingToCsvRow(b) {
+      const csvHeaders = () => (rangeMode === "week" ? ["Date", ...BASE_CSV_HEADERS] : BASE_CSV_HEADERS);
+      const bookingToCsvRow = (b) =>
+        rangeMode === "week" ? [b.booking_date, ...baseCsvRow(b)] : baseCsvRow(b);
+
+      function baseCsvRow(b) {
         return [
           formatSlotStart(b.slot),
           b.operator_name ?? "",
@@ -248,9 +287,9 @@
         // Matches what is on screen, filter included.
         const rows = lastDayBookings
           .filter(matchesBoardFilter)
-          .sort((a, b) => a.slot - b.slot)
+          .sort((a, b) => (a.booking_date ?? "").localeCompare(b.booking_date ?? "") || a.slot - b.slot)
           .map(bookingToCsvRow);
-        downloadCsv(`schedule-${currentDate}.csv`, CSV_HEADERS, rows);
+        downloadCsv(`schedule-${rangeMode === "week" ? "week-" + weekStartISO(currentDate) : currentDate}.csv`, csvHeaders(), rows);
       }
 
       dateInput.addEventListener("change", () => {
@@ -260,12 +299,12 @@
         }
       });
       document.getElementById("prev").addEventListener("click", () => {
-        currentDate = addDays(currentDate, -1);
+        currentDate = addDays(currentDate, -rangeStep());
         dateInput.value = currentDate;
         load();
       });
       document.getElementById("next").addEventListener("click", () => {
-        currentDate = addDays(currentDate, 1);
+        currentDate = addDays(currentDate, rangeStep());
         dateInput.value = currentDate;
         load();
       });
@@ -315,7 +354,7 @@
       function pidsStatus(b) {
         if (b.status === "cancelled") return { key: "cancelled", label: "Cancelled" };
         const hasDeparted =
-          slotStartMillis(currentDate, b.slot) + 15 * 60 * 1000 <= Date.now();
+          slotStartMillis(b.booking_date ?? currentDate, b.slot) + 15 * 60 * 1000 <= Date.now();
         return hasDeparted
           ? { key: "departed", label: "Departed" }
           : { key: "arriving", label: "Arriving" };
@@ -329,9 +368,10 @@
           supabase
             .from("bookings")
             .select(
-              "id, operator_name, trade_name, route, plate_no, slot, status, previously_approved, trip_number, bays ( id, name )"
+              "id, operator_name, trade_name, route, plate_no, booking_date, slot, status, previously_approved, trip_number, bays ( id, name )"
             )
-            .eq("booking_date", currentDate)
+            .gte("booking_date", rangeFrom())
+            .lte("booking_date", rangeTo())
             // A live board shows confirmed trips, not staff's internal
             // approval queue (that's Pending requests) - approved trips,
             // plus cancellations of a trip that was actually confirmed
@@ -352,7 +392,7 @@
         lastDayBookings = bookings;
 
         document.getElementById("capacity-note").textContent =
-          `Trips scheduled for ${currentDate}, across ${totalBays} active bay${
+          `Trips scheduled for ${rangeMode === "week" ? weekRangeLabel(weekStartISO(currentDate)) : currentDate}, across ${totalBays} active bay${
             totalBays === 1 ? "" : "s"
           }.`;
 
@@ -373,7 +413,22 @@
           .some((v) => String(v).toLowerCase().includes(q));
       }
 
+      function renderWeekBoard() {
+        renderWeek(document.getElementById("grid"), {
+          weekStart: weekStartISO(currentDate),
+          bookings: lastDayBookings.filter(matchesBoardFilter),
+          today: todayISO(),
+          mineId: typeof viewMode !== "undefined" && viewMode === "all" ? profile.id : null,
+          onOpenDay: (d) => {
+            currentDate = d;
+            dateInput.value = d;
+            setRange("day");
+          },
+        });
+      }
+
       function renderBoard() {
+        if (rangeMode === "week") return renderWeekBoard();
         const bookings = lastDayBookings.filter(matchesBoardFilter);
         const host = document.getElementById("grid");
 

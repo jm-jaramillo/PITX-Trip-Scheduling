@@ -3871,6 +3871,33 @@ Schedule render in the new skin, no new console errors.
 
 ---
 
+### 104. Weekly schedule view for staff and operators (8 Oct)
+
+Schedule (staff) and My schedule (operator) each gained a **Day / Week**
+toggle. Week shows Monday to Sunday as seven day columns; each trip is one
+compact chip with just the **bus operator and its trip code**, in departure
+order. Everything else (time, destination, plate, gate/bay, status) is in the
+chip's tooltip and on the day view.
+
+- Shared renderer `docs/assets/week-view.js`, used by both pages so they stay
+  identical. Each day header shows the date and trip count and opens that day
+  in the Day view when clicked; today's column is outlined in the accent.
+- Prev/Next step by a week in Week mode (button labels change), and picking
+  any date shows the week containing it. `?view=week` deep-links to it.
+- Operator side keeps the My trips / All trips switch: All trips highlights the
+  operator's own chips. Cancelled-after-approval trips show struck through.
+- The page filter box applies to the week too; Export CSV exports the whole
+  week with a leading Date column, ordered by date then time.
+- Day mode is unchanged: both modes share one query (date range) so there is no
+  second code path to drift.
+
+Verified in the browser: staff week of 12-18 Oct shows 15/14/15/14/14/11/9
+trips, matching the database; a day header opens the Day view; as genesis.ops,
+My trips shows its 12 trips and All trips highlights exactly those 12 among
+the week's 92.
+
+---
+
 ## What the app does now
 
 
