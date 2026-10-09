@@ -202,6 +202,7 @@
       </div>
 
       <div class="hidden" id="message"></div>
+      <div id="filter-note"></div>
       <div id="vehicle-list"></div>
     </main>
       </div>
@@ -237,6 +238,11 @@
       let allVehicles = [];
       let vehiclesById = new Map();
       let statusFilter = "all";
+      // ?filter=unlinked (linked from the Overview note): only approved vehicles
+      // whose route isn't one of the terminal's routes - they can't be booked.
+      // Declared up here, before the init calls, like the rest of this state.
+      let unlinkedOnly = new URLSearchParams(location.search).get("filter") === "unlinked";
+      let unlinkedIds = null; // Set of vehicle ids, loaded with the list
       let sortKey = null;
       let sortDir = "asc";
 
@@ -483,6 +489,11 @@
           from += PAGE_SIZE;
         }
         vehiclesById = new Map(allVehicles.map((v) => [v.id, v]));
+        if (unlinkedOnly) {
+          const { data: unlinked, error: unlinkedErr } = await supabase.rpc("vehicles_with_unlinked_route");
+          if (unlinkedErr) showMessage("message", unlinkedErr.message);
+          unlinkedIds = new Set((unlinked ?? []).map((r) => r.vehicle_id));
+        }
         render();
       }
 
@@ -532,6 +543,7 @@
           statusFilter === "all"
             ? allVehicles
             : allVehicles.filter((v) => v.status === statusFilter);
+        if (unlinkedOnly && unlinkedIds) rows = rows.filter((v) => unlinkedIds.has(v.id));
 
         if (query) {
           rows = rows.filter((v) =>
@@ -683,9 +695,30 @@
         document.getElementById("columns-popover")?.classList.add("hidden");
       }
 
+      function renderFilterNote(count) {
+        const note = document.getElementById("filter-note");
+        if (!unlinkedOnly) {
+          note.innerHTML = "";
+          return;
+        }
+        note.innerHTML = `
+          <p class="hint">
+            Showing <strong>${count} approved vehicle${count === 1 ? "" : "s"}</strong> whose route isn't one
+            of the terminal's routes, so operators can't book with ${count === 1 ? "it" : "them"}.
+            Open a vehicle and set its route to make it bookable.
+            <button type="button" class="btn-link" id="show-all-vehicles">Show all vehicles</button>
+          </p>`;
+        document.getElementById("show-all-vehicles").addEventListener("click", () => {
+          unlinkedOnly = false;
+          history.replaceState(null, "", "vehicles-database.html");
+          render();
+        });
+      }
+
       function render() {
         renderFilters();
         const rows = currentRows();
+        renderFilterNote(rows.length);
 
         // Says how many are showing whenever anything is narrowing the
         // list - "1,832 registered" on its own would be misleading next

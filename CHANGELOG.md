@@ -4076,6 +4076,26 @@ no approved trip without a bay. Kept intentionally, like the other demo sets.
 
 ---
 
+### 110. Unlinked-route vehicles: summary on the dashboard, the list on the Vehicles page (9 Oct)
+
+On the staff Overview the yellow "Vehicles blocked by an unlinked route" section
+(a note plus a 24-row table) is now just the note, as a one-line summary link
+under the lockout list: "**24 approved vehicles** can't be booked - their routes
+aren't one of the terminal's routes. Review on Vehicles ->". Still hidden when
+there is nothing to fix.
+
+Clicking it opens `vehicles-database.html?filter=unlinked`: the normal Vehicles
+table narrowed to exactly those vehicles (ids from the same
+`vehicles_with_unlinked_route()` RPC the note counts), with a banner stating the
+count and how to fix it and a "Show all vehicles" link. All the page's own
+columns, search, filters, edit/details work on that list, so the fix (set the
+vehicle's route) happens where the vehicle lives.
+
+Verified as staff: note shows 24; the click lands on a "24 of 1832 vehicles
+shown" table; Show all returns the full 1,832.
+
+---
+
 ## What the app does now
 
 

@@ -146,6 +146,16 @@
       .util-head .section-head {
         margin: 0;
       }
+    
+      .hint-link {
+        display: block;
+        text-decoration: none;
+        margin: 10px 0 0;
+      }
+      .hint-link:hover {
+        color: var(--amber-ink);
+        border-color: var(--amber-ink);
+      }
     </style>
   </head>
   <body>
@@ -168,6 +178,7 @@
 
       <p class="section-head" id="lockout-head">Approaching lockout</p>
       <div id="lockout"></div>
+      <a id="unlinked-note" class="hint hint-link hidden" href="vehicles-database.html?filter=unlinked"></a>
 
       <div class="util-head" id="utilization">
         <p class="section-head">Utilization</p>
@@ -187,10 +198,6 @@
       <p class="section-head util-section">Busiest times</p>
       <div id="by-slot"></div>
 
-      <div id="unlinked-wrap" class="hidden">
-        <p class="section-head util-section">Vehicles blocked by an unlinked route</p>
-        <div id="unlinked"></div>
-      </div>
     </main>
       </div>
     </div>
@@ -559,58 +566,21 @@
       // routes (free text left over from the masterlist import, or null).
       // They can never be picked for a booking and nothing in the
       // operator's UI explains why - found in the #86 test pass.
+      // Approved vehicles whose route isn't one of the terminal's routes can
+      // never be booked, and nothing in the operator's UI says why. Overview
+      // only carries the summary; the list itself is on the Vehicles page
+      // (vehicles-database.html?filter=unlinked), one click from this note.
+      // Hidden when there is nothing to fix.
       async function loadUnlinked() {
-        const host = document.getElementById("unlinked");
+        const note = document.getElementById("unlinked-note");
         const { data, error } = await supabase.rpc("vehicles_with_unlinked_route");
-        if (error) {
-          host.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
-          return;
-        }
-
-        const rows = data ?? [];
-        if (rows.length === 0) {
-          document.getElementById("unlinked-wrap").classList.add("hidden");
-          host.innerHTML = "";
-          return;
-        }
-
-        document.getElementById("unlinked-wrap").classList.remove("hidden");
-        host.innerHTML = `
-          <p class="hint">
-            ${
-              rows.length === 1
-                ? "1 approved vehicle can't be used for any booking, because the route recorded against it isn't one of the terminal's routes. Fix its route on"
-                : `${rows.length} approved vehicles can't be used for any booking, because the routes recorded against them aren't the terminal's routes. Fix their routes on`
-            }
-            <a href="vehicles-database.html">Vehicles</a> to make
-            ${rows.length === 1 ? "it" : "them"} bookable.
-          </p>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Operator</th><th>Plate No.</th><th>Route on file</th></tr>
-              </thead>
-              <tbody>
-                ${rows
-                  .map(
-                    (v) => `
-                  <tr>
-                    <td data-label="Operator">${escapeHtml(
-                      v.operator_name || v.username
-                    )}</td>
-                    <td data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
-                    <td data-label="Route on file">${
-                      v.route
-                        ? escapeHtml(v.route)
-                        : `<span class="subtle">Not set</span>`
-                    }</td>
-                  </tr>`
-                  )
-                  .join("")}
-              </tbody>
-            </table>
-          </div>
-        `;
+        const n = error ? 0 : (data ?? []).length;
+        note.classList.toggle("hidden", n === 0);
+        if (n === 0) return;
+        note.innerHTML =
+          `<strong>${n} approved vehicle${n === 1 ? "" : "s"}</strong> can't be booked - ${
+            n === 1 ? "its route isn't" : "their routes aren't"
+          } one of the terminal's routes. Review on Vehicles &rarr;`;
       }
 
       function exportCsv() {
