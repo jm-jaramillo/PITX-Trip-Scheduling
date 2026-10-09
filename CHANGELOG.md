@@ -4057,6 +4057,25 @@ Approvals now fills 1191px.
 
 ---
 
+### 109. Demo week: several operators per departure time, 47 destinations (9 Oct)
+
+Third batch added to `scripts/seed-demo-week.mjs` (still re-runnable and
+idempotent): 35 more route entries timed so operators leave **together** - e.g.
+6:00 AM is Alps to Sorsogon City, JVH to Tabaco City and Antonina Line to Tiwi
+(plus Bicol Isarog to Legazpi on alternate days); 8:30 AM is Jam Liner to Biñan,
+Barney to Guinayangan and Batman to Balayan; 4:00 PM, 8:00 PM and 9:00 PM
+similarly - spread across Gates 2/4/5. Every operator/route pair is checked
+against its eligible vehicles at run time.
+
+The week of 12-18 Oct now has 346 bookings from 27 operators to 47 distinct
+destinations: 322 approved, 22 pending, 1 rejected, 1 cancelled, 1 cancellation
+request. On a typical day many times carry 3-4 trips to different places (e.g.
+Wed 14 Oct: 6:00, 8:30, 10:30, 14:00, 16:00 and 20:00 each have 3 operators /
+3 destinations; 6:00 PM has 4 trips). All 27 bays in use, 0 bay/slot conflicts,
+no approved trip without a bay. Kept intentionally, like the other demo sets.
+
+---
+
 ## What the app does now
 
 
