@@ -221,7 +221,7 @@
                 const p = r.companyProfile;
                 const label = r.operator_name || r.username;
                 return `
-              <button type="button" class="record-card" data-open="${r.id}">
+              <button type="button" class="record-card" data-open="${r.id}" title="${escapeHtml(label)}">
                 <span class="record-card-avatar">${escapeHtml(initials(label))}</span>
                 <span class="record-card-body">
                   <span class="record-card-title">${escapeHtml(label)}</span>

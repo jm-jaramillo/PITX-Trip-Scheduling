@@ -2978,3 +2978,15 @@ td.row-actions-cell {
 .sidebar-links a .icon svg {
   flex-shrink: 0;
 }
+
+/* Operator profiles: five cards across when the page is wide enough, four
+   when it isn't. The column floor is the larger of 190px and a fifth of the
+   row, so >= ~1000px of content gives 5, ~800-1000px gives 4, and below that
+   it steps down to 3/2/1 on its own. */
+.card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(max(190px, calc((100% - 48px) / 5)), 1fr));
+}
+.card-grid .record-card {
+  padding: 12px 14px;
+  gap: 10px;
+}

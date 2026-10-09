@@ -4022,6 +4022,21 @@ days, and Gate 4: 104 trips on 6 bays - matching the demo data.
 
 ---
 
+### 107. Operator profiles: five columns when it fits, four when not (9 Oct)
+
+The staff Operator profiles card grid now sizes its columns from the row width:
+the column floor is the larger of 190px and a fifth of the row, so about 1000px
+of content or more gives **5 across**, about 800-1000px gives **4**, and below
+that it steps down to 3, 2, 1 by itself (no media queries). Cards are slightly
+tighter to fit, and each card has the full operator name as a tooltip since
+narrow cards truncate long names with an ellipsis.
+
+Verified by resizing the grid's container: 1000-1250px -> 5 columns, 800-950px
+-> 4, 600-780px -> 3, 400px -> 2; at the narrowest 4-column width none of the 78
+cards spill (53 titles truncate with an ellipsis).
+
+---
+
 ## What the app does now
 
 
