@@ -428,11 +428,23 @@ export async function signOut() {
 // get their own sidebar link. Both URLs still work - they're now thin
 // redirects into the right My schedule tab - for old bookmarks and the
 // notification links this app already writes.
+const ICONS = {
+  "overview": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/></svg>",
+  "calendar": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M8 3v4M16 3v4M3 10h18\"/></svg>",
+  "bus": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"4\" y=\"3\" width=\"16\" height=\"15\" rx=\"2\"/><path d=\"M4 11h16M8 21v-3M16 21v-3\"/><circle cx=\"8\" cy=\"14.5\" r=\".6\"/><circle cx=\"16\" cy=\"14.5\" r=\".6\"/></svg>",
+  "building": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"1.5\"/><path d=\"M9 7h2M13 7h2M9 11h2M13 11h2M10 21v-4h4v4\"/></svg>",
+  "check": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.5l2.7 2.7L16 9.5\"/></svg>",
+  "chart": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 20V10M10 20V4M16 20v-8M22 20H2\"/></svg>",
+  "bays": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M9 16V8h3.2a2.2 2.2 0 010 4.4H9\"/></svg>",
+  "users": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3.2\"/><path d=\"M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16 5.3a3.2 3.2 0 010 5.4M18 14.8c2 .6 3.5 2.3 3.5 5.2\"/></svg>",
+  "user": "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8\" r=\"3.5\"/><path d=\"M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6\"/></svg>"
+};
+
 const OPERATOR_LINKS = [
-  { href: "operator-overview.html", label: "Overview", icon: "&#128202;" },
-  { href: "my-schedule.html", label: "My schedule", icon: "&#128198;" },
-  { href: "vehicles.html", label: "My vehicles", icon: "&#128652;" },
-  { href: "operator-profile.html", label: "Operator profile", icon: "&#127970;" },
+  { href: "operator-overview.html", label: "Overview", icon: ICONS.overview },
+  { href: "my-schedule.html", label: "My schedule", icon: ICONS.calendar },
+  { href: "vehicles.html", label: "My vehicles", icon: ICONS.bus },
+  { href: "operator-profile.html", label: "Operator profile", icon: ICONS.building },
 ];
 
 // Pending requests, Vehicle approvals, and Transfer approvals
@@ -443,14 +455,14 @@ const OPERATOR_LINKS = [
 // redirects into the right filter - for old bookmarks and the
 // notification links this app already writes.
 const STAFF_LINKS = [
-  { href: "overview.html", label: "Overview", icon: "&#128202;" },
-  { href: "approvals.html", label: "Approvals", icon: "&#9989;" },
-  { href: "vehicles-database.html", label: "Vehicles", icon: "&#128652;" },
-  { href: "schedule.html", label: "Schedule", icon: "&#128197;" },
-  { href: "utilization.html", label: "Utilization", icon: "&#128200;" },
-  { href: "bays.html", label: "Bays", icon: "&#128666;" },
-  { href: "operator-profiles.html", label: "Operator profiles", icon: "&#127970;" },
-  { href: "accounts.html", label: "Accounts", icon: "&#128100;" },
+  { href: "overview.html", label: "Overview", icon: ICONS.overview },
+  { href: "approvals.html", label: "Approvals", icon: ICONS.check },
+  { href: "vehicles-database.html", label: "Vehicles", icon: ICONS.bus },
+  { href: "schedule.html", label: "Schedule", icon: ICONS.calendar },
+  { href: "utilization.html", label: "Utilization", icon: ICONS.chart },
+  { href: "bays.html", label: "Bays", icon: ICONS.bays },
+  { href: "operator-profiles.html", label: "Operator profiles", icon: ICONS.users },
+  { href: "accounts.html", label: "Accounts", icon: ICONS.user },
 ];
 
 export function initials(name) {
@@ -482,15 +494,6 @@ export function renderNav(profile) {
         )
         .join("")}
     </nav>
-    <div class="sidebar-foot">
-      <div class="sidebar-user">
-        <span class="sidebar-user-avatar">${escapeHtml(initials(displayName))}</span>
-        <span class="sidebar-user-meta">
-          <span class="sidebar-user-name">${escapeHtml(displayName)}</span>
-          <span class="sidebar-user-role">${escapeHtml(profile.role)}</span>
-        </span>
-      </div>
-    </div>
   `;
 
   // The topbar isn't part of any page's static markup - it's injected
@@ -504,14 +507,18 @@ export function renderNav(profile) {
     <div class="topbar-right">
       <div class="notif-wrap">
         <button type="button" class="notif-bell" id="notif-bell" aria-label="Notifications">
-          &#128276;<span class="notif-badge hidden" id="notif-badge">0</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 1112 0v6l1.5 2h-15zM10 21h4"/></svg><span class="notif-badge hidden" id="notif-badge">0</span>
         </button>
         <div class="notif-panel hidden" id="notif-panel"></div>
       </div>
-      <span class="whoami">${escapeHtml(displayName)} <span class="role">${escapeHtml(
-        profile.role
-      )}</span></span>
-      <button type="button" class="btn-outline" id="sign-out">Sign out</button>
+      <details class="row-menu account-menu">
+        <summary class="avatar-btn" aria-label="Account">${escapeHtml(initials(displayName))}</summary>
+        <div class="row-menu-pop account-pop">
+          <p class="account-name">${escapeHtml(displayName)}</p>
+          <p class="account-role">${escapeHtml(profile.role)}</p>
+          <button type="button" class="btn-outline" id="sign-out">Sign out</button>
+        </div>
+      </details>
     </div>
   `;
   content?.insertBefore(topbar, content.firstChild);
@@ -521,6 +528,7 @@ export function renderNav(profile) {
   // class open from there. Desktop starts expanded.
   if (window.innerWidth < 860) host.classList.add("is-collapsed");
 
+  tidyPageHead();
   document.getElementById("sign-out").addEventListener("click", signOut);
   document.getElementById("sidebar-toggle").addEventListener("click", () => {
     host.classList.toggle("is-collapsed");
@@ -695,6 +703,11 @@ export function bookingOperatorHtml(b) {
   }${escapeHtml(b.operator_name)}`;
 
   if (!b.trade_name) return nameHtml;
+  // Only a transferred booking still earns the visible tag (it carries the
+  // struck-through previous name); otherwise the trade name is a tooltip.
+  if (!b.previous_trade_name && !b.previous_operator_name) {
+    return `<span title="${escapeHtml(b.trade_name)}">${nameHtml}</span>`;
+  }
 
   const tradeHtml = `${
     b.previous_trade_name && b.previous_trade_name !== b.trade_name
@@ -913,3 +926,32 @@ export function downloadCsv(filename, headers, rows) {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+
+/* ------------------------------------------------------- minimal chrome */
+
+// Every page opened with a small-caps label, a title and a sentence of help.
+// The label goes (CSS hides .eyebrow) and the static sentence hides behind a
+// small "?" next to the title - still there, one tap away. Dynamic notes
+// (those with an id, e.g. "N awaiting review") are left alone.
+export function tidyPageHead() {
+  const head = document.querySelector(".page-head");
+  const h1 = head?.querySelector("h1");
+  const help = head?.querySelector("p.subtle:not([id])");
+  if (!h1 || !help || h1.querySelector(".help-dot")) return;
+  help.classList.add("page-help", "hidden");
+  const dot = document.createElement("button");
+  dot.type = "button";
+  dot.className = "help-dot";
+  dot.textContent = "?";
+  dot.setAttribute("aria-label", "About this page");
+  dot.addEventListener("click", () => help.classList.toggle("hidden"));
+  h1.append(" ", dot);
+}
+
+// One shared close-on-outside-click for every "..." menu (<details class="row-menu">).
+document.addEventListener("click", (e) => {
+  document.querySelectorAll("details.row-menu[open]").forEach((d) => {
+    if (!d.contains(e.target)) d.removeAttribute("open");
+  });
+});

@@ -104,7 +104,7 @@
 
       <div class="kpis" id="kpis"></div>
 
-      <p class="section-head">Approaching lockout</p>
+      <p class="section-head" id="lockout-head">Approaching lockout</p>
       <div id="lockout"></div>
 
       <p class="section-head">Trips</p>
@@ -131,9 +131,10 @@
           <button type="button" class="mode-tab" data-filter="approved">Approved</button>
           <button type="button" class="mode-tab" data-filter="pending">Pending</button>
           <button type="button" class="mode-tab" data-filter="rejected">Declined</button>
+          <button type="button" class="mode-tab" data-filter="needplate">Needs plate</button>
         </div>
         <div class="toolbar" style="margin: 0">
-          <button type="button" class="btn-outline" id="export-csv">Export CSV</button>
+          <details class="row-menu"><summary class="menu-btn" aria-label="More">&#8943;</summary><div class="row-menu-pop"><button type="button" class="btn-link" id="export-csv">Export CSV</button></div></details>
           <button type="button" class="btn-primary" id="new-request">+ New request</button>
         </div>
       </div>
@@ -221,7 +222,7 @@
           <button type="button" class="btn-outline" id="hist-prev-month">&larr; Prev month</button>
           <input type="month" id="hist-month-input" />
           <button type="button" class="btn-outline" id="hist-next-month">Next month &rarr;</button>
-          <button type="button" class="btn-outline" id="hist-export-csv">Export CSV</button>
+          <details class="row-menu"><summary class="menu-btn" aria-label="More">&#8943;</summary><div class="row-menu-pop"><button type="button" class="btn-link" id="hist-export-csv">Export CSV</button></div></details>
         </div>
       </div>
 
@@ -433,6 +434,7 @@
             expiringVehiclesRes,
             scheduledTodayRes,
             cancelledTodayRes,
+            needsPlateRes,
           ] = await Promise.all([
             supabase
               .from("bookings")
@@ -477,6 +479,14 @@
               .eq("status", "cancelled")
               .eq("previously_approved", true)
               .eq("booking_date", today),
+            // Approved, still ahead of us, no plate on file yet.
+            supabase
+              .from("bookings")
+              .select("id", { count: "exact", head: true })
+              .eq("operator_id", profile.id)
+              .eq("status", "approved")
+              .is("plate_no", null)
+              .gte("booking_date", today),
           ]);
 
           const pendingBookings = pendingBookingsRes.data ?? [];
@@ -494,6 +504,7 @@
           renderKpis({
             pendingCount: pendingBookings.length,
             approvedUpcoming: approvedUpcomingRes.count ?? 0,
+            needsPlate: needsPlateRes.count ?? 0,
             vehicleCount: vehicleCountRes.count ?? 0,
             expiringCount: expiringVehicles.length,
             scheduledToday: scheduledTodayRes.count ?? 0,
@@ -506,74 +517,39 @@
         function renderKpis({
           pendingCount,
           approvedUpcoming,
-          vehicleCount,
+          needsPlate,
           expiringCount,
           scheduledToday,
           cancelledToday,
         }) {
+          // Five tiles, each opening the list it counts (Overview used to show
+          // seven, two of them just "today" split into scheduled/cancelled).
           const tiles = [
+            { label: "Pending", value: pendingCount, unit: "requests", tab: "requests", filter: "pending" },
+            { label: "Approved upcoming", value: approvedUpcoming, unit: "bookings", tab: "requests", filter: "approved" },
+            { label: "Needs plate", value: needsPlate, unit: "trips", tab: "requests", filter: "needplate" },
+            { label: "Vehicles expiring soon", value: expiringCount, unit: "vehicles", href: "vehicles.html?filter=expiring" },
             {
-              label: "Pending requests",
-              value: pendingCount,
-              unit: "requests",
-              tab: "requests",
-              filter: "pending",
-            },
-            {
-              label: "Approved upcoming",
-              value: approvedUpcoming,
-              unit: "bookings",
-              tab: "requests",
-              filter: "approved",
-            },
-            {
-              label: "Scheduled today",
+              label: "Today",
               value: scheduledToday,
-              unit: "trips",
+              unit: cancelledToday > 0 ? `trips · ${cancelledToday} cancelled` : "trips",
               href: "my-schedule.html",
-            },
-            {
-              label: "Cancelled today",
-              value: cancelledToday,
-              unit: "trips",
-              href: "my-schedule.html",
-            },
-            {
-              label: "Registered vehicles",
-              value: vehicleCount,
-              unit: "vehicles",
-              href: "vehicles.html",
-            },
-            {
-              label: "Vehicles expiring soon",
-              value: expiringCount,
-              unit: "vehicles",
-              href: "vehicles.html?filter=expiring",
             },
           ];
 
           document.getElementById("kpis").innerHTML = tiles
-            .map((k) =>
-              k.tab
-                ? `
-              <button type="button" class="kpi-link" data-switch-tab="${escapeHtml(k.tab)}" data-switch-filter="${escapeHtml(k.filter ?? "")}">
+            .map((k) => {
+              const inner = `
                 <div class="kpi">
                   <div class="kpi-label">${escapeHtml(k.label)}</div>
                   <div class="kpi-value">
                     <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
                   </div>
-                </div>
-              </button>`
-                : `
-              <a class="kpi-link" href="${escapeHtml(k.href)}">
-                <div class="kpi">
-                  <div class="kpi-label">${escapeHtml(k.label)}</div>
-                  <div class="kpi-value">
-                    <strong>${k.value}</strong><span>${escapeHtml(k.unit)}</span>
-                  </div>
-                </div>
-              </a>`
-            )
+                </div>`;
+              return k.tab
+                ? `<button type="button" class="kpi-link" data-switch-tab="${escapeHtml(k.tab)}" data-switch-filter="${escapeHtml(k.filter ?? "")}">${inner}</button>`
+                : `<a class="kpi-link" href="${escapeHtml(k.href)}">${inner}</a>`;
+            })
             .join("");
         }
 
@@ -596,17 +572,11 @@
 
           const host = document.getElementById("lockout");
 
+          const lockHead = document.getElementById("lockout-head");
+          lockHead.classList.toggle("hidden", urgent.length === 0);
           if (urgent.length === 0) {
-            host.innerHTML = `
-              <div class="lockout-card is-calm">
-                <p class="lockout-title">Nothing approaching lockout</p>
-                <p class="subtle" style="margin: 0">
-                  None of your pending requests are within ${URGENT_HOURS}
-                  hour${plural(URGENT_HOURS)} of their ${LOCKOUT_HOURS}-hour
-                  booking-lockout window.
-                </p>
-              </div>
-            `;
+            // Nothing near lockout: no box, no heading - silence is the calm state.
+            host.innerHTML = "";
             return;
           }
 
@@ -651,6 +621,13 @@
       let bookingsById = new Map(); // keyed by id so the dialog can prefill
       let allBookings = [];
       let statusFilter = "all";
+      // "needplate" isn't a booking status - it's approved trips with no plate on
+      // file yet, the one list an operator must not leave unread.
+      function matchesStatusFilter(b) {
+        if (statusFilter === "all") return true;
+        if (statusFilter === "needplate") return b.status === "approved" && !b.plate_no;
+        return b.status === statusFilter;
+      }
       // Soonest-first by default - the Date column header toggles this.
       let dateSortAscending = true;
       let editingId = null;
@@ -820,9 +797,7 @@
       // Supabase just for the export.
       function exportRequestsCsv() {
         const filtered =
-          statusFilter === "all"
-            ? allBookings
-            : allBookings.filter((b) => b.status === statusFilter);
+          allBookings.filter(matchesStatusFilter);
         const sortDir = dateSortAscending ? 1 : -1;
         const bookings = [...filtered].sort(
           (a, b) =>
@@ -1638,31 +1613,19 @@
         }
 
         bannerEl.innerHTML =
-          `⚠ ${needPlate.length} approved trip${needPlate.length === 1 ? "" : "s"} still ` +
-          `${needPlate.length === 1 ? "needs" : "need"} a plate number - staff already ` +
-          `assigned a bay, but the trip won't be recognized at the terminal without one: ` +
-          needPlate
-            .map(
-              (b) =>
-                `<button type="button" class="btn-link" style="color:inherit;text-decoration:underline" data-setplate="${escapeHtml(
-                  b.id
-                )}">${escapeHtml(b.booking_date)}, ${escapeHtml(formatSlotStart(b.slot))} → ${escapeHtml(
-                  b.route
-                )}</button>`
-            )
-            .join(", ");
+          `⚠ ${needPlate.length} approved trip${needPlate.length === 1 ? "" : "s"} still ${
+            needPlate.length === 1 ? "needs" : "need"
+          } a plate number. <button type="button" class="btn-link" id="review-need-plate" style="color:inherit;text-decoration:underline">Review</button>`;
         bannerEl.className = "warn";
 
-        bannerEl.querySelectorAll("[data-setplate]").forEach((btn) => {
-          btn.addEventListener("click", () => openEdit(btn.dataset.setplate));
+        document.getElementById("review-need-plate").addEventListener("click", () => {
+          document.querySelector('#status-filter [data-filter="needplate"]')?.click();
         });
       }
 
       function renderRequestsTable() {
         const filtered =
-          statusFilter === "all"
-            ? allBookings
-            : allBookings.filter((b) => b.status === statusFilter);
+          allBookings.filter(matchesStatusFilter);
         // Client-side, not re-fetched - allBookings is already loaded, and
         // there's nothing here a server sort would do better.
         const sortDir = dateSortAscending ? 1 : -1;
@@ -1689,18 +1652,16 @@
                 <tr>
                   <th class="sortable" data-sort="date">Date${
                     dateSortAscending ? " &#9650;" : " &#9660;"
-                  }</th><th>Time slot</th><th>Operator</th><th>Route</th>
-                  <th>Plate No.</th><th>Status</th><th>Assigned bay</th><th>Trip No.</th>
-                  <th>Note</th><th></th>
+                  }</th><th>Time</th><th>Route</th><th>Plate No.</th>
+                  <th>Status</th><th>Trip / Bay</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 ${bookings
                   .map((b) => {
-                    // Only live bookings can be changed; rejected/cancelled
-                    // ones are closed - the operator submits a new request.
-                    // Once within 2 hours of the scheduled slot, it's also
-                    // locked - too close to change (matches migration 0039).
+                    // Only live bookings can be changed; rejected/cancelled ones
+                    // are closed - the operator submits a new request. Within 2
+                    // hours of the slot it's locked too (migration 0039).
                     const withinLockout =
                       slotStartMillis(b.booking_date, b.slot) - Date.now() <
                       BOOKING_LEAD_TIME_MS;
@@ -1709,22 +1670,43 @@
                     const live = b.status === "pending" || b.status === "approved";
                     const editable =
                       live && !withinLockout && !transferPending && !cancellationPending;
-                    // Setting the plate is exempt from the 2-hour lockout -
-                    // that's the whole point of filling it in on the day of
-                    // the trip - but still blocked while a cancellation is
-                    // pending, since the trip may not happen at all.
+                    // Plate entry is exempt from the lockout, but not from a
+                    // pending cancellation or transfer.
                     const canSetPlate = live && !transferPending && !cancellationPending;
-                    // Approved and still no plate is the one state an
-                    // operator must not miss - pending isn't confirmed
-                    // yet, so there's no rush; approved means staff
-                    // already assigned a bay for a trip nothing will
-                    // actually show up for without a plate on file.
                     const needsPlateUrgently = b.status === "approved" && !b.plate_no;
+
+                    // One extra chip at most, the most important one.
+                    const extra = cancellationPending
+                      ? `<span class="revised" title="${escapeHtml(
+                          b.cancellation_reason || "No reason given"
+                        )}">cancellation&nbsp;pending</span>`
+                      : transferPending
+                        ? `<span class="revised" title="A transfer request for this booking is awaiting PITX staff review">transfer&nbsp;pending</span>`
+                        : b.revision_count > 0
+                          ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
+                          : "";
+
+                    const items = [
+                      canSetPlate && !needsPlateUrgently
+                        ? `<button type="button" class="btn-link" data-setplate="${escapeHtml(b.id)}">${b.plate_no ? "Change plate" : "Set plate"}</button>`
+                        : "",
+                      editable ? `<button type="button" class="btn-link" data-edit="${escapeHtml(b.id)}">Change</button>` : "",
+                      editable ? `<button type="button" class="btn-link" data-transfer="${escapeHtml(b.id)}">Transfer</button>` : "",
+                      b.status === "pending" && !transferPending
+                        ? `<button type="button" class="btn-link danger" data-cancel="${escapeHtml(b.id)}">Cancel</button>`
+                        : "",
+                      b.status === "approved" && !transferPending && !cancellationPending
+                        ? `<button type="button" class="btn-link danger" data-reqcancel="${escapeHtml(b.id)}">Request cancellation</button>`
+                        : "",
+                      cancellationPending
+                        ? `<button type="button" class="btn-link" data-withdrawcancel="${escapeHtml(b.id)}">Withdraw cancellation</button>`
+                        : "",
+                    ].filter(Boolean);
+
                     return `
                   <tr${needsPlateUrgently ? ' class="row-alert"' : ""}>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
-                    <td data-label="Time slot">${escapeHtml(formatSlotStart(b.slot))}</td>
-                    <td data-label="Operator">${bookingOperatorHtml(b)}</td>
+                    <td data-label="Time">${escapeHtml(formatSlotStart(b.slot))}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${
                       b.plate_no
@@ -1733,69 +1715,23 @@
                           ? `<span class="plate-needed">⚠ Plate needed</span>`
                           : `<span class="subtle">Not set yet</span>`
                     }</td>
-                    <td data-label="Status">${statusBadge(b.status)}${
-                      b.revision_count > 0
-                        ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
-                        : ""
-                    }${
-                      transferPending
-                        ? `<span class="revised" title="A transfer request for this booking is awaiting PITX staff review">transfer&nbsp;pending</span>`
-                        : ""
-                    }${
-                      cancellationPending
-                        ? `<span class="revised" title="${escapeHtml(
-                            b.cancellation_reason || "No reason given"
-                          )}">cancellation&nbsp;pending</span>`
+                    <td data-label="Status">${statusBadge(b.status)}${extra}${
+                      b.rejection_reason
+                        ? `<span class="cell-sub">${escapeHtml(b.rejection_reason)}</span>`
                         : ""
                     }</td>
-                    <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
-                    <td data-label="Trip No.">${escapeHtml(b.trip_number ?? "—")}</td>
-                    <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
-                    <td><div class="row-actions">${
-                      canSetPlate
-                        ? needsPlateUrgently
-                          ? `<button type="button" class="btn-alert" data-setplate="${escapeHtml(
-                              b.id
-                            )}">Set plate now</button>`
-                          : `<button type="button" class="btn-link" data-setplate="${escapeHtml(
-                              b.id
-                            )}">${b.plate_no ? "Change plate" : "Set plate"}</button>`
+                    <td data-label="Trip / Bay">${escapeHtml(b.trip_number ?? "—")}${
+                      b.bays?.name ? `<span class="cell-sub">${escapeHtml(b.bays.name)}</span>` : ""
+                    }</td>
+                    <td class="row-actions-cell">${
+                      needsPlateUrgently && canSetPlate
+                        ? `<button type="button" class="btn-alert" data-setplate="${escapeHtml(b.id)}">Set plate</button> `
                         : ""
                     }${
-                      editable
-                        ? `<button type="button" class="btn-link" data-edit="${escapeHtml(
-                            b.id
-                          )}">Change</button>`
+                      items.length
+                        ? `<details class="row-menu"><summary class="menu-btn" aria-label="Actions">&#8943;</summary><div class="row-menu-pop">${items.join("")}</div></details>`
                         : ""
-                    }${
-                      editable
-                        ? `<button type="button" class="btn-link" data-transfer="${escapeHtml(
-                            b.id
-                          )}">Transfer</button>`
-                        : ""
-                    }${
-                      // A still-pending request never had anything approved
-                      // to lose, so cancelling it is instant, no staff
-                      // review needed - only an approved booking goes
-                      // through the request/approve flow (migration 0041).
-                      b.status === "pending" && !transferPending
-                        ? `<button type="button" class="btn-link danger" data-cancel="${escapeHtml(
-                            b.id
-                          )}">Cancel</button>`
-                        : ""
-                    }${
-                      b.status === "approved" && !transferPending && !cancellationPending
-                        ? `<button type="button" class="btn-link danger" data-reqcancel="${escapeHtml(
-                            b.id
-                          )}">Request cancellation</button>`
-                        : ""
-                    }${
-                      cancellationPending
-                        ? `<button type="button" class="btn-link" data-withdrawcancel="${escapeHtml(
-                            b.id
-                          )}">Withdraw cancellation</button>`
-                        : ""
-                    }</div></td>
+                    }</td>
                   </tr>`;
                   })
                   .join("")}
@@ -2311,9 +2247,8 @@
                 <tr>
                   <th class="sortable" data-sort="date">Date${
                     dateSortAscending ? " &#9650;" : " &#9660;"
-                  }</th><th>Time slot</th><th>Operator</th><th>Route</th>
-                  <th>Plate No.</th><th>Status</th><th>Assigned bay</th><th>Trip No.</th>
-                  <th>Note</th>
+                  }</th><th>Time</th><th>Route</th><th>Plate No.</th>
+                  <th>Status</th><th>Trip / Bay</th>
                 </tr>
               </thead>
               <tbody>
@@ -2322,18 +2257,21 @@
                     (b) => `
                   <tr>
                     <td data-label="Date">${escapeHtml(b.booking_date)}</td>
-                    <td data-label="Time slot">${escapeHtml(formatSlotStart(b.slot))}</td>
-                    <td data-label="Operator">${bookingOperatorHtml(b)}</td>
+                    <td data-label="Time">${escapeHtml(formatSlotStart(b.slot))}</td>
                     <td data-label="Route">${escapeHtml(b.route)}</td>
                     <td data-label="Plate No.">${escapeHtml(b.plate_no ?? "—")}</td>
                     <td data-label="Status">${statusBadge(b.status)}${
                       b.revision_count > 0
                         ? `<span class="revised" title="Changed ${b.revision_count} time(s) since it was first requested">changed&nbsp;&times;${b.revision_count}</span>`
                         : ""
+                    }${
+                      b.rejection_reason
+                        ? `<span class="cell-sub">${escapeHtml(b.rejection_reason)}</span>`
+                        : ""
                     }</td>
-                    <td data-label="Assigned bay">${escapeHtml(b.bays?.name ?? "—")}</td>
-                    <td data-label="Trip No.">${escapeHtml(b.trip_number ?? "—")}</td>
-                    <td data-label="Note">${escapeHtml(b.rejection_reason ?? "—")}</td>
+                    <td data-label="Trip / Bay">${escapeHtml(b.trip_number ?? "—")}${
+                      b.bays?.name ? `<span class="cell-sub">${escapeHtml(b.bays.name)}</span>` : ""
+                    }</td>
                   </tr>`
                   )
                   .join("")}

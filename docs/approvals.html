@@ -70,7 +70,7 @@
             Everything waiting on a staff decision - trip requests, vehicle
             registrations, and operator-to-operator transfers. Switch
             between them above; a red pin shows how many of each are
-            waiting.
+            waiting. Approving a trip request assigns the next free bay in the route's gate (change the dropdown first to pick another); Reject, with an optional note, is under the "..." menu. A transfer can only be approved once the receiving operator has confirmed.
           </p>
         </div>
       </div>
@@ -88,8 +88,6 @@
       </div>
 
       <section class="approval-section" id="section-requests" data-type="requests">
-        <p class="approval-section-label"><span class="badge badge-pending">Trip request</span> Bay &amp; slot requests</p>
-      <p class="fineprint">Approve a request and the system assigns the next available bay automatically (the route's gate first, if it has one) - change the dropdown first if you'd rather use a different bay. Reject with an optional note back to the operator.</p>
         <p class="subtle" id="queue-count"></p>
 
       <div class="mode-switch" role="tablist" id="view-tabs">
@@ -123,8 +121,6 @@
       </section>
 
       <section class="approval-section hidden" id="section-vehicles" data-type="vehicles">
-        <p class="approval-section-label"><span class="badge badge-pending">Vehicle</span> Vehicle registrations</p>
-      <p class="fineprint">Approve a vehicle so it appears in the operator's booking-form plate list, or reject it with an optional note.</p>
         <p class="subtle" id="veh-queue-count"></p>
 
       <div class="mode-switch" role="tablist" id="veh-view-tabs">
@@ -147,7 +143,7 @@
           </button>
           <button type="button" class="btn-outline" id="veh-columns-toggle">Columns</button>
           <div class="notif-panel hidden" id="veh-columns-panel"></div>
-          <button type="button" class="btn-outline" id="veh-export-csv">Export CSV</button>
+          <details class="row-menu"><summary class="menu-btn" aria-label="More">&#8943;</summary><div class="row-menu-pop"><button type="button" class="btn-link" id="veh-export-csv">Export CSV</button></div></details>
         </div>
       </div>
 
@@ -157,8 +153,6 @@
       </section>
 
       <section class="approval-section hidden" id="section-transfers" data-type="transfers">
-        <p class="approval-section-label"><span class="badge badge-pending">Transfer</span> Booking transfers</p>
-      <p class="fineprint">An operator who can't make a scheduled slot may hand it to another operator by internal agreement. The receiving operator must confirm first - only then can you approve it, which moves the booking to them immediately.</p>
         <p class="subtle" id="xfer-queue-count"></p>
 
       <div class="mode-switch" role="tablist" id="xfer-view-tabs">
@@ -592,13 +586,13 @@
                       none ? "disabled" : ""
                     }>Approve</button>
                   </form>
-                  <form data-reject="${escapeHtml(b.id)}">
-                    <input placeholder="Reason (optional)" />
-                    <button type="submit" class="btn-danger-outline">Reject</button>
-                  </form>
-                  <button type="button" class="btn-link" data-setplate="${escapeHtml(
+                  <details class="row-menu"><summary class="menu-btn" aria-label="More actions">&#8943;</summary><div class="row-menu-pop"><button type="button" class="btn-link" data-setplate="${escapeHtml(
                     b.id
                   )}">${b.plate_no ? "Change plate" : "Set plate"}</button>
+                    <form data-reject="${escapeHtml(b.id)}">
+                      <input placeholder="Reject reason (optional)" />
+                      <button type="submit" class="btn-danger-outline">Reject</button>
+                    </form></div></details>
                 </div>
               </div>
             `;
@@ -1201,10 +1195,10 @@
                         <form data-approve="${escapeHtml(v.id)}">
                           <button type="submit" class="btn-approve">Approve</button>
                         </form>
-                        <form data-reject="${escapeHtml(v.id)}">
-                          <input placeholder="Reason (optional)" />
+                        <details class="row-menu"><summary class="menu-btn" aria-label="More actions">&#8943;</summary><div class="row-menu-pop"><form data-reject="${escapeHtml(v.id)}">
+                          <input placeholder="Reject reason (optional)" />
                           <button type="submit" class="btn-danger-outline">Reject</button>
-                        </form>
+                        </form></div></details>
                       </div>
                     </td>
                   </tr>`;
@@ -1682,10 +1676,10 @@
                         <form data-approve="${escapeHtml(t.id)}">
                           <button type="submit" class="btn-approve">Approve</button>
                         </form>
-                        <form data-reject="${escapeHtml(t.id)}">
-                          <input placeholder="Reason (optional)" />
+                        <details class="row-menu"><summary class="menu-btn" aria-label="More actions">&#8943;</summary><div class="row-menu-pop"><form data-reject="${escapeHtml(t.id)}">
+                          <input placeholder="Reject reason (optional)" />
                           <button type="submit" class="btn-danger-outline">Reject</button>
-                        </form>
+                        </form></div></details>
                       </div>`
                     : `<p class="subtle" style="margin-top: 10px">
                         Waiting on ${escapeHtml(toLabel)} to confirm before this can be approved.

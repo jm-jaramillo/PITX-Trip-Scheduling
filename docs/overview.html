@@ -98,6 +98,26 @@
         letter-spacing: 0.4px;
         color: oklch(52% 0.02 260);
       }
+    
+      .util-line {
+        display: block;
+        margin-top: 4px;
+        padding: 10px 14px;
+        border: 1px solid var(--border-card);
+        border-radius: var(--r-card-sm);
+        background: var(--surface);
+        color: var(--label);
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .util-line strong {
+        color: var(--title);
+        font-weight: 800;
+      }
+      .util-line:hover {
+        border-color: var(--blue);
+        color: var(--label);
+      }
     </style>
   </head>
   <body>
@@ -120,14 +140,10 @@
 
       <div class="kpis" id="kpis"></div>
 
-      <p class="section-head">Approaching lockout</p>
+      <p class="section-head" id="lockout-head">Approaching lockout</p>
       <div id="lockout"></div>
 
-      <p class="section-head">Utilization &middot; last 30 days</p>
-      <div class="kpis" id="utilization-kpis"></div>
-
-      <p class="section-head">Quick links</p>
-      <div class="quick-links" id="quick-links"></div>
+      <div id="utilization-line"></div>
     </main>
       </div>
     </div>
@@ -166,7 +182,6 @@
       const URGENT_HOURS = URGENT_WINDOW_MS / 3600000;
       const plural = (n) => (n === 1 ? "" : "s");
 
-      renderQuickLinks();
       await load();
 
       async function load() {
@@ -248,51 +263,17 @@
         today,
       }) {
         const scheduleHref = `schedule.html?date=${encodeURIComponent(today)}`;
+        // Four tiles (it was seven): the three queues that need a decision, plus
+        // today's board with cancellations folded into it.
         const tiles = [
+          { label: "Pending requests", value: pendingCount, unit: "requests", href: "approvals.html?type=requests" },
+          { label: "Vehicle approvals", value: pendingVehicles, unit: "vehicles", href: "approvals.html?type=vehicles" },
+          { label: "Transfers awaiting you", value: transfersAwaitingStaff, unit: "transfers", href: "approvals.html?type=transfers" },
           {
-            label: "Pending requests",
-            value: pendingCount,
-            unit: "requests",
-            href: "approvals.html?type=requests",
-          },
-          {
-            label: "Vehicle approvals",
-            value: pendingVehicles,
-            unit: "vehicles",
-            href: "approvals.html?type=vehicles",
-          },
-          {
-            label: "Transfers awaiting you",
-            value: transfersAwaitingStaff,
-            unit: "transfers",
-            href: "approvals.html?type=transfers",
-          },
-          {
-            label: "Transfers awaiting operator",
-            value: transfersAwaitingOperator,
-            unit: "transfers",
-            href: "approvals.html?type=transfers",
-          },
-          {
-            label: "Approved today",
+            label: "Today",
             value: approvedToday,
-            unit: "buses",
+            unit: cancelledToday > 0 ? `trips · ${cancelledToday} cancelled` : "trips",
             href: scheduleHref,
-          },
-          // Folded in from the Schedule board's own KPI strip (#95) - the
-          // full board (and its date navigation) still lives on
-          // schedule.html, this is just today's snapshot of it.
-          {
-            label: "Cancelled today",
-            value: cancelledToday,
-            unit: "trips",
-            href: scheduleHref,
-          },
-          {
-            label: "Active bays",
-            value: activeBays,
-            unit: "in service",
-            href: "bays.html",
           },
         ];
 
@@ -330,25 +311,12 @@
         const capacity = rows.reduce((n, r) => n + Number(r.slot_capacity), 0);
         const pct = capacity > 0 ? Math.round((trips / capacity) * 1000) / 10 : 0;
 
-        const tiles = [
-          { label: "Approved trips", value: trips, unit: "trips" },
-          { label: "Cancelled after approval", value: cancelled, unit: "trips" },
-          { label: "Slot occupancy", value: `${pct}%`, unit: "of capacity" },
-        ];
-
-        document.getElementById("utilization-kpis").innerHTML = tiles
-          .map(
-            (k) => `
-            <a class="kpi-link" href="utilization.html">
-              <div class="kpi">
-                <div class="kpi-label">${escapeHtml(k.label)}</div>
-                <div class="kpi-value">
-                  <strong>${escapeHtml(String(k.value))}</strong><span>${escapeHtml(k.unit)}</span>
-                </div>
-              </div>
-            </a>`
-          )
-          .join("");
+        document.getElementById("utilization-line").innerHTML = `
+          <a class="util-line" href="utilization.html">
+            Last 30 days: <strong>${trips}</strong> trips &middot;
+            <strong>${pct}%</strong> slot occupancy &middot;
+            <strong>${cancelled}</strong> cancelled after approval &rarr;
+          </a>`;
       }
 
       function renderLockout(pendingBookings) {
@@ -370,17 +338,10 @@
 
         const host = document.getElementById("lockout");
 
+        document.getElementById("lockout-head").classList.toggle("hidden", urgent.length === 0);
         if (urgent.length === 0) {
-          host.innerHTML = `
-            <div class="lockout-card is-calm">
-              <p class="lockout-title">Nothing approaching lockout</p>
-              <p class="subtle" style="margin: 0">
-                No pending requests are within ${URGENT_HOURS}
-                hour${plural(URGENT_HOURS)} of their ${LOCKOUT_HOURS}-hour
-                booking-lockout window.
-              </p>
-            </div>
-          `;
+          // Nothing near lockout: no box, no heading.
+          host.innerHTML = "";
           return;
         }
 
@@ -415,26 +376,6 @@
         `;
       }
 
-      function renderQuickLinks() {
-        const links = [
-          { href: "approvals.html", label: "Approvals" },
-          { href: "vehicles-database.html", label: "Vehicles" },
-          { href: "schedule.html", label: "Schedule" },
-          { href: "utilization.html", label: "Utilization" },
-          { href: "bays.html", label: "Bays" },
-          { href: "operator-profiles.html", label: "Operator profiles" },
-          { href: "accounts.html", label: "Accounts" },
-        ];
-
-        document.getElementById("quick-links").innerHTML = links
-          .map(
-            (l) =>
-              `<a class="quick-link" href="${escapeHtml(l.href)}">${escapeHtml(
-                l.label
-              )}</a>`
-          )
-          .join("");
-      }
     </script>
   </body>
 </html>

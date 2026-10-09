@@ -2738,3 +2738,243 @@ dialog::backdrop {
 .week-trip.is-cancelled .week-trip-dest {
   text-decoration: line-through;
 }
+
+/* =====================================================================
+   Minimal pass (9 Oct): less chrome, tighter spacing, actions tucked into
+   menus. Appended last so it wins over the layers above.
+   ===================================================================== */
+
+/* no small-caps label above every title */
+.page-head .eyebrow {
+  display: none;
+}
+
+.page-head {
+  margin-bottom: 14px;
+}
+
+.help-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--label);
+  font-size: 11px;
+  font-weight: 800;
+  vertical-align: middle;
+  transform: none;
+}
+.help-dot:hover {
+  color: var(--blue);
+  border-color: var(--blue);
+  transform: none;
+}
+.page-help {
+  max-width: 62ch;
+  margin: 6px 0 0;
+}
+
+/* sidebar icons are SVG now */
+.sidebar-links a .icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+}
+.sidebar-links a .icon svg {
+  width: 18px;
+  height: 18px;
+}
+.notif-bell svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* tighter rhythm: cards, tiles, rows, page gutters */
+.wrap {
+  padding-top: 20px;
+}
+.card,
+.request-card {
+  padding: 16px;
+}
+.kpis {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.kpi {
+  padding: 12px 14px;
+}
+.kpi-value {
+  margin-top: 2px;
+}
+.kpi-value strong {
+  font-size: 26px;
+}
+td {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+th {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.section-head {
+  margin: 20px 0 8px;
+}
+
+/* "..." menu: <details class="row-menu"> */
+.row-menu {
+  position: relative;
+  display: inline-block;
+}
+.row-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.row-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.menu-btn,
+.avatar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  user-select: none;
+}
+.menu-btn:hover,
+.avatar-btn:hover {
+  background: #f7f8f9;
+}
+.avatar-btn {
+  width: 34px;
+  border-radius: 999px;
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  font-size: 12px;
+}
+.avatar-btn:hover {
+  background: var(--blue-hover);
+}
+.row-menu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-pop);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  text-align: left;
+}
+.row-menu-pop > button,
+.row-menu-pop .btn-link {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-2);
+  transform: none;
+}
+.row-menu-pop > button:hover,
+.row-menu-pop .btn-link:hover {
+  background: var(--inset);
+  color: var(--title);
+  text-decoration: none;
+}
+.row-menu-pop .danger {
+  color: var(--red-ink);
+}
+.row-menu-pop form {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+}
+.row-menu-pop form input {
+  min-width: 0;
+  flex: 1;
+}
+.account-pop {
+  min-width: 200px;
+  padding: 12px;
+}
+.account-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--title);
+}
+.account-role {
+  margin: 0 0 10px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* table row: actions column stays narrow */
+td.row-actions-cell {
+  width: 1%;
+  text-align: right;
+}
+.cell-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  white-space: normal;
+  max-width: 220px;
+}
+
+/* schedule toolbars: filter sits inline, label hidden */
+.field:has(> #board-search) {
+  max-width: 320px;
+  margin: 0 0 12px;
+}
+.field:has(> #board-search) > label {
+  display: none;
+}
+
+/* quiet empty "calm" states disappear entirely */
+.is-calm-hidden {
+  display: none !important;
+}
+
+.notif-bell {
+  color: #fff;
+}
+.toolbar .row-menu-pop {
+  min-width: 150px;
+}
+.notif-bell {
+  padding: 0;
+}
+.notif-bell svg,
+.sidebar-links a .icon svg {
+  flex-shrink: 0;
+}

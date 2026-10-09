@@ -3937,6 +3937,64 @@ the week's 92.
 
 ---
 
+### 105. Minimal pass: less chrome, fewer tiles, actions tucked into menus (9 Oct)
+
+The app felt cluttered, so everything below removes or hides something; no
+feature was dropped (each item says where it went).
+
+- **Overview, operator:** 7 tiles -> 5, each opening what it counts: Pending,
+  Approved upcoming, **Needs plate** (new), Vehicles expiring soon, and Today
+  (scheduled, with cancellations folded in as "· N cancelled"). Registered
+  vehicles left the tiles (it's the Vehicles page). A new **Needs plate**
+  filter chip sits on the request list.
+- **Overview, staff:** 7 tiles + a 3-tile utilization row + a Quick links grid
+  -> 4 tiles (Pending requests, Vehicle approvals, Transfers awaiting you,
+  Today), one muted "Last 30 days" line linking to Utilization, and no Quick
+  links (the sidebar has every one). "Transfers awaiting operator" and "Active
+  bays" tiles removed.
+- **"Approaching lockout"** (both): the heading and box now appear only when
+  something is actually near lockout; the empty "Nothing approaching lockout"
+  card is gone.
+- **Plate banner:** was a three-line list of every trip; now one line -
+  "6 approved trips still need a plate number. Review" - and Review opens the
+  Needs plate filter.
+- **Page intros:** the small-caps label above every title is gone; each page's
+  help sentence is behind a small "?" next to the title (`tidyPageHead()` in
+  app.js, so every page picked it up). Approvals' per-section blurbs and
+  section label rows were removed, their guidance folded into that page's "?".
+- **Tables:** Schedule Request and History drop the Operator column (it's the
+  operator's own name) and merge Assigned bay under Trip No. and the note under
+  Status: Date, Time, Route, Plate, Status, Trip / Bay. Row actions (Set plate,
+  Change, Transfer, Cancel, Request/Withdraw cancellation) moved into a "..."
+  menu; a trip that needs a plate keeps a visible red **Set plate** button. A
+  status cell shows at most one extra chip (cancellation pending > transfer
+  pending > changed).
+- **Approvals:** each card/row now shows the bay dropdown and Approve; Reject
+  (with its optional reason) and Set plate are in the "..." menu.
+- **Toolbars:** Export CSV moved under a "..." menu everywhere it appeared; the
+  Schedule filter box lost its label.
+- **Top bar / sidebar:** the name-and-role chip, Sign out button and the
+  sidebar's duplicate user card became one avatar menu (name, role, Sign out).
+  Emoji icons (sidebar and the bell) replaced by line SVGs per the design
+  system.
+- **Duplicate labels:** the operator name's trade-name pill is now a tooltip
+  (it still shows, struck-through-previous and all, on a transferred booking).
+- **Spacing:** card, tile, row and page padding tightened.
+
+Not changed: the Vehicles pages already default to 7 columns (the Columns
+picker has the rest), so there was nothing to trim.
+
+Bug caught while verifying: the new bell icon rendered at zero width because
+every `button` carries 18px side padding and the bell is 36px wide; fixed with
+`padding: 0`.
+
+Verified in the browser as operator and staff: tile contents and counts, Needs
+plate filter (6 rows), "..." menu items and the Change dialog opening from it,
+sign-out from the avatar menu, Approvals card actions, week view and the export
+menu, no console errors from the change.
+
+---
+
 ## What the app does now
 
 
