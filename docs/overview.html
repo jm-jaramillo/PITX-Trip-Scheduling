@@ -98,25 +98,53 @@
         letter-spacing: 0.4px;
         color: oklch(52% 0.02 260);
       }
-    
-      .util-line {
-        display: block;
-        margin-top: 4px;
-        padding: 10px 14px;
-        border: 1px solid var(--border-card);
-        border-radius: var(--r-card-sm);
-        background: var(--surface);
-        color: var(--label);
-        font-size: 12.5px;
-        font-weight: 600;
+
+      .util-bar-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 220px;
       }
-      .util-line strong {
-        color: var(--title);
-        font-weight: 800;
+      .util-bar {
+        flex: 1;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--ground-alt, #eef0f3);
+        overflow: hidden;
       }
-      .util-line:hover {
-        border-color: var(--blue);
-        color: var(--label);
+      .util-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--blue, #2f5fd0);
+      }
+      .util-bar-fill.is-high {
+        background: var(--amber-ink, #a15c00);
+      }
+      .util-bar-fill.is-full {
+        background: var(--red-ink, #9c1f22);
+      }
+      .util-pct {
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        font-size: 12px;
+        min-width: 42px;
+        text-align: right;
+      }
+      .util-section {
+        margin-top: 34px;
+      }
+
+
+      .util-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px 12px;
+        margin: 28px 0 4px;
+      }
+      .util-head .section-head {
+        margin: 0;
       }
     </style>
   </head>
@@ -130,10 +158,8 @@
           <p class="eyebrow">Transport Operations &middot; Command Center</p>
           <h1>Overview</h1>
           <p class="subtle">
-            A shift-start snapshot of everything waiting on staff - queue
-            counts, requests approaching their booking-lockout window,
-            today's board, and the last 30 days' utilization - plus quick
-            links to every staff page.
+            The dashboard: everything waiting on staff, today's board, and how
+            hard each gate is working over a date range.
           </p>
         </div>
       </div>
@@ -143,7 +169,28 @@
       <p class="section-head" id="lockout-head">Approaching lockout</p>
       <div id="lockout"></div>
 
-      <div id="utilization-line"></div>
+      <div class="util-head" id="utilization">
+        <p class="section-head">Utilization</p>
+        <div class="toolbar" style="margin: 0">
+          <input type="date" id="from" />
+          <input type="date" id="to" />
+          <button type="button" class="btn-outline" id="apply">Apply</button>
+          <details class="row-menu"><summary class="menu-btn" aria-label="More">&#8943;</summary><div class="row-menu-pop"><button type="button" class="btn-link" id="export-csv">Export CSV</button></div></details>
+        </div>
+      </div>
+      <div class="hidden" id="message"></div>
+      <div class="kpis" id="util-kpis" style="margin-top: 10px"></div>
+
+      <p class="section-head">By gate</p>
+      <div id="by-gate"></div>
+
+      <p class="section-head util-section">Busiest times</p>
+      <div id="by-slot"></div>
+
+      <div id="unlinked-wrap" class="hidden">
+        <p class="section-head util-section">Vehicles blocked by an unlinked route</p>
+        <div id="unlinked"></div>
+      </div>
     </main>
       </div>
     </div>
@@ -163,6 +210,8 @@
         fetchAllRows,
         formatSlotStart,
         bookingOperatorHtml,
+        showMessage,
+        downloadCsv,
       } from "./assets/app.js";
 
       const profile = await guardPage("staff");
@@ -181,6 +230,20 @@
       const LOCKOUT_HOURS = BOOKING_LEAD_TIME_MS / 3600000;
       const URGENT_HOURS = URGENT_WINDOW_MS / 3600000;
       const plural = (n) => (n === 1 ? "" : "s");
+
+      // Utilization state - declared before the first load() below, which
+      // reaches it at module top-level (same temporal-dead-zone care as every
+      // page here).
+      let gateRows = [];
+      let slotRows = [];
+      const fromInput = document.getElementById("from");
+      const toInput = document.getElementById("to");
+      // Default to the last 30 days, the window most "how are we doing"
+      // questions are actually about.
+      toInput.value = todayISO();
+      fromInput.value = addDays(todayISO(), -29);
+      document.getElementById("apply").addEventListener("click", loadUtilization);
+      document.getElementById("export-csv").addEventListener("click", exportCsv);
 
       await load();
 
@@ -292,31 +355,278 @@
           .join("");
       }
 
-      // Folded in from utilization.html's own KPI strip (#95) - the full
-      // report (by-gate breakdown, busiest times, date range picker)
-      // still lives there; this is just its trailing-30-day headline
-      // numbers, reusing the same RPC that page calls.
+      // The Utilization page's contents, moved here so Overview is the one
+      // dashboard (9 Oct): headline numbers for the range, by-gate table,
+      // busiest hours, and the unlinked-route worklist (only shown when
+      // there is something to fix). utilization.html now just redirects here.
       async function loadUtilization() {
-        const to = todayISO();
-        const from = addDays(to, -29);
+        await loadUtilizationRange();
+        await loadUnlinked();
+      }
+
+      function renderUtilKpis() {
+        const trips = gateRows.reduce((n, r) => n + Number(r.trips), 0);
+        const cancelled = gateRows.reduce((n, r) => n + Number(r.cancelled), 0);
+        const days = new Set(gateRows.map((r) => r.booking_date)).size;
+        const capacity = gateRows.reduce((n, r) => n + Number(r.slot_capacity), 0);
+        const pct = capacity > 0 ? Math.round((trips / capacity) * 1000) / 10 : 0;
+        const tiles = [
+          ["Approved trips", trips, "trips"],
+          ["Slot occupancy", `${pct}%`, "of capacity"],
+          ["Cancelled after approval", cancelled, "trips"],
+          ["Days with activity", days, "days"],
+        ];
+        document.getElementById("util-kpis").innerHTML = tiles
+          .map(
+            ([label, value, unit]) => `
+            <div class="kpi">
+              <div class="kpi-label">${escapeHtml(label)}</div>
+              <div class="kpi-value"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(unit)}</span></div>
+            </div>`
+          )
+          .join("");
+      }
+
+      async function loadUtilizationRange() {
+        showMessage("message", "");
+        const from = fromInput.value;
+        const to = toInput.value;
+        if (!from || !to || from > to) {
+          showMessage("message", "Pick a start date on or before the end date.");
+          return;
+        }
+
+        // Aggregated server-side (migration 0045) rather than pulling
+        // every booking in the range and counting in the browser - the
+        // same unbounded-fetch trap #86 fixed on the approvals page.
         const { data, error } = await supabase.rpc("utilization_by_gate", {
           p_from: from,
           p_to: to,
         });
-        if (error) return;
+        if (error) {
+          showMessage("message", error.message);
+          return;
+        }
+        gateRows = data ?? [];
+
+        await loadSlotProfile(from, to);
+        renderUtilKpis();
+        renderByGate();
+        renderBySlot();
+      }
+
+      // Which times of day are busiest across the range. Needs the raw
+      // slots rather than the gate aggregate, but only two small columns,
+      // and paged so a wide range can't silently truncate.
+      async function loadSlotProfile(from, to) {
+        const { data, error } = await fetchAllRows((a, b) =>
+          supabase
+            .from("bookings")
+            .select("slot")
+            .eq("status", "approved")
+            .gte("booking_date", from)
+            .lte("booking_date", to)
+            .range(a, b)
+        );
+        if (error) {
+          showMessage("message", error.message);
+          slotRows = [];
+          return;
+        }
+        slotRows = data ?? [];
+      }
+
+      // Rolled up per gate across the whole range - the per-day rows the
+      // RPC returns are the input, but "which gate is under pressure" is
+      // the question, and one row per gate answers it directly.
+      function gateTotals() {
+        const byGate = new Map();
+        for (const r of gateRows) {
+          const cur = byGate.get(r.gate) ?? {
+            gate: r.gate,
+            trips: 0,
+            cancelled: 0,
+            capacity: 0,
+            bays: Number(r.bays_at_gate),
+            days: new Set(),
+          };
+          cur.trips += Number(r.trips);
+          cur.cancelled += Number(r.cancelled);
+          cur.capacity += Number(r.slot_capacity);
+          cur.days.add(r.booking_date);
+          byGate.set(r.gate, cur);
+        }
+        return [...byGate.values()].sort((a, b) => b.trips - a.trips);
+      }
+
+      function barHtml(pct) {
+        const cls = pct >= 90 ? " is-full" : pct >= 60 ? " is-high" : "";
+        return `
+          <div class="util-bar-wrap">
+            <div class="util-bar">
+              <div class="util-bar-fill${cls}" style="width:${Math.min(pct, 100)}%"></div>
+            </div>
+            <span class="util-pct">${pct}%</span>
+          </div>`;
+      }
+
+      function renderByGate() {
+        const host = document.getElementById("by-gate");
+        const totals = gateTotals();
+
+        if (totals.length === 0) {
+          host.innerHTML = `<p class="empty">No approved trips in this range.</p>`;
+          return;
+        }
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Gate</th><th>Bays</th><th>Approved trips</th>
+                  <th>Cancelled</th><th>Avg trips / day</th><th>Slot occupancy</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${totals
+                  .map((t) => {
+                    const pct =
+                      t.capacity > 0 ? Math.round((t.trips / t.capacity) * 1000) / 10 : 0;
+                    const perDay = t.days.size
+                      ? Math.round((t.trips / t.days.size) * 10) / 10
+                      : 0;
+                    return `
+                  <tr>
+                    <td data-label="Gate">${escapeHtml(t.gate)}</td>
+                    <td data-label="Bays">${t.bays}</td>
+                    <td data-label="Approved trips">${t.trips}</td>
+                    <td data-label="Cancelled">${t.cancelled}</td>
+                    <td data-label="Avg trips / day">${perDay}</td>
+                    <td data-label="Slot occupancy">${barHtml(pct)}</td>
+                  </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function renderBySlot() {
+        const host = document.getElementById("by-slot");
+        if (slotRows.length === 0) {
+          host.innerHTML = `<p class="empty">No approved trips in this range.</p>`;
+          return;
+        }
+
+        // Grouped by hour rather than by 15-minute slot - 96 rows of
+        // mostly-similar numbers doesn't answer "when are we busy".
+        const byHour = new Map();
+        for (const r of slotRows) {
+          const hour = Math.floor(r.slot / 4);
+          byHour.set(hour, (byHour.get(hour) ?? 0) + 1);
+        }
+        const peak = Math.max(...byHour.values());
+        const hours = [...byHour.entries()].sort((a, b) => a[0] - b[0]);
+
+        host.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Hour</th><th>Approved trips</th><th>Relative volume</th></tr>
+              </thead>
+              <tbody>
+                ${hours
+                  .map(
+                    ([hour, count]) => `
+                  <tr>
+                    <td data-label="Hour">${escapeHtml(formatSlotStart(hour * 4))}</td>
+                    <td data-label="Approved trips">${count}</td>
+                    <td data-label="Relative volume">${barHtml(
+                      Math.round((count / peak) * 1000) / 10
+                    )}</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      // Approved vehicles whose `route` isn't one of the app's canonical
+      // routes (free text left over from the masterlist import, or null).
+      // They can never be picked for a booking and nothing in the
+      // operator's UI explains why - found in the #86 test pass.
+      async function loadUnlinked() {
+        const host = document.getElementById("unlinked");
+        const { data, error } = await supabase.rpc("vehicles_with_unlinked_route");
+        if (error) {
+          host.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+          return;
+        }
 
         const rows = data ?? [];
-        const trips = rows.reduce((n, r) => n + Number(r.trips), 0);
-        const cancelled = rows.reduce((n, r) => n + Number(r.cancelled), 0);
-        const capacity = rows.reduce((n, r) => n + Number(r.slot_capacity), 0);
-        const pct = capacity > 0 ? Math.round((trips / capacity) * 1000) / 10 : 0;
+        if (rows.length === 0) {
+          document.getElementById("unlinked-wrap").classList.add("hidden");
+          host.innerHTML = "";
+          return;
+        }
 
-        document.getElementById("utilization-line").innerHTML = `
-          <a class="util-line" href="utilization.html">
-            Last 30 days: <strong>${trips}</strong> trips &middot;
-            <strong>${pct}%</strong> slot occupancy &middot;
-            <strong>${cancelled}</strong> cancelled after approval &rarr;
-          </a>`;
+        document.getElementById("unlinked-wrap").classList.remove("hidden");
+        host.innerHTML = `
+          <p class="hint">
+            ${
+              rows.length === 1
+                ? "1 approved vehicle can't be used for any booking, because the route recorded against it isn't one of the terminal's routes. Fix its route on"
+                : `${rows.length} approved vehicles can't be used for any booking, because the routes recorded against them aren't the terminal's routes. Fix their routes on`
+            }
+            <a href="vehicles-database.html">Vehicles</a> to make
+            ${rows.length === 1 ? "it" : "them"} bookable.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Operator</th><th>Plate No.</th><th>Route on file</th></tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map(
+                    (v) => `
+                  <tr>
+                    <td data-label="Operator">${escapeHtml(
+                      v.operator_name || v.username
+                    )}</td>
+                    <td data-label="Plate No.">${escapeHtml(v.plate_no)}</td>
+                    <td data-label="Route on file">${
+                      v.route
+                        ? escapeHtml(v.route)
+                        : `<span class="subtle">Not set</span>`
+                    }</td>
+                  </tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function exportCsv() {
+        const rows = gateTotals().map((t) => [
+          t.gate,
+          t.bays,
+          t.trips,
+          t.cancelled,
+          t.days.size ? Math.round((t.trips / t.days.size) * 10) / 10 : 0,
+          t.capacity > 0 ? Math.round((t.trips / t.capacity) * 1000) / 10 : 0,
+        ]);
+        downloadCsv(
+          `utilization-${fromInput.value}-to-${toInput.value}.csv`,
+          ["Gate", "Bays", "Approved trips", "Cancelled", "Avg trips / day", "Slot occupancy %"],
+          rows
+        );
       }
 
       function renderLockout(pendingBookings) {

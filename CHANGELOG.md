@@ -3995,6 +3995,33 @@ menu, no console errors from the change.
 
 ---
 
+### 106. Utilization moved into the staff Overview, which is now the dashboard (9 Oct)
+
+The whole Utilization page now lives on the staff Overview, below the queue
+tiles and the lockout list, so Overview is the one place for dashboard-style
+content:
+
+- A date range (default last 30 days) with Apply and Export CSV (under "...").
+- Headline tiles for the range: Approved trips, Slot occupancy, Cancelled
+  after approval, Days with activity.
+- By gate table with a slot-occupancy bar per gate; Busiest times by hour.
+- **Vehicles blocked by an unlinked route** worklist, shown only when there is
+  something to fix (the "Every approved vehicle has a bookable route" empty
+  state is no longer a card).
+
+The code was lifted from utilization.html unchanged apart from element ids
+that stayed distinct and the added tile row; it replaces the one-line "Last 30
+days" summary from #105. `utilization.html` is now a redirect to
+`overview.html#utilization` (old bookmarks keep working) and the Utilization
+sidebar entry is gone.
+
+Verified in the browser as staff: the redirect lands on the section; default
+range shows 44 trips / 5 active days with 24 vehicles on the unlinked-route
+list; applying 12-18 Oct shows 181 approved, 1 cancelled after approval, 7
+days, and Gate 4: 104 trips on 6 bays - matching the demo data.
+
+---
+
 ## What the app does now
 
 
