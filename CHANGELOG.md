@@ -4037,6 +4037,26 @@ cards spill (53 titles truncate with an ellipsis).
 
 ---
 
+### 108. Fixed: every page's content column was collapsing to its content width (9 Oct)
+
+Reported on Operator profiles ("it shows 2 columns only", #107): the whole page
+content sat in a ~550px strip in the middle of a 1700px screen, so the card grid
+could only fit two across. Root cause was the sidebar shell from #91:
+`.app-content` is a column flexbox, and a flex item with `margin: 0 auto` (which
+`.wrap` has) does not stretch - it shrinks to its content. So `.wrap`'s 1300px
+max-width never came into play; every page was only as wide as whatever it held.
+The #107 breakpoints were correct but had nothing to work with.
+
+Fix: `.app-content > .wrap { width: 100% }` - fill the column, still capped by
+`.wrap`'s max-width (and the narrow pages' 860px). This widens every page that
+had been shrinking: tables, Approvals, Schedule, Overview.
+
+Verified with the viewport emulated: 2000px wide -> content column 1300px, 5 card
+columns; 1440px wide -> grid 1131px, 5 columns; Bays stays at its 860px cap;
+Approvals now fills 1191px.
+
+---
+
 ## What the app does now
 
 

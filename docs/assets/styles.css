@@ -2990,3 +2990,12 @@ td.row-actions-cell {
   padding: 12px 14px;
   gap: 10px;
 }
+
+/* .app-content is a column flexbox, and a flex item with `margin: 0 auto`
+   shrinks to its content instead of stretching - so every page's .wrap was
+   collapsing to however wide its content happened to be (visible on Operator
+   profiles as a ~550px strip with two cards across). Fill the column; the
+   max-width on .wrap still caps it. */
+.app-content > .wrap {
+  width: 100%;
+}
